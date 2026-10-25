@@ -10,7 +10,8 @@ backend/
     store.py, db.py  SQLite store, pipeline steps, search (FTS5), tags
     analysis.py      frames + transcript + context -> Claude (structured output) -> analysis,
                      categories, summary, description, tags, video covers
-    aicoin.py        the server wallet: mints its own short-lived tokens for the aicoin proxy
+    llm.py           Claude through the Anthropic API (key, budget, caching) and faster-whisper speech
+    aicoin.py        an alias of llm.py, kept for the monitor's imports
     compose.py       what a post says; X threads within 280 weighted characters
     xposter.py       X API v2 (OAuth 1.0a), chunked media upload
     fbposter.py      Facebook through a headless browser with the owner's session
@@ -124,7 +125,7 @@ ee delete <id>... | --tests   # remove items (--tests: the ig_test_* fixtures)
 
 ## Analysis and cost
 
-Per item, Claude (`claude-sonnet-5-5` through the aicoin proxy, effort `medium`, structured JSON
+Per item, Claude (`claude-sonnet-5-5` through the Anthropic API, effort `medium`, structured JSON
 output) receives every image (1568 px), frames across every video (one per 3 s, 4-16 frames,
 768 px, each labelled with its time), the speech transcript (OpenAI `whisper-1` through the proxy,
 timed segments), all metadata, the category taxonomy, the nearest 30 analyzed items, people the
@@ -143,7 +144,7 @@ transcription runs on the box for free. Photo post ≈ 3 coins, carousel ≈ 4, 
 accounts toward the upper end, long videos a little more since frames are capped at 16).
 
 **Pacing:** 5-20 s of random pause between analyses. Proxy 429s and 5xx responses retry with growing
-waits; an empty wallet waits an hour.
+waits; without a usable key or budget, every lane waits and retries each minute.
 
 **Cost guard:** the worker analyzes at most `analysis.daily_cap` items a day (default **20**).
 To work through an approved backlog: `ee settings analysis.daily_cap 1000`. `ee estimate` shows
@@ -253,7 +254,7 @@ That profile lives in `/var/lib/earth-empire/browser/<name>/`. The Facebook post
 | `earth-empire/target` | `{"username"}` of the owner's account Earth Empire publishes | owner |
 | `earth-empire/x` | `{"api_key","api_secret","access_token","access_secret"}` | owner |
 | `earth-empire/facebook-session` | Playwright storageState JSON | owner |
-| `earth-empire/claude` | `{"proxy_url","model","wallet_address","wallet_private_key"}` | `ee wallet init` on the box |
+| `earth-empire/claude` | `{"anthropic_api_key", "model"?}` (older wallet fields are ignored) | owner |
 
 ```sh
 aws secretsmanager put-secret-value --secret-id earth-empire/instagram \
@@ -277,7 +278,7 @@ aws secretsmanager put-secret-value --secret-id earth-empire/x \
 | CloudFront (within the always-free 1 TB / 10 M requests) | 0 |
 | **AWS total** | **≈ $38** |
 
-Plus usage: Claude via aicoin ≈ $0.055 per analyzed item, X ≈ $0.04 per posted item. `t4g`
+Plus usage: Claude ≈ $0.025 per analyzed item (Anthropic API), X ≈ $0.04 per posted item. `t4g`
 unlimited mode bills $0.04 per vCPU-hour of sustained CPU above the 20% baseline (ffmpeg, Chromium
 bursts are short). A 1-year Savings Plan would cut EC2 by ~35%.
 

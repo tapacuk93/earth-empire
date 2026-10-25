@@ -281,7 +281,8 @@ owner adds), `followed` (accounts tapacuk93 follows), `reposted_author` / `repos
 Instagram reposts and their authors), `recommended` (what a platform suggests next to a seed;
 `via` names the seed: a hit id or a backend item id, at most `rec.max_hops` hops away) and `mirror`
 (the owner's own video posts, scanned as ground truth; left out of `/v1/monitor/hits` unless
-`source_kind=mirror` is asked for). The monitor only watches: it never likes, follows, comments or
+`source_kind=mirror` is asked for). The monitor makes no Instagram requests of its own: its Instagram
+data is what the collector ingested into the backend. The monitor only watches: it never likes, follows, comments or
 messages on any platform.
 
 ```jsonc

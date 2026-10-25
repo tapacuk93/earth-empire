@@ -175,6 +175,7 @@ def test_expand_instagram_seed_with_fake_browser(monkeypatch):
             return [], None
 
     c().execute("UPDATE videos SET state='done' WHERE source_kind='reposted'")
+    monkeypatch.setattr(worker, "INSTAGRAM_DIRECT", True)   # the later stage; off on the box
     monkeypatch.setattr(instagram, "Instagram", FakeIG)
     monkeypatch.setattr(instagram, "session_exists", lambda: True)
     assert worker.expand_one(c()) == 1
@@ -290,3 +291,19 @@ def test_telegram_api_unblocks_large_videos(monkeypatch, tmp_path):
     v = c().execute("SELECT * FROM videos WHERE id=?", (vids[0]["id"],)).fetchone()
     worker.download(c(), v, tmp_path)
     assert got["post"] == vids[0]["extra"]["post"]
+
+
+def test_no_instagram_requests_by_default(monkeypatch):
+    from eemonitor.platforms import instagram
+
+    def boom(*a, **k):
+        raise AssertionError("the monitor must not open Instagram")
+    monkeypatch.setattr(instagram, "Instagram", boom)
+    monkeypatch.setattr(instagram, "session_exists", lambda: True)
+    assert worker.INSTAGRAM_DIRECT is False
+    c().execute("UPDATE videos SET expanded=0 WHERE platform='instagram'")
+    assert worker.expand_one(c()) == 0
+    v = c().execute("SELECT * FROM videos WHERE id='ig:999'").fetchone()
+    import pytest
+    with pytest.raises(worker.youtube.Blocked):
+        worker.download(c(), v, Path(TMP))

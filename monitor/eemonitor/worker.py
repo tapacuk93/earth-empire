@@ -25,6 +25,10 @@ MEDIA_BUCKET = os.environ.get("EE_MEDIA_BUCKET", "earth-empire-media")
 MEDIA_BASE = os.environ.get("EE_MEDIA_BASE_URL", "https://media.empire.earth").rstrip("/")
 YTDLP = os.environ.get("EE_YTDLP", str(Path(os.sys.executable).parent / "yt-dlp"))
 MAIN_KINDS = ("official", "followed", "reposted_author", "reposted")
+# The monitor never calls Instagram itself: Instagram data comes only from what the collector ingested
+# into the backend (items, reposts; the following list once the collector gathers it). The browser code
+# in platforms/instagram.py is kept for a later stage, behind this switch.
+INSTAGRAM_DIRECT = os.environ.get("EE_MONITOR_INSTAGRAM_DIRECT") == "1"
 BACKEND_DB = os.environ.get("EE_BACKEND_DB", "/var/lib/earth-empire/backend/earth-empire.sqlite3")
 
 
@@ -275,7 +279,10 @@ def discover(c, browsers: bool = True) -> int:
     _last_browser = time.time()
     if db.setting(c, "facebook.enabled") == "1" and not db.stopped(c, "facebook") and due_accounts(c, "facebook", 1):
         n += browser_round(c, "facebook")
-    if db.setting(c, "instagram.enabled") == "1" and not db.stopped(c, "instagram") and instagram.session_exists():
+    # Instagram: the monitor makes no requests of its own (the collector's young account is rate-limited);
+    # it reads only what the collector ingested into the backend (repost_seeds). INSTAGRAM_DIRECT stays off.
+    if INSTAGRAM_DIRECT and db.setting(c, "instagram.enabled") == "1" and not db.stopped(c, "instagram") \
+            and instagram.session_exists():
         if due_accounts(c, "instagram", 1) or not db.setting(c, "instagram.following_synced"):
             n += browser_round(c, "instagram")
     if db.setting(c, "tiktok.enabled") == "1" and not db.stopped(c, "tiktok") and tiktok.session_exists() \
@@ -414,7 +421,11 @@ def download(c, v, work: Path) -> Path:
         url = telegram.refresh_media_url(c, {**dict(v), "extra": extra}) or url
         if not url and extra.get("post"):
             return telegram_api.download(c, extra["post"], work / "media.mp4")
-    if platform == "instagram" and url and not url.startswith(MEDIA_BASE) and not instagram.media_url_fresh(dict(v)):
+    if platform == "instagram" and url and not url.startswith(MEDIA_BASE):
+        if not INSTAGRAM_DIRECT:
+            raise youtube.Blocked("Instagram media is read only from the collector's copies on the media host")
+    if INSTAGRAM_DIRECT and platform == "instagram" and url and not url.startswith(MEDIA_BASE) \
+            and not instagram.media_url_fresh(dict(v)):
         with instagram.Instagram(c) as ig:
             fresh = ig.media(extra.get("pk"))
             url = (fresh or {}).get("media_url") or url
@@ -675,17 +686,17 @@ def expand_one(c) -> int:
     if db.used(c, "rec.expansions") >= db.fsetting(c, "rec.daily_expansions"):
         return 0
     max_hops = int(db.fsetting(c, "rec.max_hops"))
-    seed = c.execute("""SELECT v.*, NULL AS hit_id, NULL AS conf FROM videos v WHERE v.source_kind='reposted' AND v.expanded=0 AND v.state='done'
+    seed = None if not INSTAGRAM_DIRECT else c.execute("""SELECT v.*, NULL AS hit_id, NULL AS conf FROM videos v WHERE v.source_kind='reposted' AND v.expanded=0 AND v.state='done'
                         AND v.platform IN ('instagram','facebook','tiktok') ORDER BY v.discovered_at LIMIT 1""").fetchone()
     if not seed:
         seed = c.execute("""SELECT v.*, h.id AS hit_id, h.confidence AS conf FROM hits h JOIN videos v ON v.id=h.video_id
                             WHERE v.expanded=0 AND v.hop < ? AND h.confidence >= ? AND v.platform IN ('instagram','facebook','tiktok')
-                            ORDER BY h.confidence DESC LIMIT 1""",
-                         (max_hops, db.fsetting(c, "rec.min_seed_confidence"))).fetchone()
+                            AND (v.platform != 'instagram' OR ?) ORDER BY h.confidence DESC LIMIT 1""",
+                         (max_hops, db.fsetting(c, "rec.min_seed_confidence"), int(INSTAGRAM_DIRECT))).fetchone()
     if not seed:
         return 0
     platform = seed["platform"]
-    if db.stopped(c, platform) or (platform == "instagram" and not instagram.session_exists()) \
+    if db.stopped(c, platform) or (platform == "instagram" and not (INSTAGRAM_DIRECT and instagram.session_exists())) \
             or (platform == "tiktok" and not tiktok.session_exists()):
         return 0
     extra = json.loads(seed["extra"] or "{}")

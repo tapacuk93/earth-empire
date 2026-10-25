@@ -84,27 +84,9 @@ def require_admin_or_ingest(request: Request):
 # ------------------------------------------------------------------ public
 @app.get("/v1/health")
 def health():
-    c = conn()
-    last = c.execute("SELECT finished_at, ok, received_at FROM runs ORDER BY id DESC LIMIT 1").fetchone()
-    last_ok = c.execute("SELECT received_at FROM runs WHERE ok=1 ORDER BY id DESC LIMIT 1").fetchone()
-    steps = {r["step"] + "." + r["state"]: r["n"] for r in
-             c.execute("SELECT step, state, COUNT(*) n FROM steps GROUP BY step, state")}
-    items = c.execute("SELECT COUNT(*) n, SUM(published_at IS NOT NULL) p FROM items").fetchone()
-    stale = None
-    if last_ok:
-        from datetime import datetime, timezone
-        age = (datetime.now(timezone.utc) - datetime.strptime(last_ok["received_at"], "%Y-%m-%dT%H:%M:%SZ")
-               .replace(tzinfo=timezone.utc)).total_seconds()
-        stale = age > 3 * 3600
-    return {
-        "ok": True,
-        "uptime_s": int(time.time() - STARTED),
-        "items": items["n"], "published": items["p"] or 0,
-        "collector": {"last_run": dict(last) if last else None,
-                      "last_ok_at": last_ok["received_at"] if last_ok else None,
-                      "stale": stale},
-        "pipeline": steps,
-    }
+    """Public and minimal: is the API up. Everything else is in GET /v1/status (owner only)."""
+    conn().execute("SELECT 1").fetchone()
+    return {"ok": True}
 
 
 @app.get("/v1/profile")
@@ -279,10 +261,10 @@ async def ingest_run(request: Request):
 
 
 # ------------------------------------------------------------------ admin
-@app.get("/v1/status")
+@app.get("/v1/status", dependencies=[Depends(require_admin)])
 def status():
     resp = JSONResponse(status_mod.build(conn()))
-    resp.headers["Cache-Control"] = "public, max-age=5"
+    resp.headers["Cache-Control"] = "private, no-store"
     return resp
 
 

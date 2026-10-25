@@ -159,6 +159,23 @@ Resources:
             Condition: {StringEquals: {"AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}"}}
 
   # ---------------------------------------------------------------- Media
+  MediaGuard:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: earth-empire-media-guard
+      AutoPublish: true
+      FunctionConfig: {Comment: "monitor media is private until published (monitor/public/)", Runtime: cloudfront-js-2.0}
+      FunctionCode: |
+        function handler(event) {
+          var u = event.request.uri;
+          // Unpublished monitor clips and frames never leave S3 through the CDN; the owner gets
+          // presigned URLs, and publishing copies a clip to monitor/public/ (CONTRACT.md "Monitor").
+          if (u.indexOf('/monitor/') === 0 && u.indexOf('/monitor/public/') !== 0) {
+            return {statusCode: 403, statusDescription: 'Forbidden'};
+          }
+          return event.request;
+        }
+
   MediaDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -184,6 +201,8 @@ Resources:
           Compress: false
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6          # CachingOptimized
           ResponseHeadersPolicyId: 60669652-455b-4ae9-85a4-c4c02393f86c # SimpleCORS
+          FunctionAssociations:
+            - {EventType: viewer-request, FunctionARN: !GetAtt MediaGuard.FunctionMetadata.FunctionARN}
       Tags: [{Key: project, Value: earth-empire}]
 
   MediaBucketPolicy:

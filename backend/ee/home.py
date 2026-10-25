@@ -64,6 +64,13 @@ def dedicated_highlights(c) -> set[str]:
         finally:
             m.close()
     sizes = {r["id"]: len(json.loads(r["item_ids"] or "[]")) for r in c.execute("SELECT id, item_ids FROM highlights")}
+    counted: dict[str, int] = {}   # the collector may name highlights only on the items themselves
+    for (d,) in c.execute("SELECT data FROM items"):
+        for h in json.loads(d).get("highlights") or []:
+            if isinstance(h, dict) and h.get("id"):
+                counted[h["id"]] = counted.get(h["id"], 0) + 1
+    for h, n in counted.items():
+        sizes[h] = max(sizes.get(h, 0), n)
     total = sum(sizes.values()) or 1
     return {h for h, n in sizes.items() if n <= 30 and n < 0.25 * total}
 

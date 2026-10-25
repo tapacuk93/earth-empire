@@ -131,10 +131,12 @@ nothing real at all over music; use them with care.
 existing fits and it would plausibly apply to other items of this account; at most 2 new ones. \
 Slugs are lowercase-ascii-with-hyphens, broad topics (travel, food, family, music...), not \
 one-off details. 1 to 4 categories per item.
-- summary: one plain sentence. description: 2-5 sentences written for the public page and \
-social posts - who, what, when, where and context, in the caption's language when the caption \
-is not English, otherwise English. For a repost, describe the original and credit its author. \
-Never invent names, never speculate about private matters.
+- summary: one plain sentence. description: 2-4 clear, complete sentences written for the \
+public page and social posts - who, what, where and context, in the caption's language when the \
+caption is not English, otherwise English. The date, the highlight names and the original caption \
+are always shown next to it, so do not repeat them or quote the caption. For a repost, describe \
+the original and credit its author. Never invent names, never speculate about private matters. \
+Proofread it: no fragments, no stray punctuation.
 Answer with the JSON object the response format asks for."""
 
 APPEARS = {"type": "array", "items": {"type": "object", "properties": {
@@ -176,12 +178,12 @@ TOOL = {
             "new_categories": {"type": "array", "maxItems": MAX_NEW_CATEGORIES, "items": {"type": "object", "properties": {
                 "slug": {"type": "string"}, "name": {"type": "string"}, "description": {"type": "string"}},
                 "required": ["slug", "name", "description"]}},
+            "summary": {"type": "string"},
+            "description": {"type": "string"},
             "covers": {"type": "array", "description": "For each video: the time of the sampled frame that "
                        "looks best as its cover - sharp, well lit, representative of the video, not blank, "
                        "blurred or mid-transition.", "items": {"type": "object", "properties": {
                            "media": {"type": "integer"}, "at": {"type": "number"}}, "required": ["media", "at"]}},
-            "summary": {"type": "string"},
-            "description": {"type": "string"},
         },
         "required": ["people", "what", "when", "where", "mood", "language", "context", "keywords",
                      "categories", "summary", "description"],

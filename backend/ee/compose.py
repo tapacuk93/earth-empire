@@ -135,26 +135,29 @@ def _split(text: str, limit: int) -> list[str]:
     return out
 
 
+def _units(text: str) -> list[str]:
+    return [u.strip() for u in re.split(r"(?<=[.!?…])\s+", text) if u.strip()]
+
+
 def x_thread(post: Post, limit: int = X_LIMIT) -> list[dict]:
-    """[{"text", "media": [indexes into post.media]}]: the first tweet carries the start."""
-    blocks = [post.header + ("\n" + post.credit if post.credit else ""), post.description,
-              ("“" + post.caption + "”") if post.caption else "", post.hashtags]
-    blocks = [b for b in blocks if b]
-    budget = limit - 6   # room for " (n/m)"
+    """[{"text", "media": [indexes into post.media]}]. Sentences are packed as tightly as the
+    limit allows (every tweet costs money); paragraphs keep a blank line between them."""
+    paragraphs = [[post.header + ("\n" + post.credit if post.credit else "")], _units(post.description),
+                  _units("“" + post.caption + "”") if post.caption else [], [post.hashtags] if post.hashtags else []]
+    budget = limit - 8   # room for " (nn/nn)"
     tweets: list[str] = []
     cur = ""
-    for b in blocks:
-        cand = (cur + "\n\n" + b) if cur else b
-        if x_len(cand) <= budget:
-            cur = cand
-            continue
-        # Does the beginning of the block fit after cur?
-        if cur:
-            tweets.append(cur)
-            cur = ""
-        pieces = _split(b, budget)
-        tweets += pieces[:-1]
-        cur = pieces[-1] if pieces else ""
+    for para in paragraphs:
+        for k, unit in enumerate(para):
+            sep = "" if not cur else (" " if k else "\n\n")
+            if x_len(cur + sep + unit) <= budget:
+                cur = cur + sep + unit
+                continue
+            if cur:
+                tweets.append(cur)
+            pieces = [unit] if x_len(unit) <= budget else _split_words(unit, budget)
+            tweets += pieces[:-1]
+            cur = pieces[-1]
     if cur:
         tweets.append(cur)
     if len(tweets) > 1:

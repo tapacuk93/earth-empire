@@ -148,6 +148,32 @@ class AlignTest(unittest.TestCase):
         self.assertTrue(np.allclose(out[:5], old, atol=1e-6))
 
 
+class HitLevelTest(unittest.TestCase):
+    def test_hits_take_the_monitors_level(self):
+        import sqlite3 as sq
+        from ee import home
+        tmp = tempfile.TemporaryDirectory()
+        mon = Path(tmp.name) / "monitor.sqlite3"
+        m = sq.connect(mon)
+        m.execute("CREATE TABLE hits (id TEXT, data TEXT, published_at TEXT, section TEXT, level INTEGER, level_by TEXT)")
+        m.execute("INSERT INTO hits VALUES ('h1', '{}', '2026-10-25T20:00:00Z', NULL, 1, 'claude')")
+        m.execute("INSERT INTO hits VALUES ('h2', '{}', '2026-10-25T20:00:00Z', NULL, 4, 'owner')")
+        m.execute("INSERT INTO hits VALUES ('h3', '{}', '2026-10-25T20:00:00Z', 'dedicated', NULL, NULL)")
+        m.commit(); m.close()
+        old, home.MONITOR_DB = home.MONITOR_DB, mon
+        try:
+            c = db.connect(Path(tmp.name) / "b.sqlite3")
+            mem = home.members(c)
+            self.assertEqual((mem["hit:h1"]["level"], mem["hit:h1"]["curation"]), (1, 1.0))
+            self.assertEqual(mem["hit:h2"]["level"], 4)
+            self.assertIn("owner", mem["hit:h2"]["curation_reason"])
+            self.assertEqual(mem["hit:h3"]["level"], 3)   # not rated yet
+            c.close()
+        finally:
+            home.MONITOR_DB = old
+            tmp.cleanup()
+
+
 class StatusTest(unittest.TestCase):
     def test_scrub_removes_secrets_paths_and_queries(self):
         from ee import status

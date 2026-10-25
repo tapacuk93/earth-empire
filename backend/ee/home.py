@@ -251,8 +251,6 @@ def members(c) -> dict[str, dict]:
                                  "curation_reason": ("level L%d set by the owner" % lvl) if h.get("level_by") == "owner"
                                  else "AI-chosen level L%d: %s" % (lvl, (d.get("level_reason") or "rated by the monitor")[:120]),
                                  "original_at": (d.get("video") or {}).get("posted_at") or h["published_at"],
-                                 "curation_reason": "detected, published in the top section" if top_hit
-                                 else "detected, published in the bottom section",
                                  "taken_at": (d.get("video") or {}).get("posted_at") or h["published_at"],
                                  "importance": d.get("importance") if isinstance(d.get("importance"), (int, float))
                                  else None, "label": (d.get("source") or {}).get("name") or "Detected"}

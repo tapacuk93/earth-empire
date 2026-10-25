@@ -222,3 +222,13 @@ def test_profile_page_instead_of_web_profile_info(env):
     Collector(ig, backend, state, dl, "example.owner").run("incremental")
     # the profile page's posts were all known: no REST feed request at all
     assert not any(c.startswith("feed:") for c in ig.calls), ig.calls
+
+
+def test_sample_newest_video_only(env):
+    store, backend, state = env
+    ig = BrowsingIG()
+    Collector(ig, backend, state, FakeDL(), "example.owner").run("sample")
+    # the profile page shows a photo and a carousel (no video item), so it reads one Reels page
+    assert store.profile["username"] == "example.owner"
+    assert list(store.items) == ["ig_3300000000000000003"]   # the newest reel
+    assert "clips" in ig.calls and not any(c.startswith(("feed:", "reels:", "tray")) for c in ig.calls)

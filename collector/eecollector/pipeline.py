@@ -37,6 +37,7 @@ class Collector:
         self._beat_at = 0.0
         self._beat_what = ""
         self.harvested: list[dict] = []
+        self.recent_new: int | None = None
         self.uid: str | None = None
         self.counts: dict[str, int] = {}
         self.pending: list[dict] = []
@@ -74,10 +75,13 @@ class Collector:
     # ------------------------------------------------------------ run
 
     def run(self, mode: str) -> dict:
-        assert mode in ("full", "incremental")
+        assert mode in ("full", "incremental", "sample")
         self.mode = mode
+        if mode == "sample":
+            return self.run_sample()
         log.info("run %s: target set, state has %d items", mode, self.state.count_items())
         self.do_profile()
+        self.do_recent()        # newest first: what the profile page shows, before anything else
         self.do_stories()
         self.do_highlights(full=(mode == "full"))
         self.do_feed(full=(mode == "full"))
@@ -96,6 +100,26 @@ class Collector:
             self.incomplete = True
             return True
         return False
+
+    def run_sample(self) -> dict:
+        """The gentlest useful run: the profile and the newest video only (a page view, at most
+        one more request)."""
+        log.info("run sample: the profile and the newest video")
+        self.do_profile()
+        videos = [m for m in self.harvested if parse.is_video(m) or m.get("media_type") == 2]
+        if not videos:
+            log.info("sample: no video on the profile page; reading the first Reels page")
+            media, _ = parse.clips_page(self.ig.clips(self.uid, None))
+            videos = [m for m in media if parse.is_video(m)]
+        if not videos:
+            log.warning("sample: no video found")
+            return self.counts
+        newest = max(videos, key=lambda m: m.get("taken_at") or 0)
+        self.beat("posts 0/1 (downloads)", 0.0, force=True)
+        self.take(newest)
+        self.flush()
+        log.info("sample: sent ig_%s (%s, %s)", parse.media_pk(newest), parse.kind_of(newest), parse.iso(newest.get("taken_at")))
+        return self.counts
 
     def maybe_stories(self) -> None:
         if time.time() - self.last_stories > STORY_EVERY:
@@ -241,17 +265,24 @@ class Collector:
 
     # ------------------------------------------------------------ posts and reels
 
+    def do_recent(self) -> None:
+        """The posts and reels the profile page itself loaded, newest first, with no extra request."""
+        self.recent_new = None
+        if not self.harvested:
+            return
+        ordered = sorted(self.harvested, key=lambda m: m.get("taken_at") or 0, reverse=True)
+        self.recent_new = sum(not self.state.has_item(f"ig_{parse.media_pk(m)}") for m in ordered)
+        for m in ordered:
+            self.beat_posts("feed")
+            self.take(m)
+        self.flush()
+        log.info("recent: %d posts from the profile page, %d new", len(ordered), self.recent_new)
+
     def do_feed(self, full: bool) -> None:
-        if not full or self.state.get("backfill.feed.done"):
-            if self.harvested:
-                new = sum(not self.state.has_item(f"ig_{parse.media_pk(m)}") for m in self.harvested)
-                for m in self.harvested:
-                    self.beat_posts("feed")
-                    self.take(m)
-                self.flush()
-                log.info("feed: %d posts from the profile page, %d new", len(self.harvested), new)
-                if new < len(self.harvested):
-                    return  # caught up without another request
+        if (not full or self.state.get("backfill.feed.done")) and self.recent_new is not None \
+                and self.recent_new < len(self.harvested):
+            log.info("feed: caught up from the profile page alone")
+            return
         self._paged("feed", self.ig.feed, parse.feed_page, full)
 
     def do_clips(self, full: bool) -> None:

@@ -56,6 +56,7 @@ tries an automatic login again until someone logs in by hand.
 aws ssm start-session --target <instance id>          # then, on the box:
 ee-collector status                                   # items so far, cursors, login state
 ee-collector incremental                              # one run now (as earth; the wrapper sudoes)
+ee-collector sample                                   # gentlest run: the profile and the newest video only
 sudo systemctl enable --now ee-collector-incremental.timer   # every ~45 min
 sudo systemctl start ee-collector-backfill            # the whole account in one go, resumable
 journalctl -u ee-collector-incremental -u ee-collector-backfill -f

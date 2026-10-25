@@ -30,7 +30,8 @@ EXIT = {"config": 2, "checkpoint": 3, "login": 4, "rate_limit": 5}
 
 
 def setup_logging(s: Settings, mode: str) -> Path | None:
-    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s", "%Y-%m-%dT%H:%M:%S")
+    fmt = logging.Formatter("%(asctime)sZ %(levelname)s %(name)s: %(message)s", "%Y-%m-%dT%H:%M:%S")
+    fmt.converter = time.gmtime  # log times in UTC, like the API
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     h = logging.StreamHandler(sys.stderr)
@@ -62,7 +63,7 @@ def lock(s: Settings):
 
 
 def cmd_run(args, s: Settings, secrets: Secrets) -> int:
-    mode = "full" if args.cmd == "backfill" else "incremental"
+    mode = {"backfill": "full", "sample": "sample"}.get(args.cmd, "incremental")
     budget = float(args.budget) * 60 if args.budget else None
     if mode == "incremental" and not State(s.state_db).get("backfill.done_at"):
         # until the whole account is in, every timer run continues the backfill for a while
@@ -81,7 +82,7 @@ def cmd_run(args, s: Settings, secrets: Secrets) -> int:
     until = State(s.state_db).get("ratelimit.until", 0)
     if time.time() < until and not args.force:
         when = time.strftime("%H:%M UTC", time.gmtime(until))
-        log.info("cooling down after Instagram's 429 until %s; not touching Instagram", when)
+        log.info("cooling down after Instagram's 429 until %s; not touching Instagram (--force overrides)", when)
         try:
             Backend(s.api, secrets.ingest_token()).heartbeat(
                 ok=False, jobs=[], detail=_detail(State(s.state_db), State(s.state_db).get("last_run")),
@@ -101,7 +102,7 @@ def cmd_run(args, s: Settings, secrets: Secrets) -> int:
             raise IGStop("config", "earth-empire/target holds a placeholder; set the archived account's username")
         backend = Backend(s.api, secrets.ingest_token())
         backend.heartbeat(ok=True, jobs=[{"what": "login", "progress": None, "started_at": started}],
-                          detail={"mode": "backfill" if mode == "full" else "incremental"})
+                          detail={"mode": {"full": "backfill"}.get(mode, mode)})
         with IGBrowser(s, creds=secrets.instagram if s.auto_login else None, session_state=secrets.session_state, state=state) as ig:
             try:
                 ig.ensure_session()
@@ -152,7 +153,7 @@ def cmd_run(args, s: Settings, secrets: Secrets) -> int:
                                   "counts": {"mode": mode, **counts}})
             except Exception as e:  # noqa: BLE001
                 log.error("could not record the run: %s", e)
-            done = f"run finished ({'backfill' if mode == 'full' else 'incremental'}): " + \
+            done = f"run finished ({ {'full': 'backfill'}.get(mode, mode) }): " + \
                 ", ".join(f"{k} {v}" for k, v in sorted(last["counts"].items()) if k in ("items", "media_uploaded", "errors"))
             backend.heartbeat(ok=ok, jobs=[], detail=_detail(state, last),
                               event=done if ok else stop_text, kind="run" if ok else "stop",
@@ -277,7 +278,7 @@ def cmd_status(args, s: Settings, secrets: Secrets) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="ee-collector")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("backfill", "incremental"):
+    for name in ("backfill", "incremental", "sample"):
         p = sub.add_parser(name)
         p.add_argument("--target", help="override earth-empire/target (testing)")
         p.add_argument("--limit", type=int, help="stop paging after about this many items (testing)")
@@ -293,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     s = Settings()
     secrets = Secrets(s)
-    return {"backfill": cmd_run, "incremental": cmd_run, "login": cmd_login, "auto-login": cmd_auto_login,
+    return {"backfill": cmd_run, "incremental": cmd_run, "sample": cmd_run, "login": cmd_login, "auto-login": cmd_auto_login,
             "import-session": cmd_import, "status": cmd_status, "heartbeat": cmd_heartbeat}[args.cmd](args, s, secrets)
 
 

@@ -482,6 +482,15 @@ class IGBrowser:
             for _ in range(scrolls):
                 self.page.mouse.wheel(0, random.randint(1500, 2600))
                 self.page.wait_for_timeout(random.randint(2500, 5000))
+            # data the server rendered into the page (preloaded queries) never shows up as a response
+            for text in self.page.evaluate(
+                    """() => [...document.querySelectorAll('script[type="application/json"]')]
+                             .map(s => s.textContent).filter(t => t && t.length > 200)"""):
+                try:
+                    for body in json_documents(text):
+                        self.seen.append({"url": "embedded", "status": 200, "body": body})
+                except ValueError:
+                    pass
         finally:
             self.harvest = False
         rec = os.environ.get("EE_RECORD_DIR")

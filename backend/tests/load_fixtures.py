@@ -32,7 +32,7 @@ def fetch(url: str, dest: Path):
     url, _, frag = url.partition("#t=")
     raw = dest.with_suffix(".src")
     with httpx.stream("GET", url, timeout=300, follow_redirects=True,
-                      headers={"User-Agent": "earth-empire-fixtures/1.0 (test loader)"}) as r:
+                      headers={"User-Agent": "earth-empire-fixtures/1.0 (https://github.com/tapacuk93/earth-empire)"}) as r:
         r.raise_for_status()
         with open(raw, "wb") as f:
             for chunk in r.iter_bytes():

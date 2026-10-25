@@ -125,6 +125,8 @@ store it in `extra`.
   "summary": "one sentence" | null,        // set by the backend
   "importance": 0.6 | null,                // set by the backend: 0-1, how significant the content is;
                                            // judged on content only, never lower for a story or a repost
+  "curation": 0.5 | null, "curation_reason": "…" | null,   // set by the backend: how the owner curated
+                                           // it (see "Home layout"); recomputed as highlights change
   "description": "…" | null,               // set by the backend: a few sentences on who, what, when,
                                            // where and context, written to be published and shown
                                            // by the site and the app; for a repost it covers the original too
@@ -233,20 +235,35 @@ items and published monitor hits only.
   hit's excerpt) with an open-source multilingual sentence model on the box. It places each half
   with a seeded t-SNE, and puts a new tile next to its nearest neighbours without moving the others.
   When a half has doubled, the whole half is placed again, aligned to the old picture.
-- **Size:** recency leads, and importance scales it. The kind of item never changes it.
+- **Curation:** how the owner curated each item, from 0 to 1. The highest rule that applies wins:
+
+  | Weight | When |
+  |---|---|
+  | **1.0** | reposted (in a story or with the Repost feature) **and** saved to a **dedicated** highlight |
+  | **0.5** | a story saved to a **large** (non-dedicated) highlight, the mass story-repost bucket |
+  | **0.5** | the owner's own post, by default (until the owner says otherwise) |
+  | **0.25** | reposted with Instagram's **Repost feature** only (the Reposts tab, `extra.repost_source`), or reposted to a story and never saved |
+  | **1.0 / 0.5** | a published monitor hit in the top / bottom section |
+
+  Items carry it as `curation` and `curation_reason`. It is recomputed as highlight membership
+  and the dedicated set change.
+- **Size** = recency × importance × curation (0.1-1). Recency leads, with a one-year half-life;
+  importance scales it from 0.55 to 1; curation multiplies it. The kind of item never changes it.
+  Time orders (newest first, ties) stay purely by `taken_at`.
 
 Public:
 
 - `GET /v1/layout` → `{"halves": {"top": [Tile], "bottom": [Tile]}, "updated_at"}`, newest first, where
-  `Tile = {"id", "kind": "item" | "hit", "x": 0-1, "y": 0-1, "size": 0.15-1, "label": "<highlight
+  `Tile = {"id", "kind": "item" | "hit", "x": 0-1, "y": 0-1, "size": 0.1-1, "curation": 0-1, "label": "<highlight
   name, source name for a hit, else Reels/Posts/Stories>", "taken_at", "attached_to"?: "<video id>"}`.
   A hit's `id` is its hit id (details in `/v1/published`). **Images are never tiles of their own:**
   an item without video carries `attached_to`, its most similar video (the same half first), sits
   right beside it in that video's half, and is under half its size. Items with a video are laid out
   by similarity as above.
-- `GET /v1/items/{id}/related?limit=20` → `{"related": [{"id", "kind", "half", "score", "item"?: Item}]}`:
-  the most similar from the same half first (about three quarters of `limit`), then the most similar
-  from the other half; equal scores go to the newer item, and an image follows its video. Also takes a
+- `GET /v1/items/{id}/related?limit=20` → `{"related": [{"id", "kind", "half", "score", "rank", "curation",
+  "item"?: Item}]}`: `score` is the similarity, and `rank` = score × (0.5 + 0.5 × curation) orders the
+  list. The same half comes first (about three quarters of `limit`), then the other half; equal
+  ranks go to the newer item, and an image follows its video. Also takes a
   hit id.
 - `GET /v1/tags/graph?max_nodes=300` → `{"nodes": [{"tag", "kinds": ["keyword", …], "count", "level"}],
   "edges": [{"a", "b", "count", "weight"}]}`. `level` 0 holds the 12 broadest tags (by count), 1 the

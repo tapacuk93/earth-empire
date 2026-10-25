@@ -216,6 +216,9 @@ def render_item(c: sqlite3.Connection, row: sqlite3.Row) -> dict:
     d["summary"] = row["summary"]
     d["description"] = row["description"]
     d["importance"] = row["importance"] if "importance" in row.keys() else None
+    if "curation" in row.keys():
+        d["curation"] = row["curation"]
+        d["curation_reason"] = row["curation_reason"]
     d["analysis"] = json.loads(row["analysis"]) if row["analysis"] else None
     d["published_at"] = row["published_at"]
     covers = json.loads(row["covers"] or "{}")

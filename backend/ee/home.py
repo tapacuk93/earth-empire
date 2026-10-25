@@ -161,6 +161,30 @@ def vectors(c, ids=None):
     return out
 
 
+# ------------------------------------------------------------------ curation (CONTRACT.md "Home layout")
+OWN_DEFAULT = 0.5
+
+
+def curation(d: dict, kind: str, hls: list[str], dedicated: set[str]) -> tuple[float, str]:
+    """How the owner curated an item; the highest rule that applies wins."""
+    repost = bool(d.get("repost_of"))
+    tab = (d.get("extra") or {}).get("repost_source") == "reposts tab"
+    in_ded = [h for h in hls if h in dedicated]
+    in_large = [h for h in hls if h not in dedicated]
+    rules = []
+    if repost and in_ded:
+        rules.append((1.0, "reposted and saved to a dedicated highlight"))
+    if kind == "story" and in_large:
+        rules.append((0.5, "story saved to a large highlight"))
+    if not repost:
+        rules.append((OWN_DEFAULT, "the owner's own post (default)"))
+    if repost and tab:
+        rules.append((0.25, "reposted with Instagram's Repost feature only"))
+    if repost and not rules:
+        rules.append((0.25, "reposted to a story, not saved to a highlight"))
+    return max(rules, key=lambda r: r[0])
+
+
 # ------------------------------------------------------------------ members of each half
 def members(c) -> dict[str, dict]:
     """id -> {"half", "kind", "taken_at", "importance", "label"} for every published item and hit."""
@@ -181,14 +205,20 @@ def members(c) -> dict[str, dict]:
                 hl_titles.setdefault(h["id"], h.get("title"))
         top = [h for h in hls if h in ded]
         half = "top" if top else "bottom"
+        cur, why = curation(d, r["kind"], hls, ded)
         label_hl = (top or hls or [None])[0]
         label = hl_titles.get(label_hl) if label_hl else None
         out[r["id"]] = {"half": half, "kind": "item", "taken_at": r["taken_at"], "video": video,
+                        "curation": cur, "curation_reason": why,
                         "importance": r["importance"], "label": label or {"reel": "Reels", "story": "Stories"}.get(
                             r["kind"], "Posts")}
     for h in published_hits():
         d = h["data"]
-        out["hit:" + h["id"]] = {"half": "top" if h["section"] == "dedicated" else "bottom", "kind": "hit", "video": True,
+        top_hit = h["section"] == "dedicated"
+        out["hit:" + h["id"]] = {"half": "top" if top_hit else "bottom", "kind": "hit", "video": True,
+                                 "curation": 1.0 if top_hit else 0.5,
+                                 "curation_reason": "detected, published in the top section" if top_hit
+                                 else "detected, published in the bottom section",
                                  "taken_at": (d.get("video") or {}).get("posted_at") or h["published_at"],
                                  "importance": d.get("importance") if isinstance(d.get("importance"), (int, float))
                                  else None, "label": (d.get("source") or {}).get("name") or "Detected"}
@@ -308,8 +338,8 @@ def attachments(c, mem=None, vec=None) -> dict[str, str]:
     return out
 
 
-def size_of(taken_at: str | None, importance: float | None) -> float:
-    """Recency leads (a year-long half-life), importance scales it: 0.15-1.0."""
+def size_of(taken_at: str | None, importance: float | None, curation: float | None = None) -> float:
+    """recency × importance × curation, 0.1-1.0; recency leads (a year-long half-life)."""
     try:
         age = (datetime.now(timezone.utc) - datetime.strptime(taken_at[:19], "%Y-%m-%dT%H:%M:%S")
                .replace(tzinfo=timezone.utc)).total_seconds() / 86400
@@ -317,7 +347,8 @@ def size_of(taken_at: str | None, importance: float | None) -> float:
         age = 3650
     recency = 0.5 ** (max(age, 0) / RECENCY_HALF_LIFE_DAYS)
     imp = 0.5 if importance is None else importance
-    return round(0.15 + 0.85 * (recency ** 0.7) * (0.55 + 0.45 * imp), 3)
+    cur = OWN_DEFAULT if curation is None else curation
+    return round(0.1 + 0.9 * (recency ** 0.7) * (0.55 + 0.45 * imp) * cur, 3)
 
 
 def layout(c) -> dict:
@@ -331,7 +362,8 @@ def layout(c) -> dict:
             continue
         hid = r["id"]
         t = {"id": hid[4:] if hid.startswith("hit:") else hid, "kind": m["kind"],
-             "x": round(r["x"], 4), "y": round(r["y"], 4), "size": size_of(m["taken_at"], m["importance"]),
+             "x": round(r["x"], 4), "y": round(r["y"], 4),
+             "size": size_of(m["taken_at"], m["importance"], m["curation"]), "curation": m["curation"],
              "label": m["label"], "taken_at": m["taken_at"]}
         tiles[hid] = t
         halves[m["half"]].append(t)
@@ -351,7 +383,8 @@ def layout(c) -> dict:
                 "id": img, "kind": "item", "attached_to": v["id"],
                 "x": round(min(max(v["x"] + rad * math.cos(ang), 0), 1), 4),
                 "y": round(min(max(v["y"] + rad * math.sin(ang), 0), 1), 4),
-                "size": round(max(0.1, v["size"] * 0.45), 3), "label": v["label"], "taken_at": mem[img]["taken_at"]})
+                "size": round(max(0.1, v["size"] * 0.45), 3), "curation": mem[img]["curation"],
+                "label": v["label"], "taken_at": mem[img]["taken_at"]})
     for h in halves.values():
         h.sort(key=lambda t: (t["taken_at"] or "", t["id"]), reverse=True)   # newest first
     return {"halves": halves, "updated_at": setting(c, "home.layout_at") or None}
@@ -372,7 +405,8 @@ def related(c, item_id: str, limit: int = 20) -> list[dict]:
     for i, v in vec.items():
         if i == key:
             continue
-        scored.append((float(v @ me), mem[i]["taken_at"] or "", i))
+        sim = float(v @ me)
+        scored.append((sim * (0.5 + 0.5 * mem[i]["curation"]), mem[i]["taken_at"] or "", i, sim))
     def order(lst):   # most similar first; equal similarity: the newer first
         return sorted(lst, key=lambda s: (-round(s[0], 4), -_ts(s[1])))
     same = order([s for s in scored if mem[s[2]]["half"] == mem[key]["half"]])
@@ -389,7 +423,8 @@ def related(c, item_id: str, limit: int = 20) -> list[dict]:
             pos += 1
         pick.insert(pos + 1, p)
     return [{"id": i[4:] if i.startswith("hit:") else i, "kind": mem[i]["kind"], "half": mem[i]["half"],
-             "score": round(sc, 4)} for sc, _, i in pick]
+             "score": round(sim, 4), "rank": round(sc, 4), "curation": mem[i]["curation"]}
+            for sc, _, i, sim in pick]
 
 
 def _ts(s: str) -> float:
@@ -441,8 +476,23 @@ def tag_graph(c, max_nodes: int = 300, edges_per_node: int = 6) -> dict:
 
 
 # ------------------------------------------------------------------ the worker's step
+def store_curation(c) -> int:
+    """Write each published item's curation, recomputed from highlight membership every refresh."""
+    changed = 0
+    with tx(c):
+        for i, m in members(c).items():
+            if m["kind"] != "item":
+                continue
+            r = c.execute("UPDATE items SET curation=?, curation_reason=? WHERE id=? AND "
+                          "(curation IS NOT ? OR curation_reason IS NOT ?)",
+                          (m["curation"], m["curation_reason"], i, m["curation"], m["curation_reason"]))
+            changed += r.rowcount
+    return changed
+
+
 def refresh(c) -> bool:
-    """Embed what changed and reconcile the layout (cheap when nothing changed)."""
+    """Embed what changed, recompute curation and reconcile the layout (cheap when nothing changed)."""
+    store_curation(c)
     n = update_embeddings(c)
     stats = update_layout(c)
     set_setting(c, "home.layout_at", now())

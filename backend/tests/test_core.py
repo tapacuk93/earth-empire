@@ -97,6 +97,19 @@ class PublishRuleTest(unittest.TestCase):
         self.assertTrue(store.publishable({"media": [vid]})[0])
 
 
+class CurationTest(unittest.TestCase):
+    def test_rules(self):
+        from ee.home import curation
+        rep = {"repost_of": {"author": "a"}}
+        ded, large = {"hl_small"}, "hl_big"
+        self.assertEqual(curation(rep, "story", ["hl_small", large], ded)[0], 1.0)
+        self.assertEqual(curation(rep, "story", [large], ded)[0], 0.5)
+        self.assertEqual(curation({**rep, "extra": {"repost_source": "reposts tab"}}, "reel", [], ded)[0], 0.25)
+        self.assertEqual(curation({}, "reel", [], ded)[0], 0.5)            # own post, the default
+        self.assertEqual(curation({}, "story", [large], ded)[0], 0.5)
+        self.assertEqual(curation(rep, "story", [], ded)[0], 0.25)
+
+
 class StatusTest(unittest.TestCase):
     def test_scrub_removes_secrets_paths_and_queries(self):
         from ee import status

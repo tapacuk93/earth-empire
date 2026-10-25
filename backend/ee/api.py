@@ -153,6 +153,39 @@ def item(item_id: str):
     return store.render_item(c, row)
 
 
+@app.get("/v1/items/{item_id}/related")
+def item_related(item_id: str, limit: int = Query(20, ge=1, le=100)):
+    """Related published items and hits: the same half of Home first, then the other half."""
+    from . import home
+    c = conn()
+    rel = home.related(c, item_id, limit)
+    if not rel and not c.execute("SELECT 1 FROM items WHERE id=? AND published_at IS NOT NULL", (item_id,)).fetchone() \
+            and item_id not in {h["id"] for h in home.published_hits()}:
+        raise HTTPException(404, "no such item")
+    ids = [r["id"] for r in rel if r["kind"] == "item"]
+    rows = {r["id"]: r for r in c.execute(
+        f"SELECT * FROM items WHERE published_at IS NOT NULL AND id IN ({','.join('?' * len(ids))})", ids)} if ids else {}
+    out = []
+    for r in rel:
+        if r["kind"] == "item" and r["id"] in rows:
+            out.append({**r, "item": store.render_item(c, rows[r["id"]])})
+        elif r["kind"] == "hit":
+            out.append(r)   # the hit itself: GET /v1/published
+    return {"related": out}
+
+
+@app.get("/v1/layout")
+def home_layout():
+    from . import home
+    return home.layout(conn())
+
+
+@app.get("/v1/tags/graph")
+def tags_graph(max_nodes: int = Query(300, ge=10, le=1000)):
+    from . import home
+    return home.tag_graph(conn(), max_nodes=max_nodes)
+
+
 @app.get("/v1/highlights")
 def highlights():
     rows = conn().execute("SELECT * FROM highlights ORDER BY position, id").fetchall()

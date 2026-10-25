@@ -72,6 +72,14 @@ CREATE TABLE IF NOT EXISTS costs (           -- every paid call
   input_tokens INTEGER, output_tokens INTEGER, coins REAL, usd REAL, ok INTEGER, note TEXT
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- Home layout: one embedding per published item or hit ("hit:<id>"), and its place in its half.
+CREATE TABLE IF NOT EXISTS embeddings (
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, text_hash TEXT NOT NULL, vec BLOB NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS layout (
+  id TEXT PRIMARY KEY, half TEXT NOT NULL, x REAL NOT NULL, y REAL NOT NULL, placed TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 -- What runs right now (one row per lane or reporting part), for GET /v1/status.
 CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY, component TEXT NOT NULL, what TEXT NOT NULL, item_id TEXT,
@@ -135,6 +143,8 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(items)")}
     if "thumbs" not in cols:   # added 2026-10-25
         conn.execute("ALTER TABLE items ADD COLUMN thumbs TEXT")
+    if "importance" not in cols:   # added 2026-10-25: 0-1, judged by Claude
+        conn.execute("ALTER TABLE items ADD COLUMN importance REAL")
     for k, v in DEFAULT_SETTINGS.items():
         conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)", (k, v))
     return conn

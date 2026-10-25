@@ -1,0 +1,393 @@
+"""The Home screen's data (CONTRACT.md "Home layout"): two zoomable mosaics and a tag graph.
+
+- Halves: `top` holds items from the owner's dedicated highlights (small, distinct ones) and the
+  published monitor hits filed under `dedicated`; `bottom` holds everything else (the big catch-all
+  highlights, items in no highlight) and hits filed under `common`. Which highlights are dedicated
+  is the owner's choice, kept by the monitor (`home.dedicated_highlights`); until it is made,
+  highlights that hold at most 30 items and under a quarter of all highlighted items count as
+  dedicated.
+- Similarity: every published item and hit gets an embedding of its description and analysis from
+  an open-source multilingual sentence model (paraphrase-multilingual-MiniLM-L12-v2 through
+  fastembed/ONNX, on the box, no paid API).
+- Places: a seeded t-SNE per half the first time (and whenever a half has doubled since its last
+  full layout, aligned to the old places by Procrustes so the picture does not jump). In between,
+  a new tile is placed at the similarity-weighted centre of its nearest neighbours and nothing
+  else moves.
+- Size: recency leads, importance scales it; the kind of item never matters.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import math
+import sqlite3
+import threading
+from datetime import datetime, timezone
+from pathlib import Path
+
+from . import config
+from .db import now, set_setting, setting, tx
+from .logs import event
+
+MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+MONITOR_DB = Path("/var/lib/earth-empire/monitor/monitor.sqlite3")
+MODEL_DIR = config.DATA_DIR / "models"
+NEIGHBOURS = 5
+RECENCY_HALF_LIFE_DAYS = 365.0
+
+_model = None
+_model_lock = threading.Lock()
+
+
+# ------------------------------------------------------------------ inputs
+def monitor_conn():
+    if not MONITOR_DB.exists():
+        return None
+    try:
+        return sqlite3.connect(f"file:{MONITOR_DB}?mode=ro", uri=True, timeout=10)
+    except sqlite3.Error:
+        return None
+
+
+def dedicated_highlights(c) -> set[str]:
+    m = monitor_conn()
+    if m:
+        try:
+            r = m.execute("SELECT value FROM settings WHERE key='home.dedicated_highlights'").fetchone()
+            if r and r[0]:
+                ids = json.loads(r[0])
+                if ids:
+                    return set(ids)
+        except (sqlite3.Error, ValueError):
+            pass
+        finally:
+            m.close()
+    sizes = {r["id"]: len(json.loads(r["item_ids"] or "[]")) for r in c.execute("SELECT id, item_ids FROM highlights")}
+    total = sum(sizes.values()) or 1
+    return {h for h, n in sizes.items() if n <= 30 and n < 0.25 * total}
+
+
+def published_hits() -> list[dict]:
+    m = monitor_conn()
+    if not m:
+        return []
+    try:
+        rows = m.execute("SELECT id, data, published_at, section FROM hits WHERE published_at IS NOT NULL").fetchall()
+    except sqlite3.Error:
+        return []
+    finally:
+        m.close()
+    out = []
+    for hid, data, pub, section in rows:
+        try:
+            d = json.loads(data or "{}")
+        except ValueError:
+            d = {}
+        out.append({"id": hid, "data": d, "published_at": pub, "section": section or "common"})
+    return out
+
+
+def item_text(row) -> str:
+    d = json.loads(row["data"])
+    a = json.loads(row["analysis"] or "{}")
+    parts = [row["summary"] or "", row["description"] or "", a.get("what") or "", a.get("context") or "",
+             " ".join(a.get("keywords") or []), " ".join(json.loads(row["categories"] or "[]")),
+             (a.get("where") or {}).get("place") or "", (d.get("caption") or "")[:600]]
+    rep = d.get("repost_of") or {}
+    if isinstance(rep, dict):
+        parts.append((rep.get("caption") or "")[:300])
+    return "\n".join(p for p in parts if p)[:2000]
+
+
+def hit_text(h: dict) -> str:
+    d = h["data"]
+    ex = d.get("excerpt") or {}
+    src = d.get("source") or {}
+    return "\n".join(x for x in [(d.get("video") or {}).get("title") or "", ex.get("en") or ex.get("text") or "",
+                                 src.get("name") or "", d.get("account") or ""] if x)[:2000]
+
+
+# ------------------------------------------------------------------ embeddings
+def model():
+    global _model
+    with _model_lock:
+        if _model is None:
+            from fastembed import TextEmbedding
+            MODEL_DIR.mkdir(parents=True, exist_ok=True)
+            _model = TextEmbedding(model_name=MODEL, cache_dir=str(MODEL_DIR), threads=1)
+        return _model
+
+
+def embed_texts(texts: list[str]):
+    import numpy as np
+    vecs = np.array(list(model().embed(texts, batch_size=16)), dtype=np.float32)
+    vecs /= np.linalg.norm(vecs, axis=1, keepdims=True) + 1e-9
+    return vecs
+
+
+def update_embeddings(c, batch: int = 32) -> int:
+    """Embed published items and hits whose text changed. Returns how many were embedded."""
+    have = {r["id"]: r["text_hash"] for r in c.execute("SELECT id, text_hash FROM embeddings")}
+    todo = []
+    for r in c.execute("SELECT * FROM items WHERE published_at IS NOT NULL"):
+        t = item_text(r)
+        h = hashlib.sha256(t.encode()).hexdigest()[:16]
+        if have.get(r["id"]) != h:
+            todo.append((r["id"], "item", t, h))
+    for hit in published_hits():
+        t = hit_text(hit)
+        h = hashlib.sha256(t.encode()).hexdigest()[:16]
+        if have.get("hit:" + hit["id"]) != h:
+            todo.append(("hit:" + hit["id"], "hit", t, h))
+    todo = todo[:batch]
+    if not todo:
+        return 0
+    vecs = embed_texts([t for _, _, t, _ in todo])
+    with tx(c):
+        for (i, kind, _, h), v in zip(todo, vecs):
+            c.execute("""INSERT INTO embeddings(id, kind, text_hash, vec, updated_at) VALUES (?,?,?,?,?)
+                         ON CONFLICT(id) DO UPDATE SET text_hash=excluded.text_hash, vec=excluded.vec,
+                         updated_at=excluded.updated_at""", (i, kind, h, v.tobytes(), now()))
+    set_setting(c, "home.dirty", now())
+    event("home.embedded", n=len(todo))
+    return len(todo)
+
+
+def vectors(c, ids=None):
+    import numpy as np
+    rows = c.execute("SELECT id, vec FROM embeddings").fetchall()
+    out = {r["id"]: np.frombuffer(r["vec"], dtype=np.float32) for r in rows if ids is None or r["id"] in ids}
+    return out
+
+
+# ------------------------------------------------------------------ members of each half
+def members(c) -> dict[str, dict]:
+    """id -> {"half", "kind", "taken_at", "importance", "label"} for every published item and hit."""
+    ded = dedicated_highlights(c)
+    hl_titles = {r["id"]: r["title"] for r in c.execute("SELECT id, title FROM highlights")}
+    item_hls: dict[str, list[str]] = {}
+    for r in c.execute("SELECT item_id, highlight_id FROM item_highlights"):
+        item_hls.setdefault(r["item_id"], []).append(r["highlight_id"])
+    out = {}
+    for r in c.execute("SELECT id, kind, taken_at, importance, data FROM items WHERE published_at IS NOT NULL"):
+        hls = item_hls.get(r["id"], [])
+        d = json.loads(r["data"])
+        for h in d.get("highlights") or []:
+            if isinstance(h, dict) and h.get("id") and h["id"] not in hls:
+                hls.append(h["id"])
+                hl_titles.setdefault(h["id"], h.get("title"))
+        top = [h for h in hls if h in ded]
+        half = "top" if top else "bottom"
+        label_hl = (top or hls or [None])[0]
+        label = hl_titles.get(label_hl) if label_hl else None
+        out[r["id"]] = {"half": half, "kind": "item", "taken_at": r["taken_at"],
+                        "importance": r["importance"], "label": label or {"reel": "Reels", "story": "Stories"}.get(
+                            r["kind"], "Posts")}
+    for h in published_hits():
+        d = h["data"]
+        out["hit:" + h["id"]] = {"half": "top" if h["section"] == "dedicated" else "bottom", "kind": "hit",
+                                 "taken_at": (d.get("video") or {}).get("posted_at") or h["published_at"],
+                                 "importance": d.get("importance") if isinstance(d.get("importance"), (int, float))
+                                 else None, "label": (d.get("source") or {}).get("name") or "Detected"}
+    return out
+
+
+# ------------------------------------------------------------------ layout
+def _tsne(vecs, seed=42):
+    import numpy as np
+    n = len(vecs)
+    if n == 1:
+        return np.array([[0.5, 0.5]])
+    if n < 5:   # too few for t-SNE: the first two principal components
+        x = vecs - vecs.mean(0)
+        u, s, _ = np.linalg.svd(x, full_matrices=False)
+        pts = u[:, :2] * s[:2] if u.shape[1] >= 2 else np.c_[u[:, 0] * s[0], np.zeros(n)]
+    else:
+        from sklearn.manifold import TSNE
+        pts = TSNE(n_components=2, perplexity=max(2.0, min(30.0, (n - 1) / 3)), init="pca", metric="cosine",
+                   random_state=seed, max_iter=1000).fit_transform(vecs)
+    return _normalize(pts)
+
+
+def _normalize(pts):
+    import numpy as np
+    lo, hi = pts.min(0), pts.max(0)
+    span = np.where(hi - lo > 1e-9, hi - lo, 1.0)
+    return 0.05 + 0.9 * (pts - lo) / span
+
+
+def _align(new, old):
+    """Rotate/reflect/scale `new` onto `old` (orthogonal Procrustes) so a re-layout keeps its look."""
+    import numpy as np
+    a, b = new - new.mean(0), old - old.mean(0)
+    u, s, vt = np.linalg.svd(a.T @ b)
+    r = u @ vt
+    scale = s.sum() / max((a ** 2).sum(), 1e-9)
+    return a @ r * scale + old.mean(0)
+
+
+def update_layout(c) -> dict:
+    import numpy as np
+    mem = members(c)
+    vec = vectors(c)
+    placed = {r["id"]: dict(r) for r in c.execute("SELECT * FROM layout")}
+    stats = {}
+    with tx(c):
+        for i in [i for i in placed if i not in mem or i not in vec]:   # unpublished or gone
+            c.execute("DELETE FROM layout WHERE id=?", (i,))
+        for i, p in placed.items():   # moved to the other half: place again
+            if i in mem and mem[i]["half"] != p["half"]:
+                c.execute("DELETE FROM layout WHERE id=?", (i,))
+    placed = {r["id"]: dict(r) for r in c.execute("SELECT * FROM layout")}
+    for half in ("top", "bottom"):
+        ids = [i for i, m in mem.items() if m["half"] == half and i in vec]
+        if not ids:
+            continue
+        have = [i for i in ids if i in placed]
+        new = [i for i in ids if i not in placed]
+        last_full = int(setting(c, f"home.full_layout_n.{half}") or 0)
+        full = len(have) < 5 or len(ids) >= 2 * max(last_full, 1)
+        ts = now()
+        if full:
+            pts = _tsne(np.stack([vec[i] for i in ids]))
+            if len(have) >= 3:
+                idx = [ids.index(i) for i in have]
+                old = np.array([[placed[i]["x"], placed[i]["y"]] for i in have])
+                pts = _align(pts, old) if len(have) >= 3 else pts
+                pts = np.clip(pts, 0.0, 1.0)
+            with tx(c):
+                for i, (x, y) in zip(ids, pts):
+                    c.execute("""INSERT INTO layout(id, half, x, y, placed, updated_at) VALUES (?,?,?,?,?,?)
+                                 ON CONFLICT(id) DO UPDATE SET half=excluded.half, x=excluded.x, y=excluded.y,
+                                 placed=excluded.placed, updated_at=excluded.updated_at""",
+                              (i, half, float(x), float(y), "full", ts))
+            set_setting(c, f"home.full_layout_n.{half}", str(len(ids)))
+            stats[half] = {"full": len(ids)}
+        elif new:
+            base = np.stack([vec[i] for i in have])
+            coords = np.array([[placed[i]["x"], placed[i]["y"]] for i in have])
+            with tx(c):
+                for i in new:
+                    sims = base @ vec[i]
+                    k = np.argsort(-sims)[:NEIGHBOURS]
+                    w = np.clip(sims[k], 0.01, None) ** 2
+                    x, y = (coords[k] * w[:, None]).sum(0) / w.sum()
+                    jit = int(hashlib.sha256(i.encode()).hexdigest()[:8], 16)
+                    x += ((jit & 0xFFFF) / 0xFFFF - 0.5) * 0.04
+                    y += ((jit >> 16) / 0xFFFF - 0.5) * 0.04
+                    c.execute("INSERT OR REPLACE INTO layout(id, half, x, y, placed, updated_at) VALUES (?,?,?,?,?,?)",
+                              (i, half, float(min(max(x, 0), 1)), float(min(max(y, 0), 1)), "near", ts))
+            stats[half] = {"placed_near": len(new)}
+    if stats:
+        event("home.layout", **stats)
+    return stats
+
+
+def size_of(taken_at: str | None, importance: float | None) -> float:
+    """Recency leads (a year-long half-life), importance scales it: 0.15-1.0."""
+    try:
+        age = (datetime.now(timezone.utc) - datetime.strptime(taken_at[:19], "%Y-%m-%dT%H:%M:%S")
+               .replace(tzinfo=timezone.utc)).total_seconds() / 86400
+    except (TypeError, ValueError):
+        age = 3650
+    recency = 0.5 ** (max(age, 0) / RECENCY_HALF_LIFE_DAYS)
+    imp = 0.5 if importance is None else importance
+    return round(0.15 + 0.85 * (recency ** 0.7) * (0.55 + 0.45 * imp), 3)
+
+
+def layout(c) -> dict:
+    mem = members(c)
+    halves = {"top": [], "bottom": []}
+    for r in c.execute("SELECT * FROM layout"):
+        m = mem.get(r["id"])
+        if not m:
+            continue
+        hid = r["id"]
+        halves[m["half"]].append({"id": hid[4:] if hid.startswith("hit:") else hid, "kind": m["kind"],
+                                  "x": round(r["x"], 4), "y": round(r["y"], 4),
+                                  "size": size_of(m["taken_at"], m["importance"]),
+                                  "label": m["label"], "taken_at": m["taken_at"]})
+    for h in halves.values():
+        h.sort(key=lambda t: (t["taken_at"] or "", t["id"]), reverse=True)   # newest first
+    return {"halves": halves, "updated_at": setting(c, "home.layout_at") or None}
+
+
+def related(c, item_id: str, limit: int = 20) -> list[dict]:
+    """Same half first, then the most related from the other half; ties go to the newer item."""
+    import numpy as np
+    mem = members(c)
+    key = item_id if item_id in mem else ("hit:" + item_id if "hit:" + item_id in mem else None)
+    if not key:
+        return []
+    vec = vectors(c, set(mem))
+    if key not in vec:
+        return []
+    me = vec[key]
+    scored = []
+    for i, v in vec.items():
+        if i == key:
+            continue
+        scored.append((float(v @ me), mem[i]["taken_at"] or "", i))
+    def order(lst):   # most similar first; equal similarity: the newer first
+        return sorted(lst, key=lambda s: (-round(s[0], 4), -_ts(s[1])))
+    same = order([s for s in scored if mem[s[2]]["half"] == mem[key]["half"]])
+    other = order([s for s in scored if mem[s[2]]["half"] != mem[key]["half"]])
+    n_same = min(len(same), max(limit - min(len(other), max(1, limit // 4)), 0))
+    pick = same[:n_same] + other[:limit - n_same]
+    return [{"id": i[4:] if i.startswith("hit:") else i, "kind": mem[i]["kind"], "half": mem[i]["half"],
+             "score": round(sc, 4)} for sc, _, i in pick]
+
+
+def _ts(s: str) -> float:
+    try:
+        return datetime.strptime(s[:19], "%Y-%m-%dT%H:%M:%S").timestamp()
+    except ValueError:
+        return 0.0
+
+
+# ------------------------------------------------------------------ tag graph
+def tag_graph(c, max_nodes: int = 300, edges_per_node: int = 6) -> dict:
+    rows = c.execute("""SELECT t.item_id, t.tag, t.kind FROM item_tags t JOIN items i ON i.id=t.item_id
+                        WHERE i.published_at IS NOT NULL""").fetchall()
+    tag_items: dict[str, set] = {}
+    kinds: dict[str, set] = {}
+    for r in rows:
+        tag_items.setdefault(r["tag"], set()).add(r["item_id"])
+        kinds.setdefault(r["tag"], set()).add(r["kind"])
+    ranked = sorted(tag_items, key=lambda t: (-len(tag_items[t]), t))[:max_nodes]
+    nodes = []
+    for rank, t in enumerate(ranked):
+        level = 0 if rank < 12 else 1 if rank < 48 else 2 if rank < 144 else 3
+        nodes.append({"tag": t, "kinds": sorted(kinds[t]), "count": len(tag_items[t]), "level": level})
+    keep = set(ranked)
+    pairs: dict[tuple, int] = {}
+    by_item: dict[str, list] = {}
+    for t in ranked:
+        for i in tag_items[t]:
+            by_item.setdefault(i, []).append(t)
+    for tags in by_item.values():
+        tags = sorted(set(tags))
+        for a in range(len(tags)):
+            for b in range(a + 1, len(tags)):
+                pairs[(tags[a], tags[b])] = pairs.get((tags[a], tags[b]), 0) + 1
+    edges_all = [{"a": a, "b": b, "count": n, "weight": round(n / math.sqrt(len(tag_items[a]) * len(tag_items[b])), 4)}
+                 for (a, b), n in pairs.items() if a in keep and b in keep]
+    edges_all.sort(key=lambda e: (-e["weight"], -e["count"]))
+    deg: dict[str, int] = {}
+    edges = []
+    for e in edges_all:
+        if deg.get(e["a"], 0) < edges_per_node or deg.get(e["b"], 0) < edges_per_node:
+            edges.append(e)
+            deg[e["a"]] = deg.get(e["a"], 0) + 1
+            deg[e["b"]] = deg.get(e["b"], 0) + 1
+    return {"nodes": nodes, "edges": edges}
+
+
+# ------------------------------------------------------------------ the worker's step
+def refresh(c) -> bool:
+    """Embed what changed and reconcile the layout (cheap when nothing changed)."""
+    n = update_embeddings(c)
+    stats = update_layout(c)
+    set_setting(c, "home.layout_at", now())
+    return bool(n or stats)

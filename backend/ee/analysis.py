@@ -137,6 +137,12 @@ caption is not English, otherwise English. The date, the highlight names and the
 are always shown next to it, so do not repeat them or quote the caption. For a repost, describe \
 the original and credit its author. Never invent names, never speculate about private matters. \
 Proofread it: no fragments, no stray punctuation.
+- importance: 0 to 1, how significant this moment or content is in the owner's life and in this \
+archive: about 0.1 for something trivial, 0.3-0.5 for an everyday moment, 0.7 for a notable trip, \
+event, achievement, creation or idea, 0.9-1 for a milestone (a wedding, a birth, a big move, a major \
+launch). Judge the content only: a story, a reel and a post count the same, and a repost of someone \
+else's video counts as much as the owner's own when its content matters as much. Never lower it for \
+the kind of item, for being a repost, or for the number of likes.
 Answer with the JSON object the response format asks for."""
 
 APPEARS = {"type": "array", "items": {"type": "object", "properties": {
@@ -180,13 +186,14 @@ TOOL = {
                 "required": ["slug", "name", "description"]}},
             "summary": {"type": "string"},
             "description": {"type": "string"},
+            "importance": {"type": "number", "description": "0 to 1, how significant the moment or content is"},
             "covers": {"type": "array", "description": "For each video: the time of the sampled frame that "
                        "looks best as its cover - sharp, well lit, representative of the video, not blank, "
                        "blurred or mid-transition.", "items": {"type": "object", "properties": {
                            "media": {"type": "integer"}, "at": {"type": "number"}}, "required": ["media", "at"]}},
         },
         "required": ["people", "what", "when", "where", "mood", "language", "context", "keywords",
-                     "categories", "summary", "description"],
+                     "categories", "summary", "description", "importance"],
     },
 }
 
@@ -362,15 +369,23 @@ def apply_result(c, item_id: str, out: dict, model: str) -> list[str]:
         cats = []
         for s in out.get("categories") or []:
             s = slugify(s)
+            if s and s not in existing and len(added) < MAX_NEW_CATEGORIES:
+                # used without being declared as new: create it rather than drop it
+                c.execute("INSERT INTO categories(slug, name, description, created_at, created_by_item) VALUES (?,?,?,?,?)",
+                          (s, s.replace("-", " ").title(), "", ts, item_id))
+                existing.add(s)
+                added.append(s)
             if s in existing and s not in cats:
                 cats.append(s)
         analysis = {k: out.get(k) for k in ("people", "what", "events", "when", "where", "objects", "animals", "brands",
                                             "on_screen_text", "speech", "music", "mood", "language", "context",
                                             "keywords")}
         analysis.update({"model": model, "analyzed_at": ts})
-        c.execute("""UPDATE items SET analysis=?, categories=?, summary=?, description=?,
+        imp = out.get("importance")
+        imp = min(1.0, max(0.0, float(imp))) if isinstance(imp, (int, float)) else None
+        c.execute("""UPDATE items SET analysis=?, categories=?, summary=?, description=?, importance=?,
                      published_at=COALESCE(published_at, ?) WHERE id=?""",
-                  (j(analysis), j(cats), out.get("summary"), out.get("description"), ts, item_id))
+                  (j(analysis), j(cats), out.get("summary"), out.get("description"), imp, ts, item_id))
         c.execute("DELETE FROM item_categories WHERE item_id=?", (item_id,))
         for s in cats:
             c.execute("INSERT INTO item_categories VALUES (?,?)", (item_id, s))

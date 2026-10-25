@@ -81,6 +81,45 @@ def analyze_once(c) -> bool:
     return True
 
 
+# ------------------------------------------------------------------ Home layout and importance backfill
+_home_last = {"t": 0.0}
+
+
+def home_once(c) -> bool:
+    """Embeddings and layout for Home, every minute at most."""
+    if time.time() - _home_last["t"] < 60:
+        return False
+    _home_last["t"] = time.time()
+    from . import home
+    store.job_start(c, "home", "home", "updating the Home layout", progress="embeddings and places")
+    try:
+        changed = home.refresh(c)
+    finally:
+        store.job_end(c, "home")
+    return changed
+
+
+def importance_once(c) -> bool:
+    """When the analyzer has nothing to do: score items analyzed before importance existed."""
+    if setting(c, "analysis.enabled") != "1":
+        return False
+    if c.execute("SELECT 1 FROM steps WHERE step='analyze' AND state IN ('pending','running') LIMIT 1").fetchone():
+        return False
+    from . import importance
+    ids = importance.pending(c, 1)
+    if not ids:
+        return False
+    try:
+        importance.backfill_one(c, ids[0])
+        stop.wait(random.uniform(3, 10))
+    except aicoin.OutOfCoins:
+        stop.wait(3600)
+    except Exception as e:
+        event("importance.failed", logging.WARNING, item=ids[0], error=repr(e)[:300])
+        c.execute("UPDATE items SET importance=0.5 WHERE id=? AND importance IS NULL", (ids[0],))
+    return True
+
+
 # ------------------------------------------------------------------ thumbnails
 _thumb_failures: dict[str, int] = {}
 
@@ -292,7 +331,8 @@ def main():
     event("worker.start", requeued=n)
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    threads = [lane("analyze", analyze_once), lane("thumbs", thumbs_once, idle=20), lane("x", x_once, idle=60),
+    threads = [lane("analyze", analyze_once), lane("thumbs", thumbs_once, idle=20),
+               lane("home", home_once, idle=20), lane("importance", importance_once, idle=60), lane("x", x_once, idle=60),
                lane("facebook", facebook_once, idle=120), lane("house", house_once, idle=15)]
     while not stop.is_set():
         stop.wait(5)

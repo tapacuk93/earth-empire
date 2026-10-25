@@ -12,6 +12,8 @@
   ee steps set <id> <step> <state>    force a step's state (e.g. after checking Facebook by hand)
   ee steps retry [step]               put failed steps back in the queue
   ee wallet init | show               the server's aicoin wallet
+  ee home [refresh|layout|graph]      embeddings and Home layout now / print them
+  ee importance [--n N]               score importance for items analyzed before it existed
   ee backup                           back up every part's databases to S3 now
   ee restore [--date D] [--dry-run]   restore them (use deploy/restore-state.sh, which stops services)
   ee admin-token                      check that earth-empire/admin-token exists (never prints it)
@@ -41,6 +43,8 @@ def main(argv=None):
     p = sub.add_parser("settings"); p.add_argument("key", nargs="?"); p.add_argument("value", nargs="?")
     p = sub.add_parser("steps"); p.add_argument("action", choices=["set", "retry"]); p.add_argument("rest", nargs="*")
     p = sub.add_parser("wallet"); p.add_argument("action", choices=["init", "show"])
+    p = sub.add_parser("home"); p.add_argument("action", nargs="?", default="refresh", choices=["refresh", "layout", "graph", "full"])
+    p = sub.add_parser("importance"); p.add_argument("--n", type=int, default=1000)
     sub.add_parser("backup")
     p = sub.add_parser("restore"); p.add_argument("--date"); p.add_argument("--only"); p.add_argument("--dry-run", action="store_true")
     p = sub.add_parser("delete"); p.add_argument("ids", nargs="*"); p.add_argument("--tests", action="store_true")
@@ -173,6 +177,25 @@ def main(argv=None):
         addr = s.get("wallet_address")
         if addr:
             print(json.dumps(aicoin.balance(addr), indent=2))
+    elif a.cmd == "home":
+        from . import home
+        if a.action == "full":
+            for half in ("top", "bottom"):
+                db.set_setting(c, f"home.full_layout_n.{half}", "0")
+                c.execute("DELETE FROM layout WHERE half=?", (half,))
+        if a.action in ("refresh", "full"):
+            while home.update_embeddings(c):
+                pass
+            print(json.dumps(home.update_layout(c)))
+            db.set_setting(c, "home.layout_at", db.now())
+        elif a.action == "layout":
+            print(json.dumps(home.layout(c), indent=1)[:4000])
+        else:
+            print(json.dumps(home.tag_graph(c), indent=1)[:4000])
+    elif a.cmd == "importance":
+        from . import importance
+        for r in importance.run(c, a.n):
+            print(json.dumps(r, ensure_ascii=False))
     elif a.cmd == "delete":
         ids = list(a.ids)
         if a.tests:

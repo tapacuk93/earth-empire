@@ -123,6 +123,8 @@ store it in `extra`.
   },
   "categories": ["travel", "food"],        // slugs; set by the backend, never by the collector
   "summary": "one sentence" | null,        // set by the backend
+  "importance": 0.6 | null,                // set by the backend: 0-1, how significant the content is;
+                                           // judged on content only, never lower for a story or a repost
   "description": "…" | null,               // set by the backend: a few sentences on who, what, when,
                                            // where and context, written to be published and shown
                                            // by the site and the app; for a repost it covers the original too
@@ -216,6 +218,37 @@ Owner-only (`Authorization: Bearer <earth-empire/admin-token>`):
 - `GET /v1/admin/me` → `{"ok": true, "role": "owner"}`, or 401: checks a token the owner entered.
 - `GET /v1/admin/pipeline` (the ingest token works here too), `GET /v1/admin/items/{id}`
   (the item whatever its state, with its steps and transitions), `POST /v1/admin/items/{id}/reanalyze`.
+
+## Home layout
+
+Home is two zoomable mosaics and a tag graph below them. Everything here is built from published
+items and published monitor hits only.
+
+- **Halves:** `top` holds the items in the owner's dedicated highlights and the hits published with
+  `section: "dedicated"`. `bottom` holds everything else (the big catch-all highlights, items in no
+  highlight) and the hits published as `common`. The dedicated highlights are the owner's choice
+  (`PUT /v1/monitor/sections`). Until it is made, a highlight counts as dedicated when it holds at
+  most 30 items and under a quarter of all highlighted items.
+- **Closeness** is similarity. The backend embeds each item's description and analysis (and each
+  hit's excerpt) with an open-source multilingual sentence model on the box. It places each half
+  with a seeded t-SNE, and puts a new tile next to its nearest neighbours without moving the others.
+  When a half has doubled, the whole half is placed again, aligned to the old picture.
+- **Size:** recency leads, and importance scales it. The kind of item never changes it.
+
+Public:
+
+- `GET /v1/layout` → `{"halves": {"top": [Tile], "bottom": [Tile]}, "updated_at"}`, newest first, where
+  `Tile = {"id", "kind": "item" | "hit", "x": 0-1, "y": 0-1, "size": 0.15-1, "label": "<highlight
+  name, source name for a hit, else Reels/Posts/Stories>", "taken_at"}`. A hit's `id` is its hit id
+  (details in `/v1/published`).
+- `GET /v1/items/{id}/related?limit=20` → `{"related": [{"id", "kind", "half", "score", "item"?: Item}]}`:
+  the most similar from the same half first (about three quarters of `limit`), then the most similar
+  from the other half; equal scores go to the newer item. Also takes a hit id.
+- `GET /v1/tags/graph?max_nodes=300` → `{"nodes": [{"tag", "kinds": ["keyword", …], "count", "level"}],
+  "edges": [{"a", "b", "count", "weight"}]}`. `level` 0 holds the 12 broadest tags (by count), 1 the
+  next 36, 2 the next 96, then 3, so zooming in reveals deeper levels. Edges are co-occurrence on the
+  same item (`weight` = count / sqrt(count_a × count_b)), at most 6 strong edges per tag.
+- `GET /v1/items?tag=` lists a tag's items (newest first), for its full-screen mode.
 
 ## Analysis
 

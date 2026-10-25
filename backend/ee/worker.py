@@ -194,66 +194,58 @@ _last = {"beat": 0.0, "backup": 0.0, "backup_day": "", "site": 0.0, "wallet": 0.
 SITE_BUILD = "/opt/earth-empire/repo/backend/deploy/build-site.sh"
 
 
+SITE_MIN_GAP = 90   # seconds between builds: new items show within ~2 minutes, bursts coalesce
+
+
+def site_live(item_id: str, tries: int = 6) -> bool:
+    """Is the item's prerendered page served by empire.earth (through CloudFront)?"""
+    import httpx
+    url = f"{config.env('EE_SITE_URL', 'https://empire.earth')}/item/{item_id}"
+    for i in range(tries):
+        try:
+            r = httpx.get(url, params={"_": int(time.time())}, timeout=20, follow_redirects=True)
+            if r.status_code == 200 and item_id in r.text:
+                return True
+        except httpx.HTTPError:
+            pass
+        stop.wait(10)
+    return False
+
+
 def site_once(c) -> None:
-    """Rebuild the site (prerendered item pages) when items went public since the last build;
-    at most every 15 minutes."""
-    if setting(c, "site.auto_build") != "1" or time.time() - _last["site"] < 900:
+    """Rebuild and publish the site when items went public since the last good build, then check
+    the newest item's page is live. Only a verified build moves site.built_at, so a build that
+    missed an item is simply done again on the next tick."""
+    if setting(c, "site.auto_build") != "1" or time.time() - _last["site"] < SITE_MIN_GAP:
         return
-    newest = c.execute("SELECT MAX(published_at) t FROM items").fetchone()["t"]
-    if not newest or newest <= (setting(c, "site.built_at") or ""):
+    row = c.execute("SELECT id, published_at FROM items WHERE published_at IS NOT NULL "
+                    "ORDER BY published_at DESC, id DESC LIMIT 1").fetchone()
+    if not row or row["published_at"] <= (setting(c, "site.built_at") or ""):
         return
+    newest, newest_id = row["published_at"], row["id"]
     _last["site"] = time.time()
     t0 = time.time()
     store.job_start(c, "site", "site", "building and publishing empire.earth", progress="npm build, prerender, sync")
     try:
         p = subprocess.run(["bash", SITE_BUILD], capture_output=True, text=True, timeout=1800)
+        if p.returncode == 0:
+            store.job_progress(c, "site", "checking the new page is live")
+            live = site_live(newest_id)
     finally:
         store.job_end(c, "site")
-    if p.returncode == 0:
-        from .db import set_setting
+    from .db import set_setting
+    if p.returncode == 0 and live:
         set_setting(c, "site.built_at", newest)
-        event("site.built", seconds=round(time.time() - t0), newest=newest, out=p.stdout[-300:])
+        event("site.built", seconds=round(time.time() - t0), newest=newest, item=newest_id, out=p.stdout[-300:])
         store.record(c, "site", "build", f"site rebuilt and published in {round(time.time() - t0)} s")
+    elif p.returncode == 0:
+        event("site.not_live", logging.ERROR, item=newest_id, out=p.stdout[-800:])
+        store.record(c, "site", "build", "site built, but the newest page is not live yet; rebuilding", ok=False)
+        metric("WorkerErrors")
     else:
         event("site.build_failed", logging.ERROR, code=p.returncode, err=(p.stderr or p.stdout)[-1500:])
         store.record(c, "site", "build", "site build failed", ok=False)
         metric("WorkerErrors")
-
-
-def house_once(c) -> bool:
-    t = time.time()
-    if t - _last["beat"] >= 300:
-        _last["beat"] = t
-        metric("Heartbeat")
-        st = c.execute("SELECT step, state, COUNT(*) n FROM steps GROUP BY step, state").fetchall()
-        event("worker.heartbeat", steps={f"{r['step']}.{r['state']}": r["n"] for r in st})
-    from .db import set_setting
-    set_setting(c, "worker.heartbeat_at", utcnow())
-    if config.CLOUDWATCH and t - _last["backup"] >= 3600:   # hourly; the first each day also kept dated
-        _last["backup"] = t
-        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        try:
-            from . import backup
-            keys = backup.backup_all(daily=_last["backup_day"] != day)
-            _last["backup_day"] = day
-            set_setting(c, "backup.last_at", utcnow())
-            store.record(c, "db", "backup", f"backed up {len(keys)} database(s)")
-        except Exception as e:
-            set_setting(c, "backup.last_error", f"{utcnow()} {e}"[:300])
-            store.record(c, "db", "backup", f"backup failed: {type(e).__name__}", ok=False)
-            event("backup.failed", logging.ERROR, error=repr(e))
-            metric("WorkerErrors")
-    if config.CLOUDWATCH and t - _last["wallet"] >= 3600:
-        _last["wallet"] = t
-        try:
-            bal = aicoin.balance()
-            set_setting(c, "analysis.wallet_balance", str(bal.get("balance", 0)))
-            set_setting(c, "analysis.wallet_checked_at", utcnow())
-        except Exception as e:
-            event("wallet.balance_unavailable", logging.WARNING, error=str(e))
-    if config.CLOUDWATCH:
-        site_once(c)
-    return False
 
 
 def main():
@@ -265,7 +257,7 @@ def main():
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     threads = [lane("analyze", analyze_once), lane("thumbs", thumbs_once, idle=20), lane("x", x_once, idle=60),
-               lane("facebook", facebook_once, idle=120), lane("house", house_once, idle=30)]
+               lane("facebook", facebook_once, idle=120), lane("house", house_once, idle=15)]
     while not stop.is_set():
         stop.wait(5)
     event("worker.stop")

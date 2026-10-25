@@ -229,15 +229,18 @@ def members(c) -> dict[str, dict]:
         label_hl = (top or hls or [None])[0]
         label = hl_titles.get(label_hl) if label_hl else None
         out[r["id"]] = {"half": half, "kind": "item", "taken_at": r["taken_at"], "video": video,
+                        "source": "profile", "level": level_of(cur, W),
                         "original_at": orig or r["taken_at"],
                         "curation": cur, "curation_reason": why,
                         "importance": r["importance"], "label": label or {"reel": "Reels", "story": "Stories"}.get(
                             r["kind"], "Posts")}
     for h in published_hits():
         d = h["data"]
-        top_hit = h["section"] == "dedicated"
-        out["hit:" + h["id"]] = {"half": "all", "kind": "hit", "video": True,
-                                 "curation": W["hit_top"] if top_hit else W["hit_bottom"],
+        lvl = d.get("level") if d.get("level") in (1, 2, 3, 4) else 3
+        lw = {1: W["dedicated"], 2: W["shared"], 3: W["repost"], 4: W["story"]}[lvl]
+        out["hit:" + h["id"]] = {"half": "all", "kind": "hit", "video": True, "source": "ai_found", "level": lvl,
+                                 "curation": lw,
+                                 "curation_reason": "AI-chosen level L%d: %s" % (lvl, (d.get("level_reason") or "not rated yet")[:120]),
                                  "original_at": (d.get("video") or {}).get("posted_at") or h["published_at"],
                                  "curation_reason": "detected, published in the top section" if top_hit
                                  else "detected, published in the bottom section",
@@ -363,6 +366,15 @@ def attachments(c, mem=None, vec=None) -> dict[str, str]:
     return out
 
 
+def level_of(weight: float, w: dict) -> int:
+    """Placement weight -> level: L1 post or dedicated highlight, L2 shared highlight, L3 repost,
+    L4 story in no highlight."""
+    for lvl, key in ((1, "dedicated"), (2, "shared"), (3, "repost")):
+        if weight >= w[key] - 1e-9:
+            return lvl
+    return 4
+
+
 def size_params(c) -> dict:
     return {"half_life_days": float(setting(c, "size.half_life_days") or 30),
             "age_floor": float(setting(c, "size.age_floor") or 0.05),
@@ -399,9 +411,9 @@ def layout(c) -> dict:
         hid = r["id"]
         t = {"id": hid[4:] if hid.startswith("hit:") else hid, "kind": m["kind"],
              "x": round(r["x"], 4), "y": round(r["y"], 4),
-             **{k: v for k, v in size_parts(m["original_at"], m["importance"], m["curation"], params).items()
-                if k != "importance"},
-             "placement_reason": m["curation_reason"], "curation": m["curation"],
+             "size": m["curation"], "level": m["level"], "source": m["source"],
+             "placement": m["curation"], "placement_reason": m["curation_reason"], "curation": m["curation"],
+             "importance": m["importance"],
              "label": m["label"], "taken_at": m["taken_at"]}
         tiles[hid] = t
         tiles_out.append(t)
@@ -422,8 +434,9 @@ def layout(c) -> dict:
                 "x": round(min(max(v["x"] + rad * math.cos(ang), 0), 1), 4),
                 "y": round(min(max(v["y"] + rad * math.sin(ang), 0), 1), 4),
                 "size": round(v["size"] * 0.45, 4), "curation": mem[img]["curation"],
+                "level": mem[img]["level"], "source": "profile",
                 "label": v["label"], "taken_at": mem[img]["taken_at"]})
-    tiles_out.sort(key=lambda t: (t["taken_at"] or "", t["id"]), reverse=True)   # newest first
+    tiles_out.sort(key=lambda t: (t["taken_at"] or "", t.get("importance") or 0, t["id"]), reverse=True)  # newest first
     return {"tiles": tiles_out,
             "halves": {"top": [], "bottom": tiles_out},   # compatibility for one release: one panel now
             "updated_at": setting(c, "home.layout_at") or None,

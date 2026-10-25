@@ -390,8 +390,12 @@ def _settings_view(c) -> dict:
         "rubric": {"version": cur["version"], "text": cur["text"], "reason": cur["reason"], "by": cur["by"],
                    "history": rubric.history(c)},
         "rubric_review": db.setting(c, "importance.rubric_review") == "1",
-        "formula": "size = placement × max(age_floor, 0.5 ** (age_days / half_life_days)) × (1 − w + w × importance); "
-                   "tile area ∝ size ** display_exponent",
+        "formula": "size = the level's weight: L1 post or dedicated highlight, L2 shared highlight, L3 repost, "
+                   "L4 story in no highlight (the placement weights); AI-found items get their level from Claude. "
+                   "Tile area ∝ size ** display_exponent.",
+        "unused_for_size": ["half_life_days", "age_floor", "importance_w"],
+        "note": "Age and importance no longer change tile size; importance still sets the AI-found levels "
+                "and breaks ties in ordering.",
     }
 
 

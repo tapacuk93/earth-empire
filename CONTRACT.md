@@ -314,39 +314,26 @@ These replace hard-coded places and categories on the site and in the apps. The 
 Home is two zoomable mosaics and a tag graph below them. Everything here is built from published
 items and published monitor hits only.
 
-- **One panel.** Every published item and every hit the owner published ("+") is in a single mosaic.
-  There are no halves; where an item lives only sets its `placement` weight (below). A hit published
-  once ("+") has placement 0.5, and published a second time, 1. (The monitor still stores this as
-  `section` `common` and `dedicated`.)
+- **One panel.** Every published item, and every AI-found hit the owner approved with "+", is in a
+  single mosaic.
 - **Closeness** is similarity. The backend embeds each item's description and analysis (and each
   hit's excerpt) with an open-source multilingual sentence model on the box. It places everything
   with one seeded t-SNE, and puts a new tile next to its nearest neighbours without moving the others.
   When the mosaic has doubled, it is placed again, aligned to the old picture.
-- **Size** of a tile (owner-tunable in Settings):
+- **Size: four levels.** A tile's size is its level's weight; age and importance no longer change it
+  (their settings remain, marked unused for size). Tile area follows `size ** display_exponent`
+  (default 2), and `/v1/layout` sends `display_exponent`.
 
-  **size = placement × age_factor × importance_factor**
+  | Level | Weight | Profile items (from placement) | AI-found items (monitor hits) |
+  |---|---|---|---|
+  | **L1** | 1 | a post, or an item in a **dedicated** highlight | Claude rates the hit's significance (the importance rubric plus the detection confidence) and picks the level, with a short `level_reason`. The owner may override it on the Detected screen. A hit appears only once approved with "+", at its level. |
+  | **L2** | 0.5 | an item in a **shared** (large) highlight | |
+  | **L3** | 0.25 | a repost (Instagram's Repost feature) | |
+  | **L4** | 0.125 | a story in no highlight | |
 
-  - **placement**, from where the item lives; the highest that applies:
-
-    | Weight | When |
-    |---|---|
-    | **1** | a post (the owner's own), or an item in a **dedicated** highlight |
-    | **0.5** | an item in a **shared** (large) highlight |
-    | **0.25** | a repost made with Instagram's Repost feature (the Reposts tab) |
-    | **0.125** | a story in no highlight |
-    | **0.5 / 1** | a monitor hit published with one "+" / with a second "+" |
-
-  - **age_factor** = max(`age_floor`, 0.5 ^ (age_days / `half_life_days`)), counted from the
-    **original** publication (for a repost, the original's date). Defaults: half-life 7 days,
-    floor 0.05.
-  - **importance_factor** = 1 − w + w × importance, where `importance` (0-1) is scored by Claude
-    by the **importance rubric** and `w` defaults to 0.4.
-  - **Display:** a tile's **area** follows `size ** display_exponent` (default 2). `/v1/layout`
-    returns `display_exponent` (and `size_params`), and the site and apps apply it.
-
-  Items carry `placement` and `placement_reason` (`curation` and `curation_reason` are the same
-  values, under their earlier names). Tiles carry `size` and its parts: `placement`, `age_days`,
-  `age_factor` and `importance_factor`. Time orders (newest first, ties) stay purely by `taken_at`.
+  The weights are the placement settings (`placement.dedicated`/`post`, `shared`, `repost`, `story`).
+  Items carry `placement` and `placement_reason` (also as `curation`/`curation_reason`). Importance
+  still sets AI-found levels and breaks ties in ordering. Time orders stay by `taken_at`.
 - **Importance is scored from the item itself:** the images, frames across every video, the speech
   transcripts (for a repost, the original's audio too), the on-screen text and the description, with
   the current rubric. Transcripts are cached, so re-scoring never transcribes twice.
@@ -364,13 +351,12 @@ items and published monitor hits only.
 Public:
 
 - `GET /v1/layout` → `{"tiles": [Tile], "updated_at", "display_exponent", "size_params"}`, newest first, where
-  `Tile = {"id", "kind": "item" | "hit", "x": 0-1, "y": 0-1, "size": 0-1, "placement", "age_days",
-  "age_factor", "importance_factor", "placement_reason", "curation", "label": "<highlight
-  name, source name for a hit, else Reels/Posts/Stories>", "taken_at", "attached_to"?: "<video id>"}`.
-  A hit's `id` is its hit id (details in `/v1/published`). **Images are never tiles of their own:**
-  an item without video carries `attached_to`, its most similar video, sits
-  right beside it, and is under half its size. Items with a video are laid out
-  by similarity as above.
+  `Tile = {"id", "kind": "item" | "hit", "source": "profile" | "ai_found", "level": 1-4, "x": 0-1, "y": 0-1,
+  "size": 1 | 0.5 | 0.25 | 0.125, "placement", "placement_reason", "importance", "label", "taken_at",
+  "attached_to"?: "<video id>"}`. A hit's `id` is its hit id (details in `/v1/published`). **Images are
+  never tiles of their own:** an item without video carries `attached_to`, its most similar video, sits
+  right beside it at 0.45 of its size, and takes its own level. Items with a video are laid out by
+  similarity.
   `halves` (`{"top": [], "bottom": tiles}`) is still sent for one release, for older clients.
 - `GET /v1/items/{id}/related?limit=20` → `{"related": [{"id", "kind", "score", "rank", "curation",
   "item"?: Item}]}`, ranked across everything: `score` is the similarity, and `rank` = score ×
@@ -490,9 +476,9 @@ messages on any platform.
   "frame": "https://…" | null,
   "model": "faster-whisper small int8", "found_at": "…",
   "published_at": "…" | null,               // set by the owner's publish
-  "suggested_section": "dedicated" | "common" | null,   // Claude's suggestion for Home (null: not judged yet)
-  "section_reason": "…" | null,
-  "section": "dedicated" | "common" | null  // set on publish
+  "level": 1 | 2 | 3 | 4 | null,           // Home level (L1 biggest), chosen by Claude from the importance
+  "level_reason": "…" | null,              // rubric and the detection confidence; the owner may override it
+  "suggested_section": …, "section": …     // earlier fields, no longer used for Home
 }
 ```
 
@@ -530,8 +516,9 @@ Owner only (`Authorization: Bearer <earth-empire/admin-token>`, via the same che
 - `GET /v1/monitor/status` → queue by platform and state, totals, throughput (`cpu_per_audio`),
   today's usage against the caps, open fetch requests, and `stops` (a platform paused by a
   checkpoint, warning, login or billing refusal, with the reason).
-- `POST /v1/monitor/hits/{id}/publish {"section"?: "dedicated" | "common"}` (the section defaults to the
-  hit's `suggested_section`, else `common`), `POST /v1/monitor/hits/{id}/unpublish` → Hit
+- `POST /v1/monitor/hits/{id}/publish {"level"?: 1-4}`: "+" approves the hit for Home at its AI-chosen
+  `level` (or the owner's override); `POST /v1/monitor/hits/{id}/unpublish` takes it off → Hit.
+  Publishing twice no longer changes anything.
 - `GET /v1/monitor/sections` → `{"highlights": [{"id", "title", "section": "dedicated" | "common"}]}`;
   `PUT /v1/monitor/sections {"dedicated": ["hl_…"]}` marks which highlights are the owner's dedicated
   ones (the rest are common). Claude judges each new hit's `suggested_section` from how those are themed.

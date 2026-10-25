@@ -137,3 +137,13 @@ def test_language_windows_inside_a_chunk():
                      {"start": 1.2, "end": 6.0, "lang": "uk", "probs": {"uk": 0.7, "ru": 0.25}}]
     h = detect.find_language({"chunks": [ch]}, ["ru"])
     assert h and h[0]["language"] == "uk" and h[0]["start"] == 1.2
+
+
+def test_ukrainian_words_in_a_part_whisper_called_russian():
+    ch = tr("Шановни коллеги, Дякую за запрошение! Украина готова до диалогу, а Лыше на основе", "ru",
+            {"ru": 0.84, "uk": 0.08})
+    h = detect.find_language({"chunks": [ch]}, ["ru"])
+    assert h and h[0]["language"] == "uk" and h[0]["confidence"] < 0.6
+    assert any("uk words were heard" in n for n in h[0]["notes"])
+    plain = tr("Добрый день начинаем брифинг по итогам недели спасибо", "ru", {"ru": 0.95})
+    assert detect.find_language({"chunks": [plain]}, ["ru"]) == []

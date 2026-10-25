@@ -52,6 +52,13 @@ NOUN_CONTEXT = {"the", "a", "an", "on", "roof", "rooftop", "garden", "this", "th
                 "die", "der", "auf", "na", "v", "u", "на", "в", "террасе", "терраса"}
 
 EAST_SLAVIC = ("uk", "ru", "be")
+# Words that give the language away even when Whisper spells them the other language's way.
+UK_MARKERS = ("дяку", "шанов", "запрошен", "будь ласка", "також", "щоб", "що ", "україн", "лише", "лыше", "зараз",
+              "дуже", "й ", "є ", "ми з ", "вітаю", "привіт", "сьогодні", "тобто", "який", "яка ", "якщо",
+              "бути", "держав", "питання", "розмов", "зустріч", "тиждень", "дякуєм", "слава україні")
+RU_MARKERS = ("спасибо", "что ", "это ", "сейчас", "который", "которая", "только", "ещё", "здравствуйте",
+              "пожалуйста", "говорить", "сегодня", "если", "государств", "вопрос", "встреч", "неделю", "очень",
+              "нужно", "можно", "нельзя", "конечно", "хорошо")
 UK_ONLY = set("іїєґ")
 RU_ONLY = set("ыэъё")
 
@@ -226,6 +233,11 @@ def find_name(transcript: dict, min_confidence: float = 0.03, phrases: list[dict
     return hits
 
 
+def markers(text: str, lang: str) -> int:
+    t = " " + text.lower().replace("ё", "е") + " "
+    return sum(1 for m in (UK_MARKERS if lang == "uk" else RU_MARKERS) if m in t)
+
+
 def _language_units(transcript: dict) -> list[dict]:
     """Chunks, with a chunk split into its windows where the transcriber identified those too."""
     out = []
@@ -270,8 +282,15 @@ def find_language(transcript: dict, expected: list[str], min_seconds: float = 3.
             continue
         runs, cur = [], None
         for ch in _language_units(transcript):
-            probs = ch.get("probs") or {}
+            probs = dict(ch.get("probs") or {})
             p = probs.get(target, 0.0)
+            other = "ru" if target == "uk" else "uk"
+            mk = markers(ch.get("text") or "", target)
+            if ch.get("lang") == other and mk >= 2 and markers(ch.get("text") or "", other) < mk:
+                # Whisper said the other language, but the words are this one's: keep it, at lower confidence
+                p = max(p, min(0.6, 0.2 + 0.1 * mk))
+                probs[target] = p
+                ch = {**ch, "probs": probs, "lang": target, "lexical": mk}
             east = sum(probs.get(l, 0.0) for l in EAST_SLAVIC)
             words = ch.get("words") or []
             ok = (ch.get("lang") in EAST_SLAVIC and p >= min_prob and east >= 0.45 and len(words) >= 2
@@ -302,6 +321,9 @@ def find_language(transcript: dict, expected: list[str], min_seconds: float = 3.
                 notes.append(why)
             if p_other > 0.15:
                 notes.append("Whisper often confuses Ukrainian and Russian")
+            lex = [c.get("lexical") for c in r["chunks"] if c.get("lexical")]
+            if lex:
+                notes.append(f"identified as {other} by Whisper, but {sum(lex)} {target} words were heard")
             notes.append("may be a quoted clip, an interview, an interpreter's channel or a song")
             out.append({
                 "kind": "language", "matched": target, "language": target,

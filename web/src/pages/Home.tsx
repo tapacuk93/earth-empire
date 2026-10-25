@@ -3,9 +3,21 @@ import { Feed } from '../components/Feed';
 import { CategoryChips, HighlightsRow, KindTabs, ProfileHeader, useCategories, useHighlights, useProfile } from '../components/Profile';
 import { Icon } from '../components/icons';
 import { TagCloud } from '../components/TagCloud';
+import { MonitorMeta } from '../components/MonitorCard';
+import { VideoFeed, type FeedVideo } from '../components/VideoFeed';
+import { getItems } from '../api';
+import { getPublished, type MonitorVideo } from '../monitor';
+import { useData } from '../components/Profile';
+import { fmtShort, posterOf, KIND_LABEL } from '../util';
+import type { Item } from '../types';
 import { navigate, type Route } from '../router';
 import { SITE_NAME } from '../config';
 import { KIND_PLURAL, setMeta } from '../util';
+
+async function archiveVideos(): Promise<Item[]> {
+  const page = await getItems({ limit: 100 });
+  return page.items.filter((it) => (it.media[0] || it.repost_of?.media?.[0])?.type === 'video');
+}
 
 export function withParam(r: Route, name: string, value: string | undefined): string {
   const q = new URLSearchParams(r.query);
@@ -65,15 +77,31 @@ export function Home({ route }: { route: Route }) {
   }, [profile.data, q, kind, category, categories.data]);
 
   const cat = categories.data?.find((c) => c.slug === category);
+  const published = useData(getPublished);
+  const watch = route.query.get('watch') || undefined;
+  const [archive, setArchive] = useState<Item[]>();
+  useEffect(() => { if (watch && !archive) archiveVideos().then(setArchive, () => setArchive([])); }, [watch]);
+  const openWatch = (id?: string) => navigate(withParam(route, 'watch', id), { replace: !!watch || !id, keepScroll: true });
+  const feed: FeedVideo[] = [
+    ...(published.data || []).map((v) => ({ id: v.id, url: v.url, cover: v.cover, label: v.title, overlay: <MonitorMeta v={v} /> })),
+    ...(archive || []).map((it) => {
+      const m = (it.media[0]?.type === 'video' ? it.media[0] : it.repost_of?.media?.[0])!;
+      return { id: it.id, url: m.url, cover: posterOf(m), label: it.summary || it.caption || KIND_LABEL[it.kind],
+        overlay: <><p class="mon-src">{KIND_LABEL[it.kind]} · {fmtShort(it.taken_at)}{it.repost_of ? ` · by @${it.repost_of.author}` : ''}</p>
+          <p class="mon-title">{it.summary || it.caption}</p><p><a href={`/item/${encodeURIComponent(it.id)}`}>Details</a></p></> };
+    }),
+  ];
   return (
     <>
       <ProfileHeader profile={profile.data} />
       {profile.error && <p class="error" role="alert">Could not load the profile: {profile.error.message}</p>}
       <HighlightsRow highlights={highlights.data} />
+      {!!published.data?.length && <PublishedRow videos={published.data} onWatch={openWatch} />}
       <div class="view-switch" role="group" aria-label="View">
         <button aria-pressed={view === 'tags'} onClick={() => pickView('tags')}>Tag cloud</button>
         <button aria-pressed={view === 'timeline'} onClick={() => pickView('timeline')}>Everything, by date</button>
       </div>
+      <button class="btn small ghost watch-btn" onClick={() => openWatch(published.data?.[0]?.id || 'first')}>▶ Watch fullscreen</button>
       <div class="filters">
         <SearchBox route={route} />
         <KindTabs active={kind} onPick={(k) => navigate(withParam(route, 'kind', k), { replace: true, keepScroll: true })} />
@@ -84,6 +112,29 @@ export function Home({ route }: { route: Route }) {
       {view === 'tags' && <TagCloud active={tag} onPick={(t) => navigate(withParam(route, 'tag', t), { replace: true, keepScroll: true })} />}
       <Feed query={{ kind, category, q, tag: view === 'tags' ? tag : undefined }} layout={view === 'timeline' ? 'timeline' : 'grid'}
         emptyText={q ? `Nothing matches “${q}”.` : 'Nothing here yet.'} />
+      {watch && archive && feed.length > 0 && (
+        <VideoFeed title="Watch" videos={feed} start={watch === 'first' ? feed[0].id : watch} onClose={() => openWatch(undefined)}
+          onIndex={(id) => history.replaceState(history.state, '', withParam(route, 'watch', id))} />
+      )}
     </>
+  );
+}
+
+function PublishedRow({ videos, onWatch }: { videos: MonitorVideo[]; onWatch: (id: string) => void }) {
+  return (
+    <section aria-labelledby="pub-h">
+      <div class="section-head"><h2 id="pub-h">From the monitor</h2><a href="/monitor">All found videos →</a></div>
+      <ul class="mon-row" role="list">
+        {videos.map((v) => (
+          <li key={v.id}>
+            <button class="mon-thumb" onClick={() => onWatch(v.id)} aria-label={`Watch fullscreen: ${v.title}`}>
+              {v.cover ? <img src={v.cover} alt="" loading="lazy" width={180} height={320} /> : <span />}
+              <span class="mon-play" aria-hidden="true">▶</span>
+            </button>
+            <p>{v.title}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

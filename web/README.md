@@ -39,6 +39,21 @@ backend/deploy/deploy-site.sh
 | `/item/<id>` | media viewer, caption, details, description and the analysis; a repost shows the sharing item and the credited original side by side (stacked on phones) |
 | `/highlight/<id>?item=<id>` | Instagram-style story viewer: tap left/right, hold to pause, swipe sideways for the next highlight, swipe down or Esc to close; arrows, Space, `m` on a keyboard |
 | `/category/<slug>` | one category |
+| `/monitor` | videos the monitor found, highest confidence first; low-confidence hits marked; the owner gets "Add to the site" |
+| `/status` | live health of every component (`GET /v1/status`, refreshed every 10 s), current jobs and events; settings: the owner token and the monitor's phrases (edit, save, rescan) |
+
+`?watch=<id>` on Home or Monitor opens the **fullscreen video mode**: one video per screen, swipe
+or arrow keys up and down. On Home it plays the published monitor videos, then the archive's videos.
+
+**Owner mode:** the owner token (`earth-empire/admin-token`) is entered in Status, checked with
+`GET /v1/admin/me`, and kept in this browser's `localStorage` only. It turns on editing the phrases
+(`PUT /v1/monitor/phrases`, `POST /v1/monitor/rescan`) and publishing found videos.
+
+**Provisional:** CONTRACT.md has no Monitor section yet. `src/monitor.ts` reads
+`GET /v1/monitor/videos?sort=confidence`, `GET /v1/published` and
+`POST /v1/monitor/videos/{id}/publish` through one tolerant `normalize()`, so the final shape only
+changes that file. Until those endpoints exist, Home leaves the monitor row out and Monitor says
+it is not live yet.
 
 ## Opening the apps
 

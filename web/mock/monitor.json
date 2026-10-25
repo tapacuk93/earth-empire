@@ -1,0 +1,133 @@
+{
+ "videos": [
+  {
+   "id": "mon_1",
+   "title": "City council session: the harbour project",
+   "media": [
+    {
+     "type": "video",
+     "url": "/mock/media/ocean-reel.mp4",
+     "thumbnail": "/mock/media/ocean-reel.thumb.jpg",
+     "cover": "/mock/media/ocean-reel.cover.jpg",
+     "width": 540,
+     "height": 960
+    }
+   ],
+   "source": {
+    "platform": "youtube",
+    "account": "sample.council",
+    "name": "Sample City Council (mock)",
+    "url": "https://www.youtube.com/@sample.council"
+   },
+   "taken_at": "2026-10-24T10:00:00Z",
+   "found_at": "2026-10-24T12:00:00Z",
+   "confidence": 0.94,
+   "matches": [
+    {
+     "phrase": "тарас маслов",
+     "text": "…слово має Тарас Маслов…",
+     "at": 3.5
+    }
+   ],
+   "transcript": "Наступне питання. Слово має Тарас Маслов, автор проєкту гавані.",
+   "published": true
+  },
+  {
+   "id": "mon_2",
+   "title": "Regional news: coastal run raises funds",
+   "media": [
+    {
+     "type": "video",
+     "url": "/mock/media/reel-sunset.mp4",
+     "thumbnail": "/mock/media/reel-sunset.thumb.jpg",
+     "cover": "/mock/media/reel-sunset.cover.jpg",
+     "width": 540,
+     "height": 960
+    }
+   ],
+   "source": {
+    "platform": "youtube",
+    "account": "sample.news",
+    "name": "Sample Regional News (mock)",
+    "url": "https://www.youtube.com/@sample.news"
+   },
+   "taken_at": "2026-10-22T10:00:00Z",
+   "found_at": "2026-10-22T12:00:00Z",
+   "confidence": 0.81,
+   "matches": [
+    {
+     "phrase": "маслов",
+     "text": "…організатор Маслов сказав…",
+     "at": 6.0
+    }
+   ],
+   "transcript": "Забіг уздовж узбережжя зібрав кошти. Організатор Маслов сказав, що наступного року буде більше учасників.",
+   "published": true
+  },
+  {
+   "id": "mon_3",
+   "title": "Morning show: home cooking segment",
+   "media": [
+    {
+     "type": "video",
+     "url": "/mock/media/reel-cooking.mp4",
+     "thumbnail": "/mock/media/reel-cooking.thumb.jpg",
+     "cover": "/mock/media/reel-cooking.cover.jpg",
+     "width": 540,
+     "height": 960
+    }
+   ],
+   "source": {
+    "platform": "youtube",
+    "account": "sample.tv",
+    "name": "Sample TV (mock)",
+    "url": "https://www.youtube.com/@sample.tv"
+   },
+   "taken_at": "2026-10-21T10:00:00Z",
+   "found_at": "2026-10-21T12:00:00Z",
+   "confidence": 0.55,
+   "matches": [
+    {
+     "phrase": "тарас",
+     "text": "…Тарасе, покажи…",
+     "at": 2.0
+    }
+   ],
+   "transcript": "Тарасе, покажи, як різати гарбуз.",
+   "published": false
+  },
+  {
+   "id": "mon_4",
+   "title": "Market day report",
+   "media": [
+    {
+     "type": "video",
+     "url": "/mock/media/story-market.mp4",
+     "thumbnail": "/mock/media/story-market.thumb.jpg",
+     "cover": "/mock/media/story-market.cover.jpg",
+     "width": 540,
+     "height": 960
+    }
+   ],
+   "source": {
+    "platform": "youtube",
+    "account": "sample.city",
+    "name": "Sample City (mock)",
+    "url": "https://www.youtube.com/@sample.city"
+   },
+   "taken_at": "2026-10-20T10:00:00Z",
+   "found_at": "2026-10-20T12:00:00Z",
+   "confidence": 0.32,
+   "matches": [
+    {
+     "phrase": "тарас",
+     "text": "…на Тарасівській вулиці…",
+     "at": 4.1
+    }
+   ],
+   "transcript": "Ярмарок на Тарасівській вулиці триватиме до неділі.",
+   "published": false
+  }
+ ],
+ "next": null
+}

@@ -94,6 +94,7 @@ test('item: reel with analysis; the timeline seeks the video', async ({ page }) 
 });
 
 test('item: carousel moves with buttons, dots and keys', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' }); // instant scrolls, so each step is settled before the next
   await page.goto(`/item/${CAROUSEL}`);
   const viewer = page.getByRole('region', { name: /Carousel media/ });
   await expect(viewer).toBeVisible();
@@ -332,4 +333,78 @@ test.describe('app banner on iPhone', () => {
     const open = page.getByRole('complementary', { name: 'Open in the app' }).getByRole('link', { name: 'Open' });
     await expect(open).toHaveAttribute('href', 'earthempire://category/food');
   });
+});
+
+test('sections: Home, Monitor and Status in the header', async ({ page }) => {
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Sections' });
+  await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
+  await nav.getByRole('link', { name: 'Monitor' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Monitor' })).toBeVisible();
+  await nav.getByRole('link', { name: 'Status' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Status' })).toBeVisible();
+  await noHorizontalScroll(page);
+});
+
+test('monitor: by confidence, low hits labelled, fullscreen mode', async ({ page }) => {
+  await page.goto('/monitor');
+  const cards = page.locator('.mon-card');
+  await expect(cards).toHaveCount(4);
+  await expect(cards.first()).toContainText('94%');
+  await expect(cards.nth(2)).toContainText('Low confidence');
+  // No owner token: no publish button.
+  await expect(page.getByRole('button', { name: 'Add to the site' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Watch fullscreen' }).first().click();
+  const dlg = page.getByRole('dialog', { name: 'Monitor' });
+  await expect(dlg).toBeVisible();
+  await expect(dlg).toContainText('1/4');
+  await dlg.locator('.vfeed-list').focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(dlg).toContainText('2/4');
+  await expect(page).toHaveURL(/watch=mon_2/);
+  await page.keyboard.press('Escape');
+  await expect(dlg).toHaveCount(0);
+  await noHorizontalScroll(page);
+});
+
+test('home: published monitor videos and the fullscreen watch mode', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'From the monitor' })).toBeVisible();
+  await page.getByRole('button', { name: /Watch fullscreen: City council/ }).click();
+  const dlg = page.getByRole('dialog', { name: 'Watch' });
+  await expect(dlg).toBeVisible();
+  // Two published monitor videos, then the archive's videos.
+  await expect(dlg.locator('.vfeed-slide')).toHaveCount(2 + 4);
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(dlg).toHaveCount(0);
+});
+
+test('status: components, activity, and owner-only phrase settings', async ({ page }) => {
+  await page.goto('/status');
+  await expect(page.locator('.comp')).toHaveCount(10);
+  await expect(page.getByText('Instagram asked to slow down; waiting 15 min')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible();
+  const phrases = page.getByRole('region', { name: 'Phrases the monitor listens for' });
+  await expect(phrases.locator('.phrase')).toHaveCount(3);
+  await expect(phrases.getByRole('list', { name: 'Variants of “тарас маслов”' })).toContainText('taras maslov');
+  await expect(phrases.getByRole('button', { name: 'Save' })).toHaveCount(0);
+  // A wrong token is refused; the right one turns editing on.
+  const token = page.getByLabel('Owner token');
+  await token.fill('nope');
+  await page.getByRole('button', { name: 'Check and keep' }).click();
+  await expect(page.getByText('That token was not accepted.')).toBeVisible();
+  await token.fill('owner');
+  await page.getByRole('button', { name: 'Check and keep' }).click();
+  await expect(page.getByText('Signed in as the owner on this device.')).toBeVisible();
+  await phrases.getByLabel('New phrase').fill('t. maslov');
+  await phrases.getByRole('button', { name: 'Add' }).click();
+  await phrases.getByRole('button', { name: 'Save' }).click();
+  await expect(phrases.getByText('Saved.', { exact: false })).toBeVisible();
+  await expect(phrases.locator('.phrase')).toHaveCount(4);
+  await phrases.getByRole('button', { name: 'Rescan stored transcripts' }).click();
+  await expect(phrases.getByText('Rescan started.', { exact: false })).toBeVisible();
+  // The owner sees the publish button in Monitor.
+  await page.goto('/monitor');
+  await page.getByRole('button', { name: 'Add to the site' }).first().click();
+  await expect(page.locator('.mon-card').nth(2)).toContainText('Published');
 });

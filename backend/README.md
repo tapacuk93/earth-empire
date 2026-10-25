@@ -32,7 +32,7 @@ backend/
 | Media | bucket `earth-empire-media` (private, versioned, OAC) → CloudFront → `media.empire.earth` |
 | API | CloudFront → `api.empire.earth` → the box, port 80 open to CloudFront's addresses only → nginx → uvicorn `127.0.0.1:8000` |
 | Box | EC2 `t4g.medium` tagged `Name=earth-empire` (Ubuntu 24.04 arm64, 30 GB gp3, 4 GB swap, Elastic IP), role `earth-empire-box`, SSM only (no SSH port) |
-| Backups | bucket `earth-empire-backups`: `db/daily/<date>.sqlite3.gz` (35 days), `db/latest.sqlite3.gz`, `facebook/*.png` proofs |
+| Backups | bucket `earth-empire-backups`: every part's SQLite state hourly at `state/latest/<part>/…`, daily at `state/daily/<date>/…` (35 days); `facebook/*.png` proofs |
 | Logs | CloudWatch Logs `/earth-empire` (90 days), streams `api-*`, `worker-*`, `cli-*`; deploy output too |
 | Metrics | namespace `EarthEmpire`: `Heartbeat`, `CollectorRunsOk`, `CollectorRunsFailed`, `WorkerErrors`, `AnalysisCoins`, `XPosts`, `FacebookPosts` |
 | Alarms → SNS `earth-empire-alerts` | no successful collector run for 3 h; 3+ failed runs in 2 h; API/worker heartbeat stopped; 5+ worker errors in an hour; EC2 host failure (auto-recover) |
@@ -60,6 +60,37 @@ re-run them if the stack is ever rebuilt).
 Shell on the box: `aws ssm start-session --target $ID`, then `sudo -i`, with
 `ID=$(aws ec2 describe-instances --filters Name=tag:Name,Values=earth-empire Name=instance-state-name,Values=running --query 'Reservations[0].Instances[0].InstanceId' --output text)`.
 Resource ids and hostnames: `aws cloudformation describe-stacks --stack-name earth-empire --query 'Stacks[0].Outputs'`.
+
+## Status, health and the owner's token
+
+- `GET /v1/status` (public) is the apps' status screen. It covers every component (API, database
+  and backups, workers, analyzer, collector, monitor and any part that sends heartbeats, X and
+  Facebook posters, site build, disk, memory, CPU, queues) with state, last success, last error and
+  details. It also lists the current jobs with progress and elapsed time, and the latest 50
+  events. Texts are scrubbed (`ee/status.py`), and unpublished items are never named.
+- Parts report with `POST /v1/ingest/heartbeat` (ingest token); a silent part shows `down` after
+  30 minutes.
+- `earth-empire/admin-token` is the owner's token for owner-only endpoints. The apps check it with
+  `GET /v1/admin/me` once the owner types it. To read it (owner only):
+  `aws secretsmanager get-secret-value --secret-id earth-empire/admin-token --query SecretString --output text`.
+  To rotate it, put a new random value in the secret; the API picks it up within 5 minutes.
+
+## Persistence
+
+Every part's SQLite files under `/var/lib/earth-empire/<part>/` are backed up hourly with SQLite's
+online backup API to `s3://earth-empire-backups/state/` (`ee/backup.py`). That covers the archive,
+the pipeline and posting state, settings, the collector's and the monitor's state. The EBS volume
+also survives instance termination.
+
+```sh
+ee backup                          # now
+ee-restore-state --check           # download and verify the latest; change nothing
+ee-restore-state [YYYY-MM-DD]      # stop ee-* services and timers, restore (latest or that day), start them
+```
+
+A rebuilt box restores the latest state in `deploy/install.sh` before any service starts. Tested
+2026-10-25: a restore into a scratch directory matched the live row counts in every table, and an
+in-place restore stopped and restarted the API, worker and collector timer cleanly.
 
 ## The pipeline (CONTRACT.md "The pipeline")
 
@@ -100,6 +131,9 @@ item on average, **4.9 coins ≈ $0.037 per item** at the proxy's metering, plus
 for transcription. Photo post ≈ 3 coins, carousel ≈ 4, short video ≈ 7-8 with transcription.
 **Backlog of N items ≈ 6 × N coins ≈ $0.055 × N** (1,000 items ≈ 6,000 coins ≈ $55; mostly-video
 accounts toward the upper end, long videos a little more since frames are capped at 16).
+
+**Pacing:** 5-20 s of random pause between analyses. Proxy 429s and 5xx responses retry with growing
+waits; an empty wallet waits an hour.
 
 **Cost guard:** the worker analyzes at most `analysis.daily_cap` items a day (default **20**).
 To work through an approved backlog: `ee settings analysis.daily_cap 1000`. `ee estimate` shows
@@ -143,7 +177,7 @@ retry continues the thread.
 per post containing a URL** (so a repost's credited first tweet costs $0.20), user reads $0.010.
 An item is ~2-3 tweets ≈ **$0.03-0.05**, a repost ≈ $0.23. 1,000 items with 10% reposts ≈ $55.
 
-Pacing: one item every `x.interval_minutes` (30), at most `x.daily_cap` (40) a day, both settings.
+Pacing: one item every `x.interval_minutes` (30, with -20%/+30% random jitter), at most `x.daily_cap` (40) a day, both settings.
 A 429 pauses until X's reset; **a billing refusal** (HTTP 402, or 403/429 mentioning credits,
 payment or a usage cap) **pauses posting** (`x.paused_until`), logs `x.no_credits`, and leaves the
 item pending, with no retries. After buying credits: `ee settings x.paused_until ''`.

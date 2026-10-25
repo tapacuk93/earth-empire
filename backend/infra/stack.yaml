@@ -1,0 +1,441 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Earth Empire - the zone, the site, media and API distributions, the box, logs and alarms.
+  Deploy with backend/infra/deploy.sh. Certificates are requested outside this stack
+  (backend/infra/request-cert.sh), since their DNS validation can only finish once the domain's
+  nameservers point at the zone; finish-domains.sh passes the issued certificate back in here.
+
+Parameters:
+  CertificateArn:
+    Type: String
+    Default: ""
+    Description: An ISSUED us-east-1 ACM certificate for empire.earth, www, media and api. Empty until then.
+  CloudFrontPrefixList:
+    Type: String
+    Default: pl-3b927c52
+    Description: com.amazonaws.global.cloudfront.origin-facing in us-east-1.
+  InstanceType:
+    Type: String
+    Default: t4g.medium
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/canonical/ubuntu/server/24.04/stable/current/arm64/hvm/ebs-gp3/ami-id
+  VolumeGb:
+    Type: Number
+    Default: 30
+  RepoUrl:
+    Type: String
+    Default: https://github.com/tapacuk93/earth-empire.git
+
+Conditions:
+  HasCert: !Not [!Equals [!Ref CertificateArn, ""]]
+
+Resources:
+  # ---------------------------------------------------------------- DNS
+  Zone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: empire.earth
+      HostedZoneConfig: {Comment: Earth Empire}
+      HostedZoneTags: [{Key: project, Value: earth-empire}]
+
+  # ---------------------------------------------------------------- Buckets
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: earth-empire-site
+      PublicAccessBlockConfiguration: {BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true}
+      OwnershipControls: {Rules: [{ObjectOwnership: BucketOwnerEnforced}]}
+      Tags: [{Key: project, Value: earth-empire}]
+
+  MediaBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: earth-empire-media
+      PublicAccessBlockConfiguration: {BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true}
+      OwnershipControls: {Rules: [{ObjectOwnership: BucketOwnerEnforced}]}
+      VersioningConfiguration: {Status: Enabled}   # nothing is lost, even to an overwrite
+      LifecycleConfiguration:
+        Rules:
+          - {Id: old-versions, Status: Enabled, NoncurrentVersionExpiration: {NoncurrentDays: 90}}
+          - {Id: abort-uploads, Status: Enabled, AbortIncompleteMultipartUpload: {DaysAfterInitiation: 2}}
+      Tags: [{Key: project, Value: earth-empire}]
+
+  BackupBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: earth-empire-backups
+      PublicAccessBlockConfiguration: {BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true}
+      OwnershipControls: {Rules: [{ObjectOwnership: BucketOwnerEnforced}]}
+      LifecycleConfiguration:
+        Rules:
+          - {Id: daily, Status: Enabled, Prefix: db/daily/, ExpirationInDays: 35}
+      Tags: [{Key: project, Value: earth-empire}]
+
+  Oac:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: earth-empire-s3
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # ---------------------------------------------------------------- Site
+  SiteRewrite:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: earth-empire-site-rewrite
+      AutoPublish: true
+      FunctionConfig: {Comment: "www -> apex; /path/ -> /path/index.html", Runtime: cloudfront-js-2.0}
+      FunctionCode: |
+        function handler(event) {
+          var r = event.request;
+          var host = r.headers.host && r.headers.host.value;
+          if (host === 'www.empire.earth') {
+            var qs = Object.keys(r.querystring).map(function (k) { return k + '=' + r.querystring[k].value; }).join('&');
+            return {statusCode: 301, statusDescription: 'Moved Permanently',
+                    headers: {location: {value: 'https://empire.earth' + r.uri + (qs ? '?' + qs : '')}}};
+          }
+          if (r.uri.endsWith('/')) r.uri += 'index.html';
+          else if (r.uri.lastIndexOf('.') < r.uri.lastIndexOf('/') + 1) {
+            // an extensionless path is a client-side route: serve the app shell
+            r.uri = '/index.html';
+          }
+          return r;
+        }
+
+  SiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: earth-empire site
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        DefaultRootObject: index.html
+        Aliases: !If [HasCert, [empire.earth, www.empire.earth], !Ref AWS::NoValue]
+        ViewerCertificate: !If
+          - HasCert
+          - {AcmCertificateArn: !Ref CertificateArn, SslSupportMethod: sni-only, MinimumProtocolVersion: TLSv1.2_2021}
+          - {CloudFrontDefaultCertificate: true}
+        Origins:
+          - Id: site
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt Oac.Id
+            S3OriginConfig: {OriginAccessIdentity: ""}
+        DefaultCacheBehavior:
+          TargetOriginId: site
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6          # CachingOptimized
+          ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03 # SecurityHeadersPolicy
+          FunctionAssociations:
+            - {EventType: viewer-request, FunctionARN: !GetAtt SiteRewrite.FunctionMetadata.FunctionARN}
+        CustomErrorResponses:
+          - {ErrorCode: 403, ResponseCode: 404, ResponsePagePath: /index.html, ErrorCachingMinTTL: 10}
+      Tags: [{Key: project, Value: earth-empire}]
+
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: {Service: cloudfront.amazonaws.com}
+            Action: s3:GetObject
+            Resource: !Sub "${SiteBucket.Arn}/*"
+            Condition: {StringEquals: {"AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}"}}
+
+  # ---------------------------------------------------------------- Media
+  MediaDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: earth-empire media
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        Aliases: !If [HasCert, [media.empire.earth], !Ref AWS::NoValue]
+        ViewerCertificate: !If
+          - HasCert
+          - {AcmCertificateArn: !Ref CertificateArn, SslSupportMethod: sni-only, MinimumProtocolVersion: TLSv1.2_2021}
+          - {CloudFrontDefaultCertificate: true}
+        Origins:
+          - Id: media
+            DomainName: !GetAtt MediaBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt Oac.Id
+            S3OriginConfig: {OriginAccessIdentity: ""}
+        DefaultCacheBehavior:
+          TargetOriginId: media
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: false
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6          # CachingOptimized
+          ResponseHeadersPolicyId: 60669652-455b-4ae9-85a4-c4c02393f86c # SimpleCORS
+      Tags: [{Key: project, Value: earth-empire}]
+
+  MediaBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref MediaBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: {Service: cloudfront.amazonaws.com}
+            Action: s3:GetObject
+            Resource: !Sub "${MediaBucket.Arn}/*"
+            Condition: {StringEquals: {"AWS:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${MediaDistribution}"}}
+
+  # ---------------------------------------------------------------- The box
+  BoxRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: earth-empire-box
+      AssumeRolePolicyDocument:
+        Statement: [{Effect: Allow, Principal: {Service: ec2.amazonaws.com}, Action: sts:AssumeRole}]
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: earth-empire-box
+          PolicyDocument:
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:DeleteObject, s3:ListBucket]
+                Resource:
+                  - !GetAtt MediaBucket.Arn
+                  - !Sub "${MediaBucket.Arn}/*"
+                  - !GetAtt BackupBucket.Arn
+                  - !Sub "${BackupBucket.Arn}/*"
+              - Effect: Allow
+                Action: [secretsmanager:GetSecretValue, secretsmanager:DescribeSecret]
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:earth-empire/*"
+              - Effect: Allow   # the box generates its own wallet key, so it never leaves AWS
+                Action: secretsmanager:PutSecretValue
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:earth-empire/claude-*"
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition: {StringEquals: {"cloudwatch:namespace": EarthEmpire}}
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents, logs:DescribeLogStreams]
+                Resource: !Sub "${LogGroup.Arn}*"
+              - Effect: Allow
+                Action: cloudfront:CreateInvalidation
+                Resource: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${MediaDistribution}"
+      Tags: [{Key: project, Value: earth-empire}]
+
+  BoxProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: earth-empire-box
+      Roles: [!Ref BoxRole]
+
+  BoxSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: earth-empire-box
+      GroupDescription: Earth Empire box - HTTP from CloudFront only, no SSH (SSM is used)
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 80, ToPort: 80, SourcePrefixListId: !Ref CloudFrontPrefixList, Description: CloudFront to the API}
+      Tags: [{Key: project, Value: earth-empire}]
+
+  Box:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref BoxProfile
+      SecurityGroupIds: [!GetAtt BoxSecurityGroup.GroupId]
+      MetadataOptions: {HttpTokens: required, HttpEndpoint: enabled, HttpPutResponseHopLimit: 2}
+      CreditSpecification: {CPUCredits: unlimited}
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: {VolumeSize: !Ref VolumeGb, VolumeType: gp3, Encrypted: true, DeleteOnTermination: false}
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # First boot only: the checkout, then the backend's own installer, which owns the rest.
+          set -eux
+          apt-get update
+          apt-get install -y git
+          id earth || useradd --system --create-home --home-dir /var/lib/earth-empire --shell /bin/bash earth
+          mkdir -p /opt/earth-empire
+          [ -d /opt/earth-empire/repo/.git ] || git clone ${RepoUrl} /opt/earth-empire/repo
+          chown -R earth:earth /opt/earth-empire
+          bash /opt/earth-empire/repo/backend/deploy/bootstrap.sh
+      Tags:
+        - {Key: Name, Value: earth-empire}
+        - {Key: project, Value: earth-empire}
+      PropagateTagsToVolumeOnCreation: true
+
+  BoxIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref Box
+      Tags: [{Key: project, Value: earth-empire}]
+
+  BoxRecover:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: earth-empire-box-recover
+      AlarmDescription: Recover the box when the host fails its system status check
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed_System
+      Dimensions: [{Name: InstanceId, Value: !Ref Box}]
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions: [!Sub "arn:aws:automate:${AWS::Region}:ec2:recover", !Ref Alerts]
+
+  # ---------------------------------------------------------------- API
+  ApiDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: earth-empire api
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        Aliases: !If [HasCert, [api.empire.earth], !Ref AWS::NoValue]
+        ViewerCertificate: !If
+          - HasCert
+          - {AcmCertificateArn: !Ref CertificateArn, SslSupportMethod: sni-only, MinimumProtocolVersion: TLSv1.2_2021}
+          - {CloudFrontDefaultCertificate: true}
+        Origins:
+          - Id: box
+            # The EIP's public DNS name: ec2-a-b-c-d.compute-1.amazonaws.com
+            DomainName: !Join
+              - ""
+              - - ec2-
+                - !Join ["-", !Split [".", !Ref BoxIp]]
+                - .compute-1.amazonaws.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: http-only
+              HTTPPort: 80
+              OriginReadTimeout: 60
+              OriginKeepaliveTimeout: 30
+        DefaultCacheBehavior:
+          TargetOriginId: box
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad              # CachingDisabled
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac       # AllViewerExceptHostHeader
+      Tags: [{Key: project, Value: earth-empire}]
+
+  # ---------------------------------------------------------------- Domain records, once the cert exists
+  ApexRecord:
+    Type: AWS::Route53::RecordSetGroup
+    Condition: HasCert
+    Properties:
+      HostedZoneId: !Ref Zone
+      RecordSets:
+        - {Name: empire.earth., Type: A, AliasTarget: {DNSName: !GetAtt SiteDistribution.DomainName, HostedZoneId: Z2FDTNDATAQYW2}}
+        - {Name: empire.earth., Type: AAAA, AliasTarget: {DNSName: !GetAtt SiteDistribution.DomainName, HostedZoneId: Z2FDTNDATAQYW2}}
+        - {Name: www.empire.earth., Type: A, AliasTarget: {DNSName: !GetAtt SiteDistribution.DomainName, HostedZoneId: Z2FDTNDATAQYW2}}
+        - {Name: www.empire.earth., Type: AAAA, AliasTarget: {DNSName: !GetAtt SiteDistribution.DomainName, HostedZoneId: Z2FDTNDATAQYW2}}
+        - {Name: media.empire.earth., Type: A, AliasTarget: {DNSName: !GetAtt MediaDistribution.DomainName, HostedZoneId: Z2FDTNDATAQYW2}}
+        - {Name: media.empire.earth., Type: AAAA, AliasTarget: {DNSName: !GetAtt MediaDistribution.DomainName, HostedZoneId: Z2FDTNDATAQYW2}}
+        - {Name: api.empire.earth., Type: A, AliasTarget: {DNSName: !GetAtt ApiDistribution.DomainName, HostedZoneId: Z2FDTNDATAQYW2}}
+        - {Name: api.empire.earth., Type: AAAA, AliasTarget: {DNSName: !GetAtt ApiDistribution.DomainName, HostedZoneId: Z2FDTNDATAQYW2}}
+
+  # ---------------------------------------------------------------- Logs, metrics, alarms
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /earth-empire
+      RetentionInDays: 90
+      Tags: [{Key: project, Value: earth-empire}]
+
+  Alerts:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: earth-empire-alerts
+      Tags: [{Key: project, Value: earth-empire}]
+
+  CollectorMissing:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: earth-empire-collector-missing
+      AlarmDescription: No successful collector run in 3 hours (stories vanish after 24)
+      Namespace: EarthEmpire
+      MetricName: CollectorRunsOk
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 3
+      DatapointsToAlarm: 3
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions: [!Ref Alerts]
+      OKActions: [!Ref Alerts]
+
+  CollectorFailing:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: earth-empire-collector-failing
+      AlarmDescription: Three or more failed collector runs within 2 hours
+      Namespace: EarthEmpire
+      MetricName: CollectorRunsFailed
+      Statistic: Sum
+      Period: 7200
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref Alerts]
+
+  ApiDown:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: earth-empire-api-heartbeat
+      AlarmDescription: The API's own heartbeat (every 5 minutes) stopped
+      Namespace: EarthEmpire
+      MetricName: Heartbeat
+      Statistic: Sum
+      Period: 900
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+      AlarmActions: [!Ref Alerts]
+      OKActions: [!Ref Alerts]
+
+  WorkerErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: earth-empire-worker-errors
+      AlarmDescription: Analysis or posting failed 5+ times in an hour
+      Namespace: EarthEmpire
+      MetricName: WorkerErrors
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref Alerts]
+
+Outputs:
+  ZoneId: {Value: !Ref Zone}
+  NameServers: {Value: !Join [" ", !GetAtt Zone.NameServers]}
+  SiteBucket: {Value: !Ref SiteBucket}
+  SiteDistributionId: {Value: !Ref SiteDistribution}
+  SiteHost: {Value: !GetAtt SiteDistribution.DomainName}
+  MediaDistributionId: {Value: !Ref MediaDistribution}
+  MediaHost: {Value: !GetAtt MediaDistribution.DomainName}
+  ApiDistributionId: {Value: !Ref ApiDistribution}
+  ApiHost: {Value: !GetAtt ApiDistribution.DomainName}
+  InstanceId: {Value: !Ref Box}
+  AlertsTopic: {Value: !Ref Alerts}

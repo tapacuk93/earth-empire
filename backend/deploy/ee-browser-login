@@ -1,0 +1,18 @@
+#!/bin/bash
+# ee-browser-login <profile> <url> - open headed Chromium with a persistent browser profile on the
+# remote view's display (:99), holding the profile's lock, so the owner can log in by hand.
+# Run as the earth user: sudo -u earth ee-browser-login facebook https://www.facebook.com/
+# Then open the view: see backend/README.md ("Remote view").
+set -euo pipefail
+NAME=${1:?profile name, e.g. instagram or facebook}
+URL=${2:-about:blank}
+DIR=/var/lib/earth-empire/browser/$NAME
+install -d -m 700 "$DIR"
+set -a; . /etc/earth-empire/env; set +a
+CHROME=$(ls -d "$PLAYWRIGHT_BROWSERS_PATH"/chromium-*/chrome-linux*/chrome 2>/dev/null | sort | tail -1)
+[ -x "$CHROME" ] || { echo "no Playwright Chromium in $PLAYWRIGHT_BROWSERS_PATH" >&2; exit 1; }
+systemctl is-active --quiet ee-remote-view || { echo "start the view first: sudo systemctl start ee-remote-view" >&2; exit 1; }
+echo "holding /var/lib/earth-empire/browser/$NAME.lock; close the browser window when done"
+exec flock "/var/lib/earth-empire/browser/$NAME.lock" \
+  env DISPLAY=:99 "$CHROME" --user-data-dir="$DIR" --no-first-run --no-default-browser-check \
+  --window-size=1366,900 "$URL"

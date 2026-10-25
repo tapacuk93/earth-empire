@@ -11,8 +11,10 @@ import { VideoFeed } from '../components/VideoFeed';
 import { SITE_NAME } from '../config';
 import { itemHref } from '../context';
 import { attachMap, buildMosaic, buildTagGraph, graphFromApi, mosaicFromLayout, placeAttached, type Tile } from '../layout';
-import { getLayout, getTagGraph, tagItems } from '../homeData';
-import { ctxItems } from '../context';
+import { getFacets, getLayout, getTagGraph, tagItems, type Facet } from '../homeData';
+import { FacetsPanel } from '../components/FacetsPanel';
+import type { GNode } from '../layout';
+import { ctxItems, setFacets } from '../context';
 import { getPublished } from '../monitor';
 import { navigate, settleScroll, type Route } from '../router';
 import { hitSection, SECTION_TITLE, sectionHighlights, sectionItems, type SectionId } from '../sections';
@@ -81,7 +83,16 @@ export function Home({ route }: { route: Route }) {
     }));
   }, [ready, lay.loading, items, hl, hits]);
   const graph = useMemo(() => (tg.loading || !ready ? null : tg.data ? graphFromApi(tg.data.nodes, tg.data.edges) : buildTagGraph(items, tagsOf(items))), [ready, tg.loading, items]);
-  const openTag = async (tag: string) => {
+  const fc = useData(getFacets);
+  useEffect(() => { if (fc.data) setFacets(fc.data); }, [fc.data]);
+  const openFacet = (facet: string, category: string) => {
+    const ctx = `facet:${facet}:${category}`;
+    const list = ctxItems(ctx, items, hl);
+    if (list.length) navigate(itemHref(list[0].id, ctx));
+  };
+  const openTag = async (n: GNode) => {
+    if (n.facet && n.category) return openFacet(n.facet, n.category);
+    const tag = n.tag;
     const list = (await tagItems(tag)) || ctxItems(`tag:${tag}`, items, hl);
     if (list.length) navigate(itemHref(list[0].id, `tag:${tag}`));
   };
@@ -115,6 +126,7 @@ export function Home({ route }: { route: Route }) {
           {graph && graph.nodes.length > 0 && (
             <TagGraphView nodes={graph.nodes} edges={graph.edges} labelFor={tagLabel} onOpen={openTag} />
           )}
+          {fc.data && <FacetsPanel facets={fc.data} onOpen={(f: Facet, c) => openFacet(f.id, c.id)} />}
         </section>
         <section class="mode" id="mode-time" aria-label="Timeline mode">
           {all.data && <TimelineView items={items} hrefFor={(it) => itemHref(it.id)} />}

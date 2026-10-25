@@ -1,14 +1,14 @@
 // Home's data from the API (CONTRACT.md "The API": /v1/layout, /v1/items/{id}/related,
 // /v1/tags/graph). Each returns null when the API cannot serve it (or in the mock), and the
 // caller falls back to computing the same thing in the browser (src/layout.ts).
-import { getItems } from './api';
+import { getAllItems, getItems } from './api';
 import { API_BASE, MOCK } from './config';
 import type { Item } from './types';
 
 export interface LayoutTile { id: string; kind: 'item' | 'hit'; x: number; y: number; size: number; label?: string; taken_at?: string; attached_to?: string | null }
 export interface Layout { top: LayoutTile[]; bottom: LayoutTile[] }
 export interface Related { id: string; kind: 'item' | 'hit'; half?: string; score?: number; item?: Item }
-export interface GraphNode { tag: string; kinds?: string[]; count: number; level: number }
+export interface GraphNode { tag: string; kinds?: string[]; count: number; level: number; facet?: string; facet_name?: string; category?: string }
 export interface GraphEdge { a: string; b: string; count: number; weight?: number }
 
 async function get<T>(path: string): Promise<T | null> {
@@ -32,4 +32,25 @@ export const getTagGraph = () => (graph ??= get<{ nodes: GraphNode[]; edges: Gra
 export async function tagItems(tag: string): Promise<Item[] | null> {
   if (MOCK) return null;
   try { return (await getItems({ tag, limit: 100 })).items; } catch { return null; }
+}
+
+// ---- facets (CONTRACT.md "Facets"): AI-defined groupings that replace fixed places and categories ----
+export interface FacetCategory { id: string; name: string; description?: string; count: number; item_ids: string[] }
+export interface Facet { id: string; name: string; description?: string; categories: FacetCategory[] }
+let facets: Promise<Facet[] | null> | null = null;
+export function getFacets(): Promise<Facet[] | null> {
+  if (MOCK) {
+    return (facets ??= getAllItems().then((items) => {
+      const group = (id: string, name: string, key: (it: Item) => string[]) => {
+        const m = new Map<string, string[]>();
+        items.forEach((it) => key(it).forEach((k) => m.set(k, [...(m.get(k) || []), it.id])));
+        return { id, name, categories: [...m.entries()].map(([n, ids]) => ({ id: n.toLowerCase().replace(/[^a-z0-9]+/g, '-'), name: n, count: ids.length, item_ids: ids })).sort((a, b) => b.count - a.count) };
+      };
+      return [
+        group('topic', 'Topic', (it) => (it.categories || []).map((c) => c[0].toUpperCase() + c.slice(1))),
+        group('place', 'Place', (it) => [it.location?.name || it.analysis?.where?.place].filter((x): x is string => !!x)),
+      ];
+    }));
+  }
+  return (facets ??= get<{ facets: Facet[] }>('/v1/facets').then((j) => (j?.facets?.length ? j.facets : null)));
 }

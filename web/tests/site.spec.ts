@@ -505,3 +505,14 @@ test('the mark is the Earth: favicon, touch icon, manifest and share image', asy
   expect(manifest.icons.map((i: { src: string }) => i.src)).toContain('/icon/earth-512.png');
   expect(await (await request.get('/')).text()).toContain('https://empire.earth/icon/og.png');
 });
+
+test('facets: whatever the backend defines, each category opens its wheel', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Tag graph mode' }).click();
+  await page.getByRole('button', { name: 'Facets' }).click();
+  const sheet = page.getByRole('region', { name: 'Facets' });
+  await expect(sheet.getByRole('heading')).toHaveText(['Topic', 'Place']);
+  await sheet.getByRole('button', { name: /^Food\s*4$/ }).click();
+  await expect(feed(page)).toHaveAccessibleName(/^Food: item 1 of \d+$/);
+  await expect(page).toHaveURL(/ctx=facet%3Atopic%3Afood/);
+});

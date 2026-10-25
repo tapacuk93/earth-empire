@@ -127,7 +127,7 @@ export function relatedOrder(anchor: Item, half: Item[], other: Item[]): Item[] 
 }
 
 // ---- the tag graph ----
-export interface GNode { tag: string; kind: string; count: number; x: number; y: number; r: number; rank: number }
+export interface GNode { tag: string; kind: string; count: number; x: number; y: number; r: number; rank: number; facet?: string; category?: string; facetName?: string }
 export interface GEdge { a: number; b: number; w: number }
 
 export function buildTagGraph(items: Item[], tags: Tag[], max = 160): { nodes: GNode[]; edges: GEdge[] } {
@@ -202,12 +202,15 @@ export function mosaicFromLayout(lt: { id: string; kind: string; x: number; y: n
 }
 
 /** The API's tag graph (levels 0..3) laid out in the browser. */
-export function graphFromApi(nodesIn: { tag: string; kinds?: string[]; count: number; level: number }[], edgesIn: { a: string; b: string; count: number }[]): { nodes: GNode[]; edges: GEdge[] } {
+export function graphFromApi(nodesIn: { tag: string; kinds?: string[]; count: number; level: number; facet?: string; facet_name?: string; category?: string }[], edgesIn: { a: string; b: string; count: number }[]): { nodes: GNode[]; edges: GEdge[] } {
   const sorted = nodesIn.slice().sort((a, b) => a.level - b.level || b.count - a.count);
   const tags: Tag[] = sorted.map((n) => ({ tag: n.tag, kind: n.kinds?.[0] || 'keyword', count: n.count }));
   const index = new Map(tags.map((t, i) => [t.tag, i]));
   const edges: GEdge[] = edgesIn.map((e) => ({ a: index.get(e.a)!, b: index.get(e.b)!, w: e.count })).filter((e) => e.a !== undefined && e.b !== undefined);
-  return layoutGraph(tags, edges);
+  const g = layoutGraph(tags, edges);
+  // Level 0 are the facets' categories: they open that category, not a tag.
+  g.nodes.forEach((n, i) => { const src = sorted[i]; if (src.facet) { n.facet = src.facet; n.category = src.category; n.facetName = src.facet_name; n.kind = 'facet'; } });
+  return g;
 }
 
 export const isVideo = (it: Item) => (it.media[0] || it.repost_of?.media?.[0])?.type === 'video' || (it.media.length > 1 && it.media.some((m) => m.type === 'video'));

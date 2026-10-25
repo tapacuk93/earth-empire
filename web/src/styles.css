@@ -682,3 +682,9 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .hit-mark { position: absolute; top: -4px; width: 4px; height: 12px; margin-left: -2px; border-radius: 2px; background: #e9a35a; box-shadow: 0 0 0 1px rgb(0 0 0 / .4); }
 .unmute { top: auto; bottom: 46%; }
 .empty-full { flex: 1; display: grid; place-content: center; text-align: center; padding: 24px; font-size: 1.1rem; } .empty-full p { margin: 4px 0; }
+.facets { position: absolute; z-index: 4; left: max(10px, env(safe-area-inset-left)); right: max(44px, calc(env(safe-area-inset-right) + 40px)); bottom: max(10px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
+.facets > * { pointer-events: auto; }
+.facets-toggle { background: color-mix(in srgb, var(--bg) 80%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.facets-sheet { order: -1; width: 100%; max-height: 55dvh; overflow-y: auto; padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: var(--shadow); }
+.facets-sheet h3 { margin: 6px 0; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.mode#mode-tags { position: relative; }

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A globe: the earth of Earth Empire. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="3.5"
+        android:pathData="M54,30a24,24 0,1 0,0.01 0zM30,54h48M54,30c-9,7 -9,41 0,48M54,30c9,7 9,41 0,48M34,42h40M34,66h40" />
+</vector>

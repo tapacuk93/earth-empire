@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.oeaio.earthempire",
+      "sha256_cert_fingerprints": [
+        "12:EE:99:CD:A9:17:DF:BA:1D:C9:F9:CD:2C:3D:E6:78:CA:97:50:A4:95:29:8A:7C:E4:CE:D6:37:CA:25:11:5B"
+      ]
+    }
+  }
+]

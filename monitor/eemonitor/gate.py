@@ -1,16 +1,12 @@
-"""The publication gate for the mirrored archive (CONTRACT.md "Detection gate").
+"""Detections for the mirrored archive (CONTRACT.md "Detection gate").
 
-Nothing outside the detection criteria may be public - the mirrored trsmslv items included. Every
-backend item (post, carousel, reel, story, highlight story, repost) is checked with the monitor's own
-detectors: its own videos, and for a repost the original's audio (the collector's copy on the media
-host). The result goes to the backend as the item's `detection`; the backend publishes an item only
-when `detection.matched` is true. Items with no audio, or whose audio could not be scanned, are
-`matched: false` (with `complete: false` when something could not be scanned).
-
-    detection = {"matched", "complete", "checked_at", "model", "reason"?,
-                 "media": [{"media": "0" | "r0", "video_id", "state", "error"?}],
-                 "hits": [{"kind", "phrase" | null, "lang", "media", "at", "end", "confidence", "label",
-                           "excerpt", "translation"}]}
+Every backend item (post, carousel, reel, story, highlight story, repost) is checked with the
+monitor's own detectors: its own videos, for a repost the original's audio (the collector's copy on
+the media host), and the caption text. The result goes to the backend as the item's `detection`
+(PUT /v1/ingest/detections), sent as soon as an item's media are all scanned and again whenever a
+rescan changes it. Everything in trsmslv's own profile is public regardless: the hits are shown as
+chips, start playback at the matched moment, and feed the self-improvement loop (learn.py). They do
+not decide visibility.
 """
 from __future__ import annotations
 

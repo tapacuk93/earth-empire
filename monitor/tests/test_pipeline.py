@@ -320,6 +320,8 @@ def test_detection_gate(monkeypatch):
         {"type": "video", "url": "key:items/ig_dog/0.mp4", "duration": 12}]}), "2026-10-01T00:00:00Z"))
     b.execute("INSERT OR REPLACE INTO items VALUES (?, ?, ?)", ("ig_photo", json.dumps({"media": [
         {"type": "image", "url": "key:items/ig_photo/0.jpg"}]}), "2026-10-01T00:00:00Z"))
+    b.execute("INSERT OR REPLACE INTO items VALUES (?, ?, ?)", ("ig_capt", json.dumps({"caption": "з Тарасом у Львові",
+        "media": [{"type": "image", "url": "key:items/ig_capt/0.jpg"}]}), None))
     b.commit()
     b.close()
     worker.repost_seeds(c())
@@ -337,8 +339,10 @@ def test_detection_gate(monkeypatch):
     d = {r["item_id"]: json.loads(r["detection"]) for r in c().execute("SELECT * FROM detections")}
     assert d["ig_dog"]["matched"] is False and d["ig_dog"]["complete"] is True
     assert d["ig_photo"]["matched"] is False and "no video" in d["ig_photo"]["reason"]
+    assert d["ig_capt"]["matched"] is True and d["ig_capt"]["hits"][0]["source"] == "caption"
     s1 = d["ig_story_1"]
-    assert s1["matched"] is True and s1["hits"][0]["phrase"] == "тарас маслов" and s1["hits"][0]["media"] == "r0"
+    assert s1["matched"] is True and s1["hits"][0]["phrase"] == "тарас маслов"
+    assert s1["hits"][0]["media"] == 0 and s1["hits"][0]["repost"] is True
     assert s1["hits"][0]["label"] in ("likely", "possible", "low confidence")
     summ = gate.summary(c(), True)
     assert summ["matched"] >= 1 and summ["not_matched"] >= 2

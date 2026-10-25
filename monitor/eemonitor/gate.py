@@ -44,11 +44,30 @@ def link(c, item_id: str, media: str, video_id: str | None, published: bool) -> 
               (item_id, media, video_id, int(published)))
 
 
+def caption_hits(c, text: str | None, phrases: list[dict]) -> list[dict]:
+    """Phrase matches in a caption (a pseudo-transcript with every word certain)."""
+    if not text:
+        return []
+    words, t = [], 0.0
+    for w in text.split():
+        words.append([" " + w, t, t + 0.3, 1.0])
+        t += 0.4
+    tr = {"chunks": [{"start": 0, "end": t, "lang": None, "words": words, "text": text}]}
+    return [{k: h[k] for k in ("phrase", "matched", "confidence", "excerpt")}
+            for h in detect.find_name(tr, db.fsetting(c, "name.min_confidence"), phrases)]
+
+
 def compute(c, item_id: str) -> dict | None:
     """The item's detection, or None while one of its videos still waits to be scanned."""
     rows = c.execute("SELECT * FROM mirror_items WHERE item_id=? ORDER BY media", (item_id,)).fetchall()
     media, hits, complete, model = [], [], True, None
     for r in rows:
+        if r["media"] == "caption":
+            for d in json.loads(r["video_id"] or "[]"):
+                hits.append({"kind": "name", "phrase": d.get("phrase"), "lang": None, "media": None, "source": "caption",
+                             "at": None, "end": None, "confidence": d["confidence"], "label": detect.label(d["confidence"]),
+                             "excerpt": d.get("excerpt"), "translation": None, "matched_words": d.get("matched")})
+            continue
         if not r["video_id"]:
             continue
         v = c.execute("SELECT id, state, error, model FROM videos WHERE id=?", (r["video_id"],)).fetchone()
@@ -56,7 +75,9 @@ def compute(c, item_id: str) -> dict | None:
             continue
         if v["state"] in ("new", "queued", "running"):
             return None
-        m = {"media": r["media"], "video_id": v["id"], "state": v["state"]}
+        rep_ = r["media"].startswith("r")
+        idx = int(r["media"].lstrip("r") or 0)
+        m = {"media": idx, "repost": rep_, "video_id": v["id"], "state": v["state"]}
         if v["state"] != "done":
             complete = False
             m["error"] = (v["error"] or "")[:200]
@@ -65,13 +86,14 @@ def compute(c, item_id: str) -> dict | None:
         for h in c.execute("SELECT data FROM hits WHERE video_id=? ORDER BY confidence DESC", (v["id"],)):
             d = json.loads(h["data"])
             hits.append({"kind": d["kind"], "phrase": d.get("phrase"), "lang": d.get("language"),
-                         "media": r["media"], "at": d["start"], "end": d["end"], "confidence": d["confidence"],
+                         "media": idx, "repost": rep_, "at": d["start"], "end": d["end"], "confidence": d["confidence"],
                          "label": detect.label(d["confidence"]), "excerpt": d.get("excerpt"),
                          "translation": d.get("excerpt_en"), "matched_words": d.get("matched")})
-    det = {"matched": bool(hits), "complete": complete, "checked_at": db.now(), "model": model,
+    hits.sort(key=lambda h: -h["confidence"])
+    det = {"matched": bool(hits), "complete": complete, "scanned_at": db.now(), "model": model,
            "media": media, "hits": hits}
-    if not media:
-        det["reason"] = "no video or audio in this item"
+    if not media and not hits:
+        det["reason"] = "no video or audio in this item, and no match in its text"
     elif not hits:
         det["reason"] = "no phrase match and no out-of-place Ukrainian/Russian speech" + \
                         ("" if complete else " (some media could not be scanned)")
@@ -110,7 +132,7 @@ def push(c) -> int:
         tok = config.secret("ingest_token")
         tok = tok.get("token") or tok.get("value") if isinstance(tok, dict) else tok
         r = httpx.put(API + "/v1/ingest/detections", timeout=30, headers={"Authorization": f"Bearer {tok}"},
-                      json={"detections": [{"item_id": x["item_id"], "detection": json.loads(x["detection"])} for x in rows]})
+                      json={"detections": [{"id": x["item_id"], "detection": json.loads(x["detection"])} for x in rows]})
         if r.status_code >= 400:
             raise RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
     except Exception as e:  # noqa: BLE001 - kept and retried; the backend may not have the route yet

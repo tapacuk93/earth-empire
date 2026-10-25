@@ -690,8 +690,10 @@ def repost_seeds(c) -> int:
             gate.link(c, r["id"], str(i), v["id"], pub)
             linked = True
             c.execute("UPDATE videos SET priority=? WHERE id=? AND state IN ('new','queued')", (prio, v["id"]))
-        if not linked:   # no video or audio: never matches, so never public
+        if not linked:   # no video or audio: only its text can match
             gate.link(c, r["id"], "none", None, pub)
+        caps = " ".join(x for x in (item.get("caption"), rep.get("caption")) if x)
+        gate.link(c, r["id"], "caption", db.j(gate.caption_hits(c, caps, compiled_phrases(c))), pub)
     if n:
         ev("mirror_seeds", added=n)
     return n

@@ -271,14 +271,17 @@ def _normalize(pts):
     return 0.05 + 0.9 * (pts - lo) / span
 
 
-def _align(new, old):
-    """Rotate/reflect/scale `new` onto `old` (orthogonal Procrustes) so a re-layout keeps its look."""
+def _align(pts, idx, old):
+    """Rotate/reflect/scale all of `pts` so that its rows `idx` land on `old` (orthogonal Procrustes):
+    a re-layout keeps the look of the tiles that were already placed."""
     import numpy as np
-    a, b = new - new.mean(0), old - old.mean(0)
+    sub = pts[idx]
+    mu_a, mu_b = sub.mean(0), old.mean(0)
+    a, b = sub - mu_a, old - mu_b
     u, s, vt = np.linalg.svd(a.T @ b)
     r = u @ vt
     scale = s.sum() / max((a ** 2).sum(), 1e-9)
-    return a @ r * scale + old.mean(0)
+    return (pts - mu_a) @ r * scale + mu_b
 
 
 def update_layout(c) -> dict:
@@ -308,7 +311,7 @@ def update_layout(c) -> dict:
             if len(have) >= 3:
                 idx = [ids.index(i) for i in have]
                 old = np.array([[placed[i]["x"], placed[i]["y"]] for i in have])
-                pts = _align(pts, old) if len(have) >= 3 else pts
+                pts = _align(pts, idx, old)
                 pts = np.clip(pts, 0.0, 1.0)
             with tx(c):
                 for i, (x, y) in zip(ids, pts):

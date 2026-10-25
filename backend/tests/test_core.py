@@ -132,6 +132,22 @@ class PlacementTest(unittest.TestCase):
         self.assertAlmostEqual(size_parts("2000-01-01T00:00:00Z", 0.0, 1.0, p)["size"], 0.05 * 0.85, places=4)
 
 
+class AlignTest(unittest.TestCase):
+    def test_align_maps_old_tiles_back_and_moves_all(self):
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy not installed here")
+        from ee.home import _align
+        rng = np.random.default_rng(1)
+        old = rng.random((5, 2))
+        rot = np.array([[0, -1], [1, 0]])
+        pts = np.vstack([old @ rot.T * 2 + 3, rng.random((4, 2))])   # 5 placed + 4 new
+        out = _align(pts, list(range(5)), old)
+        self.assertEqual(out.shape, (9, 2))
+        self.assertTrue(np.allclose(out[:5], old, atol=1e-6))
+
+
 class StatusTest(unittest.TestCase):
     def test_scrub_removes_secrets_paths_and_queries(self):
         from ee import status

@@ -1,7 +1,6 @@
 // Everything the infographics show, computed from the items.
 import { computeTags } from './tags';
-import type { Category, Highlight, Item, Tag } from './types';
-import { highlightSection, type SectionId } from './sections';
+import type { Category, Item, Tag } from './types';
 
 export interface Month { key: string; label: string; date: Date; total: number; byKind: Record<string, number> }
 export interface Place { name: string; country?: string; lat?: number; lng?: number; count: number; items: string[] }
@@ -95,10 +94,4 @@ export function categoryCounts(items: Item[], cats: Category[]): { slug: string;
   const map = new Map<string, number>();
   items.forEach((it) => (it.categories || []).forEach((c) => map.set(c, (map.get(c) || 0) + 1)));
   return [...map.entries()].map(([slug, count]) => ({ slug, name: names.get(slug) || slug, count })).sort((a, b) => b.count - a.count);
-}
-
-/** The items of one section: those in its highlights. */
-export function sectionItems(section: SectionId, items: Item[], highlights: Highlight[]): Item[] {
-  const ids = new Set(highlights.filter((h) => highlightSection(h) === section).map((h) => h.id));
-  return items.filter((it) => (it.highlights || []).some((h) => ids.has(h.id)));
 }

@@ -18,11 +18,12 @@
   {
    "id": "hl_9001",
    "title": "Travel",
-   "section": "dedicated",
    "cover": "/mock/media/hl-travel.jpg",
    "item_ids": [
     "ig_3400000000000000003",
-    "ig_3400000000000000006"
+    "ig_3400000000000000004",
+    "ig_3400000000000000006",
+    "ig_3400000000000000010"
    ],
    "updated_at": "2026-10-25T09:00:00Z"
   },
@@ -481,6 +482,10 @@
     {
      "id": "hl_9003",
      "title": "Ocean"
+    },
+    {
+     "id": "hl_9001",
+     "title": "Travel"
     }
    ],
    "repost_of": {
@@ -1092,6 +1097,10 @@
     {
      "id": "hl_9002",
      "title": "Food"
+    },
+    {
+     "id": "hl_9001",
+     "title": "Travel"
     }
    ],
    "repost_of": null,

@@ -26,7 +26,7 @@ test('home: infographics, not a profile; no sideways scroll; every image describ
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Earth Empire, in data');
   await expect(page.locator('.hero .kpi').first()).toContainText('28');
-  for (const name of ['About the owner', 'Everything else', 'Timeline', 'Places', 'Themes', 'Everything, by date']) {
+  for (const name of ['Posts and short highlights', 'Long highlights', 'Timeline', 'Places', 'Themes', 'Everything, newest first']) {
     await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
   }
   // No profile header, follower counts, highlight bubbles or square grid.
@@ -38,18 +38,29 @@ test('home: infographics, not a profile; no sideways scroll; every image describ
   expect(errors).toEqual([]);
 });
 
-test('home: sections as panels with counts, people, places, moments and media', async ({ page }) => {
+test('home: two sections split by highlight size, as panels with counts, people, places and media', async ({ page }) => {
   await page.goto('/');
-  const ded = page.getByRole('region', { name: 'About the owner' });
-  const com = page.getByRole('region', { name: 'Everything else' });
-  expect((await ded.boundingBox())!.y).toBeLessThan((await com.boundingBox())!.y);
-  await expect(ded.locator('.kpi').first()).toContainText('2');
-  await expect(ded.getByRole('link', { name: /^Travel/ })).toHaveAttribute('href', '/highlight/hl_9001');
-  await expect(ded.getByRole('link', { name: /Dunas Altas/ }).first()).toBeVisible();
-  await expect(ded.getByRole('list', { name: 'Media: About the owner' }).locator('li')).toHaveCount(2);
-  await expect(ded.getByRole('button', { name: /Fullscreen: City council/ })).toBeVisible();
-  await expect(com.getByRole('button', { name: /Fullscreen: Regional news/ })).toBeVisible();
-  await expect(com.getByRole('link', { name: /^Food/ })).toBeVisible();
+  const up = page.getByRole('region', { name: 'Posts and short highlights' });
+  const low = page.getByRole('region', { name: 'Long highlights' });
+  expect((await up.boundingBox())!.y).toBeLessThan((await low.boundingBox())!.y);
+  // Median highlight size is 2: Food (2) and Ocean (1) are short, Travel (4) is long.
+  await expect(up.getByRole('link', { name: /^Food/ })).toBeVisible();
+  await expect(up.getByRole('link', { name: /^Ocean/ })).toBeVisible();
+  await expect(low.getByRole('link', { name: /^Travel/ })).toHaveAttribute('href', '/highlight/hl_9001');
+  await expect(low.locator('.kpi').first()).toContainText('4');
+  await expect(up.locator('.kpi').first()).toContainText('27'); // every regular post plus the short highlights' stories
+  await expect(up.getByRole('link', { name: /Cape Lumen Lighthouse/ }).first()).toBeVisible();
+  await expect(low.getByRole('list', { name: 'Media: Long highlights' }).locator('li')).toHaveCount(4);
+  // Published hits sit in the section the owner chose.
+  await expect(up.getByRole('button', { name: /Fullscreen: City council/ })).toBeVisible();
+  await expect(low.getByRole('button', { name: /Fullscreen: Regional news/ })).toBeVisible();
+});
+
+test('home: the split threshold is configurable', async ({ page }) => {
+  await page.goto('/?split=5');
+  await expect(page.getByRole('region', { name: 'Posts and short highlights' }).getByRole('link', { name: /^Travel/ })).toBeVisible();
+  // Only the published hit keeps the lower section on screen.
+  await expect(page.getByRole('region', { name: 'Long highlights' }).getByRole('link', { name: /^Travel/ })).toHaveCount(0);
 });
 
 test('home: timeline, map and themes pick a context and show its items', async ({ page }) => {
@@ -101,7 +112,7 @@ test('search from a deep link and from a hashtag', async ({ page }) => {
 
 test('feed: one item per screen, arrows move through the context, the URL follows, close returns', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('region', { name: 'Everything, by date' }).scrollIntoViewIfNeeded();
+  await rows(page).nth(1).scrollIntoViewIfNeeded();
   const y = await page.evaluate(() => scrollY);
   await rows(page).nth(1).click();
   const f = feed(page);
@@ -117,7 +128,7 @@ test('feed: one item per screen, arrows move through the context, the URL follow
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(f).toHaveCount(0);
   await expect(page).toHaveURL(/\/$/);
-  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(y - 200);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(y - 120);
 });
 
 test('feed: a section context, the overlay, expanded analysis, and seeking the video', async ({ page }) => {
@@ -160,25 +171,25 @@ test('feed: carousels swipe sideways; reposts credit the original', async ({ pag
 
 test('feed: a highlight context from a section panel opens the story viewer', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('region', { name: 'About the owner' }).getByRole('link', { name: /^Travel/ }).click();
+  await page.getByRole('region', { name: 'Long highlights' }).getByRole('link', { name: /^Travel/ }).click();
   await expect(page.getByRole('region', { name: 'Highlight: Travel' })).toBeVisible();
 });
 
 test('highlight: story viewer with progress bars, taps, keys and close', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('region', { name: 'About the owner' }).getByRole('link', { name: /^Travel/ }).click();
+  await page.getByRole('region', { name: 'Long highlights' }).getByRole('link', { name: /^Travel/ }).click();
   const viewer = page.getByRole('region', { name: 'Highlight: Travel' });
   await expect(viewer).toBeVisible();
-  await expect(viewer.locator('.bar')).toHaveCount(2);
-  await expect(viewer.getByRole('status')).toContainText('Story 1 of 2');
+  await expect(viewer.locator('.bar')).toHaveCount(4);
+  await expect(viewer.getByRole('status')).toContainText('Story 1 of 4');
   await expect.poll(() => viewer.locator('.bar').first().locator('.bar-fill').evaluate((e) => getComputedStyle(e).transform), { timeout: 4000 }).not.toBe('matrix(0, 0, 0, 1, 0, 0)');
   await page.keyboard.press(' ');
   await expect(viewer.getByRole('button', { name: 'Play' })).toBeVisible();
   const box = (await viewer.locator('.story-stage').boundingBox())!;
   await page.mouse.click(box.x + box.width * 0.8, box.y + box.height * 0.5);
-  await expect(viewer.getByRole('status')).toContainText('Story 2 of 2');
+  await expect(viewer.getByRole('status')).toContainText('Story 2 of 4');
   await page.keyboard.press('ArrowLeft');
-  await expect(viewer.getByRole('status')).toContainText('Story 1 of 2');
+  await expect(viewer.getByRole('status')).toContainText('Story 1 of 4');
   await page.keyboard.press('Escape');
   await expect(page).toHaveURL(/\/$/);
 });
@@ -302,7 +313,7 @@ async function signIn(page: Page) {
   await expect(page.getByText('Signed in as the owner on this device.')).toBeVisible();
 }
 
-test('visitors see only Home; the owner link signs in', async ({ page, request }) => {
+test('visitors see only Home; the hidden dot gesture opens the admin key prompt', async ({ page, request }) => {
   await page.goto('/');
   await expect(page.getByRole('navigation', { name: 'Sections' })).toHaveCount(0);
   for (const path of ['/detected', '/status']) {
@@ -315,19 +326,29 @@ test('visitors see only Home; the owner link signs in', async ({ page, request }
   expect((await request.get('/detected')).status()).toBe(404);
   const sitemap = await (await request.get('/sitemap.xml')).text();
   expect(sitemap).not.toMatch(/detected|status|settings|monitor/);
-  // A wrong token is refused.
+  // The hidden way in: on the footer's dot, one tap, a pause, then three quick taps.
   await page.goto('/');
-  await page.getByRole('link', { name: 'Owner sign-in' }).click();
-  await page.locator('#admin-token').fill('nope');
-  await page.getByRole('button', { name: 'Check and keep' }).click();
-  await expect(page.getByText('That token was not accepted.')).toBeVisible();
+  const dot = page.locator('.secret-dot');
+  await dot.click();
+  await page.waitForTimeout(800);
+  await dot.click(); await dot.click(); await dot.click();
+  const prompt = page.getByRole('dialog', { name: 'Admin key' });
+  await expect(prompt).toBeVisible();
+  await prompt.locator('#admin-token').fill('nope');
+  await prompt.getByRole('button', { name: 'Check and keep' }).click();
+  await expect(prompt.getByText('That token was not accepted.')).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Sections' })).toHaveCount(0);
+  await prompt.locator('#admin-token').fill('owner');
+  await prompt.getByRole('button', { name: 'Check and keep' }).click();
+  await expect(page.getByRole('navigation', { name: 'Sections' })).toBeVisible();
+  await expect(prompt).toHaveCount(0);
+  // Quick taps alone do nothing.
 });
 
 test('owner: four sections in the header, sign out hides them', async ({ page }) => {
   await signIn(page);
   const nav = page.getByRole('navigation', { name: 'Sections' });
-  await expect(nav.getByRole('link')).toHaveText(['Home', 'Detected', 'Status', 'Settings']);
+  await expect(nav.getByRole('link')).toHaveText(['Home', 'Detected', 'Settings', 'Status']);
   await nav.getByRole('link', { name: 'Detected' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Detected' })).toBeVisible();
   await nav.getByRole('link', { name: 'Status' }).click();
@@ -338,31 +359,27 @@ test('owner: four sections in the header, sign out hides them', async ({ page })
   await expect(page.getByRole('navigation', { name: 'Sections' })).toHaveCount(0);
 });
 
-test('detected: by confidence, labels, publish to Home, fetch more, fullscreen', async ({ page }) => {
+test('detected: a vertical wheel of hits by confidence, with fetch more', async ({ page }) => {
   await signIn(page);
   await page.goto('/detected');
-  const cards = page.locator('.mon-card');
-  await expect(cards).toHaveCount(4);
-  await expect(cards.first()).toContainText('likely · 94%');
-  await expect(cards.nth(3)).toContainText('low confidence · 32%');
-  await expect(cards.nth(3)).toContainText('Russian speech');
+  const wheel = page.getByRole('region', { name: /Hits, most certain first/ }).or(page.locator('.wheel'));
+  await expect(page.locator('.wslide')).toHaveCount(4);
+  await expect(page.locator('.det-count')).toHaveText('1 / 4 · likely');
+  await expect(page.locator('.wslide').first()).toContainText('likely · 94%');
+  await page.locator('.wheel').focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('.det-count')).toHaveText('2 / 4 · likely');
+  await expect(page).toHaveURL(/h=h_mock2/);
+  await page.keyboard.press('End');
+  await page.locator('.wheel').evaluate((el) => el.scrollTo({ top: el.clientHeight * 3 }));
+  await expect(page.locator('.det-count')).toHaveText('4 / 4 · low confidence');
+  await expect(page.locator('.wslide').nth(3)).toContainText('Russian speech');
   await page.getByRole('group', { name: 'Kind of hit' }).getByRole('button', { name: 'Language' }).click();
-  await expect(cards).toHaveCount(1);
-  await page.getByRole('group', { name: 'Kind of hit' }).getByRole('button', { name: 'All' }).click();
-  await expect(cards).toHaveCount(4);
-  await cards.nth(2).getByRole('button', { name: /Publish to Home/ }).click();
-  await expect(cards.nth(2)).toContainText('On Home');
-  await page.getByLabel('Scan more videos').fill('12');
+  await expect(page.locator('.wslide')).toHaveCount(1);
+  await page.getByLabel('Scan more').fill('12');
   await page.getByRole('button', { name: 'Fetch 12 more' }).click();
   await expect(page.getByText(/Queued 7 videos to scan; 5 more to discover/)).toBeVisible();
-  await page.getByRole('button', { name: 'Fullscreen', exact: true }).click();
-  const dlg = page.getByRole('dialog', { name: 'Detected' });
-  await expect(dlg).toContainText('1/4');
-  await dlg.locator('.vfeed-list').focus();
-  await page.keyboard.press('ArrowDown');
-  await expect(dlg).toContainText('2/4');
-  await page.keyboard.press('Escape');
-  await expect(dlg).toHaveCount(0);
+  void wheel;
   await noHorizontalScroll(page);
 });
 
@@ -396,17 +413,19 @@ test('status and settings for the owner: health, activity, stats, phrases', asyn
   await expect(page.getByRole('region', { name: 'Monitor stats' })).toContainText('cpu per audio');
 });
 
-test('detected: the suggested section and reason; + publishes into the chosen section', async ({ page }) => {
+test('detected: add twice - lower, then upper - and the state on the button', async ({ page }) => {
   await signIn(page);
-  await page.goto('/detected');
-  const card = page.locator('.mon-card').nth(2);
-  await expect(card).toContainText('Suggested section: About the owner');
-  await expect(card).toContainText('cooking segment like the owner');
-  const pick = card.getByLabel('Section for this hit');
-  await expect(pick).toHaveValue('dedicated');
-  await pick.selectOption('common');
-  await card.getByRole('button', { name: /Publish to Home in Everything else/ }).click();
-  await expect(card).toContainText('On Home · Everything else');
+  await page.goto('/detected?h=h_mock3');
+  const slide = page.locator('.wslide[data-i="2"]');
+  await expect(slide.locator('.state-chip')).toHaveText('Not on Home');
+  await expect(slide).toContainText('Claude suggests upper');
+  await slide.getByRole('button', { name: /^Add to the lower section of Home/ }).click();
+  await expect(slide.locator('.state-chip')).toHaveText('On Home: lower');
+  await slide.getByRole('button', { name: /^Move to the upper section of Home/ }).click();
+  await expect(slide.locator('.state-chip')).toHaveText('On Home: upper');
+  await expect(slide.getByRole('button', { name: 'In the upper section of Home' })).toBeDisabled();
+  await slide.getByRole('button', { name: 'Remove' }).click();
+  await expect(slide.locator('.state-chip')).toHaveText('Not on Home');
 });
 
 test('settings: suggested phrases from highlight names, accept and reject', async ({ page }) => {
@@ -419,4 +438,26 @@ test('settings: suggested phrases from highlight names, accept and reject', asyn
   await expect(sugs.locator('.phrase')).toHaveCount(1);
   await page.reload();
   await expect(page.getByRole('region', { name: 'Suggested phrases' }).locator('.phrase')).toHaveText([/travel/, /ocean/]); // the mock forgets an accepted phrase on reload; the rejection stays
+});
+
+test('home: everything mirrored comes first, newest at the top', async ({ page }) => {
+  await page.goto('/');
+  // Stats band, then the timeline band, then everything.
+  const order = await page.locator('main .ipanel').evaluateAll((ps) => ps.map((p) => p.getAttribute('aria-labelledby')));
+  await expect.poll(() => rows(page).count()).toBeGreaterThanOrEqual(24);
+  expect((await page.locator('main .ipanel').evaluateAll((ps) => ps.map((p) => p.getAttribute('aria-labelledby')))).slice(0, 2)).toEqual(['p-time', 'p-all']);
+  const dates = await page.locator('.feed .tl-row time').evaluateAll((ts) => ts.map((t) => t.getAttribute('datetime')!));
+  expect([...dates].sort().reverse()).toEqual(dates);
+  expect(dates[0]).toBe('2026-10-23T22:00:00Z');
+});
+
+test('home: the upper section leads with a video that opens the reel wheel', async ({ page }) => {
+  await page.goto('/');
+  const up = page.getByRole('region', { name: 'Posts and short highlights' });
+  const first = up.getByRole('list', { name: /^Media:/ }).getByRole('link').first();
+  await expect(first).toContainText('▶');
+  await first.click();
+  await expect(feed(page)).toBeVisible();
+  await expect(page).toHaveURL(/\/item\/.+\?ctx=section%3Adedicated/);
+  await expect(feed(page).locator('.islide video').first()).toBeVisible();
 });

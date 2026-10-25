@@ -45,12 +45,12 @@ The site presents the archive as data rather than as a profile.
 | `/status` (owner) | component health (`GET /v1/status`, every 10 s), what is running now, latest events, monitor stats (`GET /v1/monitor/status`) |
 | `/settings` | the owner token; for the owner, the phrases (variants read-only, Save, Rescan) |
 
-Home is the only public section. The hits the owner published (`GET /v1/published`) appear in the panel of
+Home is the only public section. It shows the totals, the month band, then everything newest first, then the two sections: **upper**, the highlights with few items plus the regular posts, and **lower**, the highlights with many items. A highlight with at most the threshold items is upper; the threshold starts at the median and can be set with `VITE_SECTION_THRESHOLD` or `?split=N` (`src/sections.ts`). Videos lead each section's media. The hits the owner published (`GET /v1/published`) appear in the panel of
 the section chosen at publish. `?watch=<id>` on Home or Detected opens the **fullscreen mode**: one per screen,
 swipe or arrow keys up and down. On Home it plays the published hits (frame and clip), then the
 archive's videos.
 
-**Owner mode**, as in the apps: visitors see only Home and a dim key button ("Owner sign-in") in the header, which goes to
+**Owner mode**, as in the apps: visitors see only Home. The hidden way in is the final "." of the footer: one tap, a pause, then three quick taps open the admin key prompt. `/settings` also accepts the key, at
 `/settings`. There the owner enters the token (`earth-empire/admin-token`). It is checked with
 `GET /v1/admin/me` and kept in this browser's `localStorage`. The token is checked again on each
 visit, and a rejected one is forgotten. Only then do Detected, Status and Settings appear; their

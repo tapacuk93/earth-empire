@@ -131,28 +131,31 @@ function mockStatus(): Status {
   };
 }
 
-// ---- suggested phrases (from highlight names) ----
-// PROVISIONAL until CONTRACT.md defines them: `GET /v1/monitor/phrases/suggestions` →
-// `{"suggestions": [{"text", "reason"?, "highlight"?}]}` when the monitor serves it; otherwise the
-// site suggests the highlight titles that are not phrases yet. A rejection is sent to
-// `POST /v1/monitor/phrases/suggestions/reject {"text"}` and also remembered in this browser.
+// ---- suggested phrases (CONTRACT.md: GET /v1/monitor/phrases → "suggested") ----
 export interface PhraseSuggestion { text: string; reason?: string }
+interface PhrasesResponse { phrases: Phrase[]; suggested?: { text: string; why?: string; state?: string }[] }
 const REJECT_KEY = 'ee-rejected-phrases';
 function rejectedLocal(): string[] { try { return JSON.parse(localStorage.getItem(REJECT_KEY) || '[]'); } catch { return []; } }
 
+/** Claude's proposals from the highlight titles. The mock suggests the titles themselves. */
 export async function getPhraseSuggestions(current: string[], highlightTitles: () => Promise<string[]>): Promise<PhraseSuggestion[]> {
+  if (!MOCK) {
+    const r = await call<PhrasesResponse>('GET', '/v1/monitor/phrases', undefined, true);
+    return (r.suggested || []).filter((x) => !x.state || x.state === 'suggested').map((x) => ({ text: x.text, reason: x.why }));
+  }
   const have = new Set(current.map((t) => t.trim().toLowerCase()));
   const rejected = new Set(rejectedLocal());
-  const keep = (s: PhraseSuggestion) => s.text && !have.has(s.text.toLowerCase()) && !rejected.has(s.text.toLowerCase());
-  if (!MOCK) {
-    try { return ((await call<{ suggestions: PhraseSuggestion[] }>('GET', '/v1/monitor/phrases/suggestions', undefined, true)).suggestions || []).filter(keep); }
-    catch (e) { if (!(e instanceof ApiError && e.status === 404)) throw e; }
-  }
   const titles = await highlightTitles();
-  return [...new Set(titles.map((t) => t.trim().toLowerCase()))].map((text) => ({ text, reason: 'a highlight name' })).filter(keep);
+  return [...new Set(titles.map((t) => t.trim().toLowerCase()))].filter((t) => t && !have.has(t) && !rejected.has(t)).map((text) => ({ text, reason: 'from a highlight title' }));
+}
+
+/** Accepts a suggestion; returns the phrase list after it. */
+export async function acceptPhraseSuggestion(text: string, current: string[]): Promise<Phrase[]> {
+  if (MOCK) return savePhrases([...new Set([...current, text])]);
+  return (await call<PhrasesResponse>('POST', `/v1/monitor/phrases/suggested/${encodeURIComponent(text)}/accept`, {}, true)).phrases || [];
 }
 
 export async function rejectPhraseSuggestion(text: string) {
-  try { localStorage.setItem(REJECT_KEY, JSON.stringify([...new Set([...rejectedLocal(), text.toLowerCase()])])); } catch { /* blocked */ }
-  if (!MOCK) await call('POST', '/v1/monitor/phrases/suggestions/reject', { text }, true).catch(() => undefined);
+  if (MOCK) { try { localStorage.setItem(REJECT_KEY, JSON.stringify([...new Set([...rejectedLocal(), text.toLowerCase()])])); } catch { /* blocked */ } return; }
+  await call('POST', `/v1/monitor/phrases/suggested/${encodeURIComponent(text)}/reject`, {}, true);
 }

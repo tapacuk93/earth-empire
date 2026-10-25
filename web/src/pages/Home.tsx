@@ -10,8 +10,8 @@ import { SITE_NAME } from '../config';
 import { ctxItems, itemHref } from '../context';
 import { getPublished, titleOf, whatOf, type Hit } from '../monitor';
 import { navigate, settleScroll, type Route } from '../router';
-import { highlightSection, hitSection, SECTION_TITLE, SECTIONS, type SectionId } from '../sections';
-import { categoryCounts, kinds, moments, months, people, places, sectionItems, tagsOf } from '../stats';
+import { hitSection, SECTION_TITLE, SECTIONS, sectionHighlights, sectionItems, type SectionId } from '../sections';
+import { categoryCounts, kinds, moments, months, people, places, tagsOf } from '../stats';
 import type { Highlight, Item } from '../types';
 import { fmtShort, fmtTime, setMeta } from '../util';
 
@@ -118,8 +118,8 @@ function SectionPanel({ id, items, highlights, hits, onHit }: { id: SectionId; i
           </ul>
         </div>
       )}
-      <h3>Media</h3>
-      <MediaStrip items={items} ctx={ctx} label={`Media: ${SECTION_TITLE[id]}`} />
+      <h3>Videos and media</h3>
+      <MediaStrip items={items} ctx={ctx} label={`Media: ${SECTION_TITLE[id]}`} videosFirst />
     </Panel>
   );
 }
@@ -152,7 +152,7 @@ export function Home({ route }: { route: Route }) {
   const seen = new Set<string>();
   const tags = tagsOf(items).filter((t) => t.kind !== 'category' && t.tag.length <= 32 && !seen.has(t.tag) && seen.add(t.tag)).slice(0, 36).map((t) => ({ ...t, label: tagLabel(t) }));
   const cats = categoryCounts(items, categories.data || []);
-  const sections = SECTIONS.map((id) => ({ id, hl: hl.filter((h) => highlightSection(h) === id), items: sectionItems(id, items, hl), hits: hits.filter((h) => hitSection(h) === id) }))
+  const sections = SECTIONS.map((id) => ({ id, hl: sectionHighlights(id, hl), items: sectionItems(id, items, hl), hits: hits.filter((h) => hitSection(h) === id) }))
     .filter((s) => s.items.length || s.hits.length);
   const first = items[items.length - 1], last = items[0];
   const openHit = (id?: string) => navigate(withParam(route, 'watch', id), { replace: !!watch || !id, keepScroll: true });
@@ -172,8 +172,6 @@ export function Home({ route }: { route: Route }) {
         )}
       </header>
 
-      {sections.map((s) => <SectionPanel key={s.id} id={s.id} items={s.items} highlights={s.hl} hits={s.hits} onHit={openHit} />)}
-
       {mo.length > 0 && (
         <Panel id="p-time" title="Timeline" sub="Activity by month. Pick a month to see it.">
           <Legend />
@@ -181,6 +179,17 @@ export function Home({ route }: { route: Route }) {
           <Selection title={sel.m && mo.find((m) => m.key === sel.m)?.label} items={sel.m ? ctxItems(`month:${sel.m}`, items, hl) : []} ctx={`month:${sel.m}`} onClear={() => pick('m')(undefined)} />
         </Panel>
       )}
+
+      <Panel id="p-all" title="Everything, newest first" sub={`Every item mirrored from @${profile.data?.username || "the account"}, by the date it was posted.`}>
+        <div class="filters">
+          <SearchBox route={route} />
+          <KindTabs active={kind} onPick={(v) => setParam(route, 'kind', v)} />
+        </div>
+        <Feed query={{ kind, q }} layout="timeline" ctx={q ? `q:${q}` : kind ? `kind:${kind}` : 'all'} emptyText={q ? `Nothing matches “${q}”.` : 'Nothing here yet.'} />
+      </Panel>
+
+      {sections.map((s) => <SectionPanel key={s.id} id={s.id} items={s.items} highlights={s.hl} hits={s.hits} onHit={openHit} />)}
+
 
       {pl.length > 0 && (
         <Panel id="p-map" title="Places" sub="Where things happened, from locations and the analyses.">
@@ -202,13 +211,6 @@ export function Home({ route }: { route: Route }) {
         </Panel>
       )}
 
-      <Panel id="p-all" title="Everything, by date" sub="Search and filter every item.">
-        <div class="filters">
-          <SearchBox route={route} />
-          <KindTabs active={kind} onPick={(v) => setParam(route, 'kind', v)} />
-        </div>
-        <Feed query={{ kind, q }} layout="timeline" ctx={q ? `q:${q}` : kind ? `kind:${kind}` : 'all'} emptyText={q ? `Nothing matches “${q}”.` : 'Nothing here yet.'} />
-      </Panel>
 
       {watch && hits.length > 0 && (
         <VideoFeed title="Detected and published" videos={hits.map(hitSlide)} start={watch} onClose={() => openHit(undefined)}

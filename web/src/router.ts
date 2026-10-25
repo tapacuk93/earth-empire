@@ -37,7 +37,13 @@ export function settleScroll() {
   if (pendingScroll === null) return;
   const y = pendingScroll;
   pendingScroll = null;
-  requestAnimationFrame(() => window.scrollTo(0, y));
+  // Content above may still be arriving: keep trying for a moment until the page is tall enough.
+  let tries = 0;
+  const go = () => {
+    window.scrollTo(0, y);
+    if (Math.abs(window.scrollY - y) > 2 && ++tries < 80 && pendingScroll === null) setTimeout(go, 50);
+  };
+  requestAnimationFrame(go);
 }
 
 /** Whether there is an in-app page to go back to. */

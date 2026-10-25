@@ -540,3 +540,36 @@ progress { accent-color: var(--accent); height: 8px; }
 @media (hover: none) { .ifeed-nav { display: none; } }
 .app-banner.on-feed { z-index: 80; top: calc(max(6px, env(safe-area-inset-top)) + 52px); bottom: auto; }
 @media (max-width: 400px) { .mon-card { grid-template-columns: 84px minmax(0, 1fr); } .sec-pick { max-width: 100%; } }
+.checks li { padding: 6px 0; } .checks input { width: 20px; height: 20px; vertical-align: -4px; margin-right: 8px; accent-color: var(--accent); }
+.checks input { flex: none; min-width: 0; min-height: 0; padding: 0; }
+
+/* Detected: the wheel */
+.det-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 10px 0; }
+.det-h { margin: 0; font-size: 1.3rem; }
+.det-bar .fetch { margin: 0; }
+.det-msg { flex-basis: 100%; margin: 0; min-height: 1.2em; }
+.wheel-wrap { position: relative; }
+.wheel { height: max(420px, calc(100svh - 190px)); overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; border-radius: 16px; background: #000; scrollbar-width: none; outline: none; }
+.wheel::-webkit-scrollbar { display: none; }
+.wheel:focus-visible { box-shadow: 0 0 0 3px var(--focus); }
+.wslide { position: relative; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; color: #fff; overflow: hidden; }
+.wslide video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+.wover { position: absolute; left: 0; right: 0; bottom: 0; max-height: 80%; overflow-y: auto; padding: 50px 16px 16px; background: linear-gradient(transparent, rgb(0 0 0 / .85) 30%); }
+@media (min-width: 900px) { .wover { right: auto; width: min(560px, 50%); left: 14px; bottom: 14px; padding: 16px; border-radius: 14px; background: rgb(10 10 10 / .78); } }
+.wover a { color: #fff; } .wover .mon-src, .wover .mon-en, .wover .mon-notes, .wover .muted { color: rgb(255 255 255 / .75); }
+.wover .mon-quote { background: rgb(255 255 255 / .12); }
+.wover .conf { background: rgb(255 255 255 / .2); color: #fff; }
+.addtwice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.addtwice .btn { min-height: 44px; }
+.addtwice .btn.plus b { font-size: 1.3em; line-height: 1; }
+.addtwice .suggest { flex-basis: 100%; margin: 0; color: rgb(255 255 255 / .85); }
+.state-chip { padding: 3px 10px; border-radius: 999px; font-size: .8rem; font-weight: 700; background: rgb(255 255 255 / .18); }
+.state-chip.s-common { background: var(--k-carousel); color: #fff; } .state-chip.s-dedicated { background: var(--accent-2); color: #111; }
+.wheel-side { position: absolute; right: 8px; top: 12px; display: grid; gap: 6px; color: #fff; }
+.wheel-side .icon-btn { color: #fff; background: rgb(0 0 0 / .35); } .wheel-side .icon-btn:disabled { opacity: .35; }
+.wheel-side .up, .wheel-side .down { rotate: 90deg; }
+.secret-dot { display: inline; min-width: 0; min-height: 0; padding: 0 2px; margin: 0; border: 0; background: none; color: inherit; font: inherit; cursor: default; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.prompt-back { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / .5); }
+.prompt { width: min(440px, 100%); padding: 20px; border-radius: 16px; background: var(--surface); color: var(--text); box-shadow: 0 10px 40px rgb(0 0 0 / .3); }
+.prompt h2 { margin-top: 0; }
+.prompt input { width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 16px; }

@@ -160,8 +160,10 @@ export function Bars({ rows, active, onPick, label }: { rows: { id: string; name
 }
 
 /** Media inside a panel: a strip of covers that open the vertical feed in this context. */
-export function MediaStrip({ items, ctx, label, max = 24 }: { items: Item[]; ctx: string; label: string; max?: number }) {
-  if (!items.length) return null;
+export function MediaStrip({ items: all, ctx, label, max = 24, videosFirst }: { items: Item[]; ctx: string; label: string; max?: number; videosFirst?: boolean }) {
+  if (!all.length) return null;
+  const isVideo = (it: Item) => (it.media[0] || it.repost_of?.media?.[0])?.type === 'video';
+  const items = videosFirst ? [...all.filter(isVideo), ...all.filter((it) => !isVideo(it))] : all;
   return (
     <ul class="strip" aria-label={label}>
       {items.slice(0, max).map((it) => {

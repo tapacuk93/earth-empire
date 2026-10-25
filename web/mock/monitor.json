@@ -50,11 +50,9 @@
    "model": "faster-whisper small int8",
    "found_at": "2026-10-24T12:00:00Z",
    "published_at": "2026-10-24T13:00:00Z",
-   "suggested_section": {
-    "section": "dedicated",
-    "reason": "The full name, said about the owner's own project."
-   },
-   "section": "dedicated"
+   "suggested_section": "dedicated",
+   "section": "dedicated",
+   "section_reason": "The full name, said about the owner's own project."
   },
   {
    "id": "h_mock2",
@@ -106,11 +104,9 @@
    "model": "faster-whisper small int8",
    "found_at": "2026-10-22T12:00:00Z",
    "published_at": "2026-10-22T13:00:00Z",
-   "suggested_section": {
-    "section": "common",
-    "reason": "Surname only; the context is a public event."
-   },
-   "section": "common"
+   "suggested_section": "common",
+   "section": "common",
+   "section_reason": "Surname only; the context is a public event."
   },
   {
    "id": "h_mock3",
@@ -162,11 +158,9 @@
    "model": "faster-whisper small int8",
    "found_at": "2026-10-21T12:00:00Z",
    "published_at": null,
-   "suggested_section": {
-    "section": "dedicated",
-    "reason": "First name in a cooking segment like the owner's recipe reels."
-   },
-   "section": null
+   "suggested_section": "dedicated",
+   "section": null,
+   "section_reason": "First name in a cooking segment like the owner's recipe reels."
   },
   {
    "id": "h_mock4",
@@ -219,11 +213,9 @@
    "model": "faster-whisper small int8",
    "found_at": "2026-10-20T12:00:00Z",
    "published_at": null,
-   "suggested_section": {
-    "section": "common",
-    "reason": "Language hit, not about the owner."
-   },
-   "section": null
+   "suggested_section": "common",
+   "section": null,
+   "section_reason": "Language hit, not about the owner."
   }
  ],
  "next": null

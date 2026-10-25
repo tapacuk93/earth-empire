@@ -28,7 +28,9 @@ export function Feed({ query, emptyText = 'Nothing here yet.', layout = 'grid', 
     try {
       const page = await getItems({ ...query, limit: PAGE, before: reset ? undefined : prev.next || undefined });
       if (keyRef.current !== k) return;
-      const next: State = { items: [...prev.items, ...page.items], next: page.next, done: !page.next };
+      // Newest first by the date it was posted, whatever order the pages arrive in.
+      const merged = [...prev.items, ...page.items.filter((x) => !prev.items.some((p) => p.id === x.id))].sort((a, b) => b.taken_at.localeCompare(a.taken_at));
+      const next: State = { items: merged, next: page.next, done: !page.next };
       memo.set(k, next);
       setSt(next);
     } catch (e) {

@@ -88,7 +88,7 @@ const items = [
     id: 'ig_3400000000000000004', kind: 'story', taken_at: at(30),
     media: [vid('story-share', 540, 960, 6)],
     stickers: [{ type: 'mention', text: '@oceanlab', extra: {} }],
-    highlights: [{ id: 'hl_9003', title: 'Ocean' }],
+    highlights: [{ id: 'hl_9003', title: 'Ocean' }, { id: 'hl_9001', title: 'Travel' }],
     repost_of: {
       author: 'oceanlab', author_name: 'Ocean Lab (sample)', shortcode: 'DMockOrig1', source_url: 'https://www.instagram.com/reel/DMockOrig1/',
       taken_at: at(50), caption: 'Bioluminescent plankton lighting up the bay last night. Sound on. #ocean #science',
@@ -187,7 +187,7 @@ const items = [
     id: 'ig_3400000000000000010', kind: 'story', taken_at: at(150),
     media: [img('story-coffee', 720, 1280)],
     stickers: [{ type: 'question', text: 'Best coffee in town?', extra: {} }],
-    highlights: [{ id: 'hl_9002', title: 'Food' }],
+    highlights: [{ id: 'hl_9002', title: 'Food' }, { id: 'hl_9001', title: 'Travel' }],
     categories: ['food', 'city'], summary: 'Morning coffee and a question sticker asking for recommendations.',
     analysis: analysis({
       what: 'A cup of coffee on a café counter with a question sticker.', on_screen_text: ['Best coffee in town?'],
@@ -209,7 +209,7 @@ for (let i = 1; i <= 18; i++) {
 }
 
 const highlights = [
-  { id: 'hl_9001', title: 'Travel', section: 'dedicated', cover: `${M}hl-travel.jpg`, item_ids: ['ig_3400000000000000003', 'ig_3400000000000000006'], updated_at: stamp.updated_at },
+  { id: 'hl_9001', title: 'Travel', cover: `${M}hl-travel.jpg`, item_ids: ['ig_3400000000000000003', 'ig_3400000000000000004', 'ig_3400000000000000006', 'ig_3400000000000000010'], updated_at: stamp.updated_at },
   { id: 'hl_9002', title: 'Food', cover: `${M}hl-food.jpg`, item_ids: ['ig_3400000000000000006', 'ig_3400000000000000010'], updated_at: stamp.updated_at },
   { id: 'hl_9003', title: 'Ocean', cover: `${M}hl-ocean.jpg`, item_ids: ['ig_3400000000000000004'], updated_at: stamp.updated_at },
 ];

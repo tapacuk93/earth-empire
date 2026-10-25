@@ -1,125 +1,150 @@
-import { useEffect, useState } from 'preact/hooks';
-import { HitCard, hitSlide } from '../components/MonitorCard';
-import { VideoFeed } from '../components/VideoFeed';
-import { fetchMore, getHits, labelOf, setPublished, type Hit } from '../monitor';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { Icon } from '../components/icons';
+import { HitMeta } from '../components/MonitorCard';
+import { fetchMore, getHits, labelOf, setPublished, titleOf, type Hit } from '../monitor';
 import { navigate, type Route } from '../router';
-import { setMeta } from '../util';
+import { hitSection, SECTION_SHORT, SECTION_TITLE, type SectionId } from '../sections';
+import { prefersReducedMotion, setMeta } from '../util';
 import { withParam } from './Home';
-import { Bars, Kpis } from '../components/Charts';
-import { hitSection, hitSuggestion, SECTION_TITLE, SECTIONS, type SectionId } from '../sections';
 
 const KINDS: [string | undefined, string][] = [[undefined, 'All'], ['name', 'Names'], ['language', 'Language']];
 
+/** The add-twice button: none → lower section, lower → upper. */
+function AddTwice({ h, onSet }: { h: Hit; onSet: (section: SectionId | null) => void }) {
+  const at = hitSection(h);
+  const next: SectionId | null = at === null ? 'common' : at === 'common' ? 'dedicated' : null;
+  const sug = (h as { suggested_section?: string | null }).suggested_section;
+  const why = (h as { section_reason?: string | null }).section_reason;
+  return (
+    <div class="addtwice">
+      <span class={`state-chip s-${at || 'none'}`}>{at ? `On Home: ${SECTION_SHORT[at]}` : 'Not on Home'}</span>
+      {next ? (
+        <button class="btn plus" onClick={() => onSet(next)}
+          aria-label={`${at ? 'Move' : 'Add'} to the ${SECTION_SHORT[next]} section of Home (${SECTION_TITLE[next]}); now ${at ? SECTION_SHORT[at] : 'not on Home'}`}>
+          <b aria-hidden="true">+</b> {at ? 'Move to upper' : 'Add to Home'}
+        </button>
+      ) : <button class="btn" disabled aria-label="In the upper section of Home">Upper ✓</button>}
+      {at && <button class="btn small ghost" onClick={() => onSet(null)}>Remove</button>}
+      {sug && <p class="suggest">Claude suggests <b>{SECTION_SHORT[sug as SectionId] || sug}</b>{why && <span> — {why}</span>}</p>}
+    </div>
+  );
+}
+
 export function DetectedPage({ route }: { route: Route }) {
   const kind = route.query.get('kind') || undefined;
-  const watch = route.query.get('watch') || undefined;
+  const start = route.query.get('h') || undefined;
   const [hits, setHits] = useState<Hit[]>();
   const [next, setNext] = useState<string | null>(null);
   const [err, setErr] = useState<string>();
   const [msg, setMsg] = useState('');
   const [n, setN] = useState(10);
-  const [busy, setBusy] = useState(false);
+  const [cur, setCur] = useState(0);
+  const [muted, setMuted] = useState(true);
+  const wheel = useRef<HTMLDivElement>(null);
+  const loading = useRef(false);
   useEffect(() => { setMeta('Detected', undefined, undefined, true); }, []);
   useEffect(() => {
-    setHits(undefined); setErr(undefined);
+    setHits(undefined); setErr(undefined); setCur(0);
     getHits({ kind }).then((p) => { setHits(p.hits); setNext(p.next); }, (e) => setErr(e.message));
   }, [kind]);
+  useLayoutEffect(() => {
+    if (!hits || !wheel.current) return;
+    const i = start ? hits.findIndex((h) => h.id === start) : -1;
+    if (i > 0) { wheel.current.scrollTop = i * wheel.current.clientHeight; setCur(i); }
+  }, [!!hits]);
 
-  const more = async () => {
-    if (!next) return;
-    setBusy(true);
-    try { const p = await getHits({ kind, before: next }); setHits([...(hits || []), ...p.hits]); setNext(p.next); } catch (e) { setMsg(`Could not load more: ${(e as Error).message}`); }
-    setBusy(false);
+  const hit = hits?.[cur];
+  useEffect(() => {
+    if (hit) history.replaceState(history.state, '', withParam({ ...route, query: new URLSearchParams(location.search) }, 'h', hit.id));
+    wheel.current?.querySelectorAll<HTMLVideoElement>('video').forEach((v) => {
+      const mine = v.closest('.wslide')?.getAttribute('data-i') === String(cur);
+      v.muted = muted;
+      if (mine) v.play().catch(() => undefined); else if (!v.paused) v.pause();
+    });
+    if (hits && next && cur >= hits.length - 3 && !loading.current) {
+      loading.current = true;
+      getHits({ kind, before: next }).then((p) => { setHits((hs) => [...(hs || []), ...p.hits]); setNext(p.next); }, () => undefined).finally(() => { loading.current = false; });
+    }
+  }, [hit?.id, muted]);
+
+  const go = (i: number) => {
+    const el = wheel.current;
+    if (!el || !hits) return;
+    const c = Math.max(0, Math.min(hits.length - 1, i));
+    el.scrollTo({ top: c * el.clientHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+  };
+  const onScroll = () => {
+    const el = wheel.current;
+    if (!el?.clientHeight) return;
+    const i = Math.round(el.scrollTop / el.clientHeight);
+    if (i !== cur) setCur(i);
+  };
+  const place = async (h: Hit, section: SectionId | null) => {
+    try {
+      const r = await setPublished(h.id, section !== null, section || undefined);
+      setHits((hs) => hs?.map((x) => (x.id === h.id ? { ...x, ...r, published_at: section ? r.published_at || new Date().toISOString() : null, section } as Hit : x)));
+      setMsg(section ? `In the ${SECTION_SHORT[section]} section of Home.` : 'Removed from Home.');
+    } catch (e) { setMsg(`Could not change it: ${(e as Error).message}`); }
   };
   const fetchN = async (e: Event) => {
     e.preventDefault();
-    setBusy(true); setMsg(`Asking the monitor for ${n} more videos…`);
+    setMsg(`Asking the monitor for ${n} more videos…`);
     try {
       const r = await fetchMore(n);
-      setMsg(`Queued ${r.queued ?? n} videos to scan${r.to_discover ? `; ${r.to_discover} more to discover further back` : ''}. New hits appear here as they are found.`);
+      setMsg(`Queued ${r.queued ?? n} videos to scan${r.to_discover ? `; ${r.to_discover} more to discover further back` : ''}.`);
     } catch (err) { setMsg(/429/.test((err as Error).message) ? 'The scan queue is full; try again later.' : `Could not ask for more: ${(err as Error).message}`); }
-    setBusy(false);
   };
-  const [pick, setPick] = useState<Record<string, SectionId>>({});
-  const publish = async (h: Hit, on: boolean, section?: SectionId) => {
-    try {
-      const r = await setPublished(h.id, on, section);
-      setHits((hs) => hs?.map((x) => (x.id === h.id ? { ...x, ...r, published_at: r.published_at ?? (on ? new Date().toISOString() : null), section: on ? (r as { section?: string }).section || section : null } as Hit : x)));
-      setMsg(on ? `Published to Home, in “${SECTION_TITLE[section || 'common']}”.` : 'Removed from Home.');
-    } catch (e) { setMsg(`Could not change it: ${(e as Error).message}`); }
-  };
-  const open = (id?: string) => navigate(withParam(route, 'watch', id), { replace: !!watch || !id, keepScroll: true });
 
   return (
-    <>
-      <header class="page-head">
-        <h1>Detected</h1>
-        <p class="lead">Moments the monitor heard, most certain first. No hit is certain: low-confidence ones are kept and marked, with the words around them.</p>
-        <div class="row">
-          <div class="kinds" role="group" aria-label="Kind of hit">
-            {KINDS.map(([k, l]) => <button key={l} class="kind" aria-pressed={kind === k} onClick={() => navigate(withParam(route, 'kind', k), { replace: true, keepScroll: true })}>{l}</button>)}
-          </div>
-          {!!hits?.length && <button class="btn small ghost" onClick={() => open(hits[0].id)}>Fullscreen</button>}
+    <div class="det">
+      <div class="det-bar">
+        <h1 class="det-h">Detected</h1>
+        <div class="kinds" role="group" aria-label="Kind of hit">
+          {KINDS.map(([k, l]) => <button key={l} class="kind" aria-pressed={kind === k} onClick={() => navigate(withParam(route, 'kind', k), { replace: true })}>{l}</button>)}
         </div>
+        {hits && <span class="muted small det-count">{hits.length ? `${cur + 1} / ${hits.length}${next ? '+' : ''} · ${labelOf(hits[cur])}` : ''}</span>}
         <form class="row fetch" onSubmit={fetchN}>
-          <label for="fetch-n">Scan more videos</label>
+          <label for="fetch-n">Scan more</label>
           <input id="fetch-n" type="number" min={1} max={50} value={n} onInput={(e) => setN(Math.max(1, Math.min(50, Number((e.target as HTMLInputElement).value) || 1)))} />
-          <button class="btn small" type="submit" disabled={busy}>Fetch {n} more</button>
+          <button class="btn small" type="submit">Fetch {n} more</button>
         </form>
-        <p class="muted small" role="status">{msg}</p>
-      </header>
-      {!!hits?.length && (
-        <section class="ipanel" aria-labelledby="det-sum">
-          <header class="ipanel-head"><h2 id="det-sum">At a glance</h2><p class="muted">The hits loaded below</p></header>
-          <Kpis items={[
-            { label: 'Hits', value: hits.length }, { label: 'Likely', value: hits.filter((h) => labelOf(h) === 'likely').length },
-            { label: 'Possible', value: hits.filter((h) => labelOf(h) === 'possible').length }, { label: 'Low confidence', value: hits.filter((h) => labelOf(h) === 'low confidence').length },
-            { label: 'Published', value: hits.filter((h) => h.published_at).length },
-          ]} />
-          <div class="sec-cols">
-            <div><h3>Confidence</h3><Bars label="Hits by confidence" onPick={() => undefined}
-              rows={[9, 8, 7, 6, 5, 4, 3, 2, 1, 0].map((b) => ({ id: String(b), name: `${b * 10}–${b * 10 + 9}%`, count: hits.filter((h) => Math.min(9, Math.floor((h.confidence ?? 0) * 10)) === b).length })).filter((r) => r.count)} /></div>
-            <div><h3>Where</h3><Bars label="Hits by platform" onPick={() => undefined}
-              rows={Object.entries(hits.reduce((m, h) => { const k = h.source?.name || h.platform || '?'; m[k] = (m[k] || 0) + 1; return m; }, {} as Record<string, number>)).map(([name, count]) => ({ id: name, name, count })).sort((a, b) => b.count - a.count)} /></div>
-          </div>
-        </section>
-      )}
+        <p class="muted small det-msg" role="status">{msg}</p>
+      </div>
       {err ? <p class="error" role="alert">Could not load the hits: {err}</p>
         : !hits ? <p class="muted">Loading…</p>
-        : !hits.length ? <p class="empty">Nothing detected yet.</p>
+        : !hits.length ? <p class="empty">Nothing detected yet. Fetch more to scan more videos.</p>
         : (
-          <ul class="mon-list" role="list">
-            {hits.map((h) => (
-              <HitCard key={h.id} h={h} onWatch={() => open(h.id)}>
-                {(() => {
-                  const sug = hitSuggestion(h);
-                  const chosen = pick[h.id] || sug?.section || 'common';
-                  return (
+          <div class="wheel-wrap">
+            <div class="wheel" ref={wheel} onScroll={onScroll} tabIndex={0} aria-label="Hits, most certain first. Swipe or use the arrow keys."
+              onKeyDown={(e) => {
+                const t = e.target as HTMLElement;
+                if (t.tagName === 'BUTTON' || t.tagName === 'INPUT' || t.tagName === 'A') return;
+                if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'j') { e.preventDefault(); go(cur + 1); }
+                else if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'k') { e.preventDefault(); go(cur - 1); }
+                else if (e.key === 'm') setMuted(!muted);
+              }}>
+              {hits.map((h, i) => (
+                <section key={h.id} class="wslide" data-i={i} aria-label={`${i + 1} of ${hits.length}: ${titleOf(h)}`} aria-hidden={i !== cur ? 'true' : undefined}>
+                  {Math.abs(i - cur) <= 1 && (
                     <>
-                      {sug && <p class="suggest"><span class="muted">Suggested section:</span> <b>{SECTION_TITLE[sug.section]}</b>{sug.reason && <span class="muted"> — {sug.reason}</span>}</p>}
-                      <p class="row">
-                        {h.published_at
-                          ? <><span class="kind-pill k-story">On Home · {SECTION_TITLE[hitSection(h)]}</span><button class="btn small ghost" onClick={() => publish(h, false)}>Remove</button></>
-                          : <>
-                              <label class="sr-only" for={`sec-${h.id}`}>Section for this hit</label>
-                              <select id={`sec-${h.id}`} class="sec-pick" value={chosen} onChange={(e) => setPick({ ...pick, [h.id]: (e.target as HTMLSelectElement).value as SectionId })}>
-                                {SECTIONS.map((s) => <option key={s} value={s}>{SECTION_TITLE[s]}{sug?.section === s ? ' (suggested)' : ''}</option>)}
-                              </select>
-                              <button class="btn small plus" onClick={() => publish(h, true, chosen)} aria-label={`Publish to Home in ${SECTION_TITLE[chosen]}: ${h.video?.title || h.matched}`}>+ Publish</button>
-                            </>}
-                      </p>
+                      <video src={h.clip || undefined} poster={h.frame || h.video?.thumbnail || undefined} muted={muted} loop playsinline preload="none"
+                        aria-label={`Clip around the moment: ${titleOf(h)}`} onClick={() => setMuted(!muted)} />
+                      <div class="wover">
+                        <HitMeta h={h} full />
+                        <AddTwice h={h} onSet={(s) => place(h, s)} />
+                      </div>
                     </>
-                  );
-                })()}
-              </HitCard>
-            ))}
-          </ul>
+                  )}
+                </section>
+              ))}
+            </div>
+            <div class="wheel-side">
+              <button class="icon-btn" onClick={() => setMuted(!muted)} aria-label={muted ? 'Unmute' : 'Mute'} aria-pressed={!muted}><Icon name={muted ? 'mute' : 'sound'} /></button>
+              <button class="icon-btn" onClick={() => go(cur - 1)} disabled={cur === 0} aria-label="Previous hit"><Icon name="left" class="up" /></button>
+              <button class="icon-btn" onClick={() => go(cur + 1)} disabled={cur >= hits.length - 1} aria-label="Next hit"><Icon name="right" class="down" /></button>
+            </div>
+          </div>
         )}
-      {next && <div class="more"><button class="btn" onClick={more} disabled={busy}>Load more</button></div>}
-      {watch && !!hits?.length && (
-        <VideoFeed title="Detected" start={watch} onClose={() => open(undefined)} videos={hits.map(hitSlide)}
-          onIndex={(id) => history.replaceState(history.state, '', withParam(route, 'watch', id))} />
-      )}
-    </>
+    </div>
   );
 }

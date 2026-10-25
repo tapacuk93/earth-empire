@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
-import { adminToken, checkAdmin, getPhrases, getPhraseSuggestions, rejectPhraseSuggestion, rescan, savePhrases, setAdminToken, useOwner, type Phrase, type PhraseSuggestion } from '../live';
+import { acceptPhraseSuggestion, adminToken, checkAdmin, getPhrases, getPhraseSuggestions, rejectPhraseSuggestion, rescan, savePhrases, setAdminToken, useOwner, type Phrase, type PhraseSuggestion } from '../live';
 import { getHighlights } from '../api';
 import { setMeta } from '../util';
 
-export function OwnerToken({ onChange }: { onChange: (ok: boolean) => void }) {
+export function OwnerToken({ onChange, inputRef }: { onChange: (ok: boolean) => void; inputRef?: preact.Ref<HTMLInputElement> }) {
   const [token, setToken] = useState(adminToken());
   const [msg, setMsg] = useState('');
   const has = !!adminToken();
@@ -19,7 +19,7 @@ export function OwnerToken({ onChange }: { onChange: (ok: boolean) => void }) {
     <form class="token-form" onSubmit={save}>
       <label for="admin-token" class="sr-only">Owner token</label>
       <div class="row">
-        <input id="admin-token" type="password" autocomplete="off" value={token} onInput={(e) => setToken((e.target as HTMLInputElement).value)} placeholder="Only the owner has it" />
+        <input id="admin-token" ref={inputRef} type="password" autocomplete="off" value={token} onInput={(e) => setToken((e.target as HTMLInputElement).value)} placeholder="Only the owner has it" />
         <button class="btn small" type="submit" disabled={!token.trim()}>Check and keep</button>
         {has && <button class="btn small ghost" type="button" onClick={() => { setAdminToken(''); setToken(''); setMsg('Signed out on this device.'); onChange(false); }}>Sign out</button>}
       </div>
@@ -53,12 +53,15 @@ function Phrases({ owner }: { owner: boolean }) {
   const accept = async (t: string) => {
     setBusy(true); setMsg(`Adding “${t}”…`);
     try {
-      const p = await savePhrases([...new Set([...(list || []).map((x) => x.text), t])]);
+      const p = await acceptPhraseSuggestion(t, (list || []).map((x) => x.text));
       setList(p); setDraft(p.map((x) => x.text)); setSugs(sugs.filter((x) => x.text !== t)); setMsg(`Added “${t}”.`);
     } catch (e) { setMsg(`Could not add it: ${(e as Error).message}`); }
     setBusy(false);
   };
-  const reject = async (t: string) => { setSugs(sugs.filter((x) => x.text !== t)); await rejectPhraseSuggestion(t); setMsg(`Will not suggest “${t}” again.`); };
+  const reject = async (t: string) => {
+    try { await rejectPhraseSuggestion(t); setSugs(sugs.filter((x) => x.text !== t)); setMsg(`Will not suggest “${t}” again.`); }
+    catch (e) { setMsg(`Could not reject it: ${(e as Error).message}`); }
+  };
   const doRescan = async () => {
     setBusy(true); setMsg('Asking the monitor to re-check stored transcripts…');
     try { await rescan(); setMsg('Rescan started. Progress shows under Activity.'); } catch (e) { setMsg(`Could not start a rescan: ${(e as Error).message}`); }

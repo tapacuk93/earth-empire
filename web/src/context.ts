@@ -2,8 +2,7 @@
 //   all · section:<id> · tag:<tag> · month:YYYY-MM · place:<name> · cat:<slug> · person:<who> · hl:<id> · q:<text> · kind:<kind>
 import type { Category, Highlight, Item } from './types';
 import { hasTag } from './tags';
-import { sectionItems } from './stats';
-import { SECTION_TITLE, type SectionId } from './sections';
+import { SECTION_TITLE, sectionItems, type SectionId } from './sections';
 import { KIND_PLURAL } from './util';
 
 export const itemHref = (id: string, ctx = 'all') => `/item/${encodeURIComponent(id)}${ctx && ctx !== 'all' ? `?ctx=${encodeURIComponent(ctx)}` : ''}`;

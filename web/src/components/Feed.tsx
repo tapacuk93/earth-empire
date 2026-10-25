@@ -16,11 +16,13 @@ export function Feed({ query, emptyText = 'Nothing here yet.', layout = 'grid' }
   const [loading, setLoading] = useState(false);
   const keyRef = useRef(key);
   const sentinel = useRef<HTMLDivElement>(null);
+  const inFlight = useRef<string | null>(null); // the list key being loaded, so a page is never fetched twice
 
   const load = async (reset: boolean) => {
     const k = key;
     const prev = reset ? { items: [], next: null, done: false } : (memo.get(k) || st);
-    if (!reset && (prev.done || loading)) return;
+    if (!reset && (prev.done || inFlight.current === k)) return;
+    inFlight.current = k;
     setLoading(true);
     try {
       const page = await getItems({ ...query, limit: PAGE, before: reset ? undefined : prev.next || undefined });
@@ -31,6 +33,7 @@ export function Feed({ query, emptyText = 'Nothing here yet.', layout = 'grid' }
     } catch (e) {
       if (keyRef.current === k) setSt({ ...prev, error: (e as Error).message || 'Could not load' });
     } finally {
+      if (inFlight.current === k) inFlight.current = null;
       if (keyRef.current === k) setLoading(false);
     }
   };

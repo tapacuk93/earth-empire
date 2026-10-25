@@ -12,6 +12,7 @@ const GROUPS: [Group, string, string[]][] = [
 const KIND_NAME: Record<string, string> = { person: 'person', place: 'place', country: 'country', object: 'thing', animal: 'animal', brand: 'brand',
   keyword: 'keyword', mood: 'mood', occasion: 'occasion', category: 'category', hashtag: 'hashtag' };
 const FIRST = 48;
+const MAX_LEN = 32;
 const kindClass = (k: string) => (GROUPS.find(([, , ks]) => ks.includes(k))?.[0] || 'keywords');
 
 /** A tag cloud from the analysis; each tag sized by how many items carry it. A click filters the items. */
@@ -28,7 +29,15 @@ export function TagCloud({ active, onPick }: { active?: string; onPick: (tag: st
   const label = (t: Tag) => t.kind === 'category' ? cats.data?.find((c) => c.slug === t.tag)?.name || t.tag
     : t.kind === 'hashtag' ? '#' + t.tag.replace(/^#/, '') : t.tag;
   const kinds = GROUPS.find(([g]) => g === group)![2];
-  const list = tags.data.filter((t) => group === 'all' || kinds.includes(t.kind));
+  // One word per tag: the same tag under two kinds shows once (the filter matches any kind anyway),
+  // and long phrases stay out of the cloud.
+  const seen = new Set<string>();
+  const list = tags.data.filter((t) => {
+    if (group !== 'all' && !kinds.includes(t.kind)) return false;
+    if (t.tag.length > MAX_LEN || seen.has(t.tag)) return false;
+    seen.add(t.tag);
+    return true;
+  });
   const shown = all ? list.slice() : list.slice(0, FIRST);
   const act = active?.toLowerCase();
   if (act && !shown.some((t) => t.tag === act)) {

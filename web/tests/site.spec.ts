@@ -32,7 +32,7 @@ test('home: profile, highlights, grid, no sideways scroll', async ({ page }) => 
   expect(missingAlt).toBe(0);
   // More items arrive on scroll (tall screens load them at once) or with the button.
   const more = page.getByRole('button', { name: 'Load more' });
-  if (await more.isVisible()) await more.click().catch(() => undefined);
+  if (await more.isVisible()) await more.click({ timeout: 3000 }).catch(() => undefined);
   await expect(tiles(page)).toHaveCount(28);
   await expect(page.getByRole('button', { name: 'Load more' })).toHaveCount(0);
   expect(errors).toEqual([]);

@@ -64,7 +64,7 @@ export function AnalysisView({ item, a, seek }: { item: Item; a: A; seek: Seek }
                 </div>
                 {p.description && <p>{p.description}</p>}
                 <p class="basis">{!p.who && p.basis && p.basis !== 'description only' ? `not named; known from the ${p.basis}` : BASIS[p.basis || ''] || (p.basis ? `basis: ${p.basis}` : '')}</p>
-                {!!p.appears?.length && (
+                {!!p.appears?.some((ap) => (typeof ap.from === 'number' && hasVideo(ap.media ?? 0)) || multi) && (
                   <p class="appears"><span class="muted">Appears </span>
                     {p.appears.map((ap, j) => <Appears key={j} a={ap} seek={seek} multi={multi} hasVideo={hasVideo} />)}
                   </p>

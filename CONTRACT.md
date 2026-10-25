@@ -473,6 +473,37 @@ share of mirrored matches the monitor found first.
 - `POST /v1/monitor/sources {"name", "platform", "handle", "expected_languages"?, "kind"?, "country"?, "channel_id"?}`
   → `{"source_id", "account_id"}`
 
+### Detection gate
+
+Nothing outside the detection criteria is public - the mirrored archive included. The monitor runs its
+detectors on every backend item (post, carousel, reel, story, highlight story, repost): the item's own
+videos, and for a repost the original's audio (the collector's copy on the media host). The criteria are
+a phrase match (any variant, low confidence included) or Ukrainian/Russian speech where the expected
+language is something else. The result goes to the backend:
+
+- `PUT /v1/ingest/detections` (ingest token) `{"detections": [{"item_id": "ig_…", "detection": Detection}]}`
+  → `{"ok": true, "updated": n}`; an upsert per item, sent again whenever the result changes (new
+  phrases, a rescan).
+
+```jsonc
+// Detection - stored on the item by the backend as `detection`
+{
+  "matched": true,                          // the gate: the backend publishes an item only when true
+  "complete": true,                         // false when some media could not be scanned (then matched is false unless another media matched)
+  "checked_at": "…", "model": "faster-whisper small int8",
+  "reason": "no video or audio in this item" | "no phrase match and no out-of-place Ukrainian/Russian speech" | null,
+  "media": [{"media": "0" | "r0", "video_id": "mirror:…", "state": "done" | "failed" | "blocked" | "skipped", "error"?: "…"}],
+  "hits": [{"kind": "name" | "language", "phrase": "тарас маслов" | null, "lang": "ru",
+            "media": "r0",                  // "<n>" the item's own media n, "r<n>" the repost original's media n
+            "at": 12.4, "end": 13.1,        // seconds into that media
+            "confidence": 0.42, "label": "likely" | "possible" | "low confidence",
+            "matched_words": "Тараса Маслава", "excerpt": "…", "translation": "…" | null}]
+}
+```
+
+Items without a video are `matched: false`. Published items are checked first. `GET /v1/monitor/status`
+shows the gate's counts (`gate`, `gate_published`: items, checked, matched, not_matched, pending, pushed).
+
 **Monitor media.** A clip or frame of an unpublished hit must not be reachable by guessing a URL. The
 media CDN refuses every path under `/monitor/` except `/monitor/public/` (403, enforced in the
 backend's stack). So:

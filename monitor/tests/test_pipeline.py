@@ -247,7 +247,7 @@ def test_highlight_suggestions_and_sections(monkeypatch):
            "excerpt": "и спасибо Тарасу Маслову", "scores": {"sound": 0.9, "asr": 0.9, "name": 0.85}}
     judge.review(c(), {"id": "v", "title": "t", "platform": "telegram", "url": "u", "source_kind": "official"}, [hit])
     assert hit["suggested_section"] == "dedicated" and hit["excerpt_en"]
-    v = c().execute("SELECT * FROM videos WHERE state='done' LIMIT 1").fetchone()
+    v = c().execute("SELECT * FROM videos WHERE state='done' AND transcript IS NOT NULL LIMIT 1").fetchone()
     hit.update({"start": 50.0, "end": 51.0, "excerpt_start": 49, "excerpt_end": 52})
     worker.save_hits(c(), v, worker.detect_all(c(), v, worker.load_transcript(v["transcript"])) + [hit], "test")
     hid = worker.hit_id(v["id"], hit)
@@ -307,3 +307,38 @@ def test_no_instagram_requests_by_default(monkeypatch):
     import pytest
     with pytest.raises(worker.youtube.Blocked):
         worker.download(c(), v, Path(TMP))
+
+
+def test_detection_gate(monkeypatch):
+    from eemonitor import gate
+    b = sqlite3.connect(os.environ["EE_BACKEND_DB"])
+    cols = [r[1] for r in b.execute("PRAGMA table_info(items)")]
+    if "published_at" not in cols:
+        b.execute("ALTER TABLE items ADD COLUMN published_at TEXT")
+    b.execute("UPDATE items SET published_at='2026-10-01T00:00:00Z'")
+    b.execute("INSERT OR REPLACE INTO items VALUES (?, ?, ?)", ("ig_dog", json.dumps({"media": [
+        {"type": "video", "url": "key:items/ig_dog/0.mp4", "duration": 12}]}), "2026-10-01T00:00:00Z"))
+    b.execute("INSERT OR REPLACE INTO items VALUES (?, ?, ?)", ("ig_photo", json.dumps({"media": [
+        {"type": "image", "url": "key:items/ig_photo/0.jpg"}]}), "2026-10-01T00:00:00Z"))
+    b.commit()
+    b.close()
+    worker.repost_seeds(c())
+    dog = c().execute("SELECT * FROM videos WHERE id='mirror:ig_dog#0'").fetchone()
+    assert dog["priority"] == 30 and dog["media_url"] == "https://media.empire.earth/items/ig_dog/0.mp4"
+    # the dog video: scanned, no speech that matches -> not matched; the repost original has a phrase hit
+    c().execute("UPDATE videos SET state='done', model='test' WHERE id='mirror:ig_dog#0'")
+    rep = c().execute("SELECT * FROM videos WHERE via='ig_story_1' AND source_kind='reposted'").fetchone()
+    tr = transcript("и отдельно спасибо Тарасу Маслову за помощь")
+    worker.save_hits(c(), rep, worker.detect_all(c(), rep, tr), "test")
+    c().execute("UPDATE videos SET state='done' WHERE id=?", (rep["id"],))
+    pushed = []
+    monkeypatch.setattr(gate, "push", lambda c_: pushed.append(1) or 0)
+    gate.refresh(c())
+    d = {r["item_id"]: json.loads(r["detection"]) for r in c().execute("SELECT * FROM detections")}
+    assert d["ig_dog"]["matched"] is False and d["ig_dog"]["complete"] is True
+    assert d["ig_photo"]["matched"] is False and "no video" in d["ig_photo"]["reason"]
+    s1 = d["ig_story_1"]
+    assert s1["matched"] is True and s1["hits"][0]["phrase"] == "тарас маслов" and s1["hits"][0]["media"] == "r0"
+    assert s1["hits"][0]["label"] in ("likely", "possible", "low confidence")
+    summ = gate.summary(c(), True)
+    assert summ["matched"] >= 1 and summ["not_matched"] >= 2

@@ -92,6 +92,7 @@ DEFAULTS = {
     "whisper.beam_size": "1",
     "scan.daily_audio_minutes": "240",           # official + followed + reposted
     "scan.recommended_daily_audio_minutes": "60",  # recommendations, their own quota
+    "scan.mirror_daily_audio_minutes": "600",     # the publication gate over the mirrored archive
     "scan.max_video_minutes": "40",               # longer videos wait for an explicit request
     "scan.auto_latest_per_account": "2",          # on first sight, queue only the newest N of an account
     "fetch.max_n": "50",

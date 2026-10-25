@@ -388,6 +388,8 @@ def quota_left(c, source_kind: str) -> float:
     """Minutes of audio left today in the quota this kind of video draws on."""
     if source_kind == "recommended":
         return db.fsetting(c, "scan.recommended_daily_audio_minutes") - db.used(c, "audio_min.recommended")
+    if source_kind in ("mirror", "reposted"):   # the publication gate has its own quota
+        return db.fsetting(c, "scan.mirror_daily_audio_minutes") - db.used(c, "audio_min.mirror")
     return db.fsetting(c, "scan.daily_audio_minutes") - db.used(c, "audio_min.main")
 
 
@@ -403,7 +405,8 @@ def pick(c):
         if quota_left(c, v["source_kind"]) <= 0:
             continue
         maxm = db.fsetting(c, "scan.max_video_minutes")
-        if v["duration"] and v["duration"] > maxm * 60 and not v["requested"]:
+        if v["duration"] and v["duration"] > maxm * 60 and not v["requested"] \
+                and v["source_kind"] not in ("mirror", "reposted"):
             c.execute("UPDATE videos SET state='skipped', error=? WHERE id=?",
                       (f"longer than {maxm:.0f} min; ask for it (fetch) or raise scan.max_video_minutes", v["id"]))
             continue
@@ -474,6 +477,7 @@ def hit_id(video_id: str, h: dict) -> str:
 
 
 def detect_all(c, v, tr: dict) -> list[dict]:
+    tr = tr or {}
     hits = detect.find_name(tr, db.fsetting(c, "name.min_confidence"), compiled_phrases(c))
     exp, basis = expected_for(c, v, tr)
     lh = detect.find_language(tr, exp, db.fsetting(c, "language.min_seconds"), db.fsetting(c, "language.min_prob"))
@@ -550,7 +554,8 @@ def scan(c, v) -> None:
             or db.setting(c, "whisper.model")
         tr = transcribe.transcribe(str(src), model_name, int(db.fsetting(c, "whisper.beam_size")))
         minutes = tr["duration"] / 60
-        db.add_usage(c, "audio_min.recommended" if v["source_kind"] == "recommended" else "audio_min.main", minutes)
+        db.add_usage(c, "audio_min.recommended" if v["source_kind"] == "recommended" else
+                     "audio_min.mirror" if v["source_kind"] in ("mirror", "reposted") else "audio_min.main", minutes)
         hits = detect_all(c, v, tr)
         if hits:
             from . import judge
@@ -635,11 +640,17 @@ def repost_seeds(c) -> int:
     b.row_factory = sqlite3.Row
     n = 0
     try:
-        rows = b.execute("SELECT id, data FROM items").fetchall()
+        has_pub = "published_at" in {x[1] for x in b.execute("PRAGMA table_info(items)")}
+        rows = b.execute(f"SELECT id, data, {'published_at' if has_pub else 'NULL AS published_at'} FROM items").fetchall()
     finally:
         b.close()
+    from . import gate
+    gate.ensure(c)
     for r in rows:
         item = json.loads(r["data"])
+        pub = bool(r["published_at"])
+        prio = 30 if pub else 2   # the gate: published items first, then the rest, before official scans
+        linked = False
         rep = item.get("repost_of") or {}
         if rep:
             ex = rep.get("extra") or {}
@@ -662,6 +673,10 @@ def repost_seeds(c) -> int:
                                "seed_item": r["id"]}}
                 if insert_video(c, v, None, "reposted", via=r["id"], hop=0, source_id=sid, queue=True):
                     n += 1
+                gate.link(c, r["id"], f"r{i}", v["id"], pub)
+                linked = True
+                c.execute("UPDATE videos SET priority=MAX(priority, ?) WHERE id=? AND state IN ('new','queued')",
+                          (prio, v["id"]))
         for i, m in enumerate(item.get("media") or []):
             if m.get("type") != "video" or not m.get("url"):
                 continue
@@ -671,8 +686,12 @@ def repost_seeds(c) -> int:
                  "posted_at": item.get("taken_at"), "duration": m.get("duration"), "thumbnail": None,
                  "extra": {"code": item.get("shortcode"), "item": r["id"], "author": "tapacuk93"}}
             if insert_video(c, v, None, "mirror", via=r["id"], hop=0, queue=True):
-                c.execute("UPDATE videos SET priority=-1 WHERE id=?", (v["id"],))
                 n += 1
+            gate.link(c, r["id"], str(i), v["id"], pub)
+            linked = True
+            c.execute("UPDATE videos SET priority=? WHERE id=? AND state IN ('new','queued')", (prio, v["id"]))
+        if not linked:   # no video or audio: never matches, so never public
+            gate.link(c, r["id"], "none", None, pub)
     if n:
         ev("mirror_seeds", added=n)
     return n
@@ -770,7 +789,7 @@ def loop() -> None:
     setup(c)
     _heartbeat_thread()
     heartbeat(c, "monitor worker started", "start")
-    last_seed = 0.0
+    last_seed = last_gate = 0.0
     while True:
         try:
             if db.setting(c, "monitor.enabled") != "1":
@@ -779,7 +798,14 @@ def loop() -> None:
             if db.setting(c, "rescan.requested"):
                 db.set_setting(c, "rescan.requested", "")
                 rescan(c)
-            if time.time() - last_seed > 3600:
+            if time.time() - last_gate > 120:
+                last_gate = time.time()
+                try:
+                    from . import gate
+                    gate.refresh(c)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("gate refresh failed: %s", e)
+            if time.time() - last_seed > 900:
                 last_seed = time.time()
                 setup(c)
                 repost_seeds(c)

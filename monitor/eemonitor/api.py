@@ -374,6 +374,8 @@ def status():
                                                "claude.daily_usd", "rec.daily_expansions", "whisper.model")},
         "requests": [dict(r) for r in c.execute("SELECT * FROM requests WHERE done_at IS NULL")],
         "stops": stops,
+        "gate": __import__("eemonitor.gate", fromlist=["summary"]).summary(c),
+        "gate_published": __import__("eemonitor.gate", fromlist=["summary"]).summary(c, True),
         "learning": _learning_summary(c),
         "last_scans": [dict(r) for r in c.execute(
             "SELECT id, platform, scanned_at, audio_s, (SELECT COUNT(*) FROM hits h WHERE h.video_id=videos.id) hits "

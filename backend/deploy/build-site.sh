@@ -3,6 +3,8 @@
 # The worker runs this when items have gone public since the last build; by hand: sudo -u earth
 # bash /opt/earth-empire/repo/backend/deploy/build-site.sh
 set -euo pipefail
+# The whole script is one function, read before it runs: the git pull below may rewrite this file.
+main() {
 set -a; . /etc/earth-empire/env; set +a
 export PATH=/opt/earth-empire/node/bin:$PATH
 REPO=/opt/earth-empire/repo
@@ -35,3 +37,5 @@ fi
 EE_REPO_ROOT=/opt/earth-empire/repo SITE_URL=${EE_SITE_URL:-https://empire.earth} \
   VITE_API_BASE=${EE_PUBLIC_API_URL:-https://api.empire.earth} npm run build --silent
 bash /opt/earth-empire/repo/backend/deploy/deploy-site.sh "$BUILD/src/dist"
+}
+main "$@"; exit $?

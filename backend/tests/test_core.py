@@ -9,7 +9,7 @@ from pathlib import Path
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent))
 os.environ.setdefault("EE_MEDIA_BASE_URL", "https://media.example")
-os.environ.setdefault("EE_MEDIA_HOSTS", "d1ahhe3xignm63.cloudfront.net")
+os.environ.setdefault("EE_MEDIA_HOSTS", "d111111abcdef8.cloudfront.net")
 
 from ee import compose, db, store  # noqa: E402
 
@@ -27,7 +27,7 @@ class StoreTest(unittest.TestCase):
 
     def test_media_urls_become_keys_and_back(self):
         self.assertEqual(store.to_key("https://media.empire.earth/items/a/0.jpg"), "key:items/a/0.jpg")
-        self.assertEqual(store.to_key("https://d1ahhe3xignm63.cloudfront.net/items/a/0.jpg"), "key:items/a/0.jpg")
+        self.assertEqual(store.to_key("https://d111111abcdef8.cloudfront.net/items/a/0.jpg"), "key:items/a/0.jpg")
         self.assertEqual(store.to_key("items/a/0.jpg"), "key:items/a/0.jpg")
         self.assertEqual(store.to_url("key:items/a/0.jpg"), f"{store.config.MEDIA_BASE_URL}/items/a/0.jpg")
 

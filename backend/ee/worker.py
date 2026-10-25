@@ -61,23 +61,10 @@ def analyze_once(c) -> bool:
     try:
         analysis.analyze(c, item_id, job="analyze")
         stop.wait(random.uniform(5, 20))   # gentle on the proxy between items
-    except aicoin.ProviderOutOfCredit as e:
-        store.set_step(c, item_id, "analyze", "pending", note="the AI provider is out of credit, waiting")
-        store.record(c, "analyzer", "provider", "the AI provider behind the aicoin proxy is out of credit; "
-                     "analysis waits", ok=False)
-        event("aicoin.provider_out_of_credit", logging.ERROR, error=str(e)[:300])
-        metric("WorkerErrors")
-        stop.wait(1800)
-        return False
-    except aicoin.OutOfCoins as e:
-        store.set_step(c, item_id, "analyze", "pending", note="out of coins, waiting")
-        from .db import set_setting
-        set_setting(c, "analysis.out_of_coins_at", utcnow())
-        store.record(c, "analyzer", "wallet", "the server wallet is out of coins; analysis waits", ok=False)
-        event("analysis.out_of_coins", logging.ERROR, item=item_id,
-              action="fund the server wallet (backend/README.md)")
-        metric("WorkerErrors")
-        stop.wait(3600)
+    except aicoin.AIUnavailable as e:   # no key yet, a rejected key, no credit, or today's budget spent
+        store.set_step(c, item_id, "analyze", "pending", note=str(e)[:200])
+        event("analysis.waiting", logging.WARNING, item=item_id, reason=str(e)[:300])
+        stop.wait(60)   # a newly added key is picked up within a minute
         return False
     except Exception as e:
         store.fail_step(c, item_id, "analyze", f"{type(e).__name__}: {e}")
@@ -120,8 +107,8 @@ def facets_once(c) -> bool:
     try:
         doc = facets.run(c)
         store.record(c, "facets", "generated", f"{len(doc['facets'])} facets over {doc['items']} items ({why})")
-    except aicoin.OutOfCoins:
-        stop.wait(3600)
+    except aicoin.AIUnavailable:
+        stop.wait(60)
     except Exception as e:
         event("facets.failed", logging.WARNING, error=repr(e)[:500])
         from .db import set_setting
@@ -181,9 +168,9 @@ def importance_once(c) -> bool:
         importance.backfill_one(c, ids[0], job="importance")
         _score_failures.pop(ids[0], None)
         stop.wait(random.uniform(3, 10))
-    except aicoin.OutOfCoins as e:   # our wallet, or the provider behind the proxy: wait, do not burn items
-        event("importance.paused", logging.ERROR, error=str(e)[:300])
-        stop.wait(1800)
+    except aicoin.AIUnavailable as e:   # no key, rejected key, no credit, budget spent: wait, do not burn items
+        event("importance.paused", logging.WARNING, error=str(e)[:300])
+        stop.wait(60)
     except Exception as e:
         n = _score_failures[ids[0]] = _score_failures.get(ids[0], 0) + 1
         event("importance.failed", logging.WARNING, item=ids[0], error=repr(e)[:300], attempt=n)
@@ -390,14 +377,6 @@ def house_once(c) -> bool:
             store.record(c, "db", "backup", f"backup failed: {type(e).__name__}", ok=False)
             event("backup.failed", logging.ERROR, error=repr(e))
             metric("WorkerErrors")
-    if config.CLOUDWATCH and t - _last["wallet"] >= 3600:
-        _last["wallet"] = t
-        try:
-            bal = aicoin.balance()
-            set_setting(c, "analysis.wallet_balance", str(bal.get("balance", 0)))
-            set_setting(c, "analysis.wallet_checked_at", utcnow())
-        except Exception as e:
-            event("wallet.balance_unavailable", logging.WARNING, error=str(e))
     if config.CLOUDWATCH:
         site_once(c)
     return False

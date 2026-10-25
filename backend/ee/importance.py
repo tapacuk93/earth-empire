@@ -134,7 +134,7 @@ def run(c, limit: int = 1000) -> list[dict]:
     for i in pending(c, limit):
         try:
             out.append(backfill_one(c, i))
-        except aicoin.OutOfCoins:
+        except aicoin.AIUnavailable:
             raise
         except Exception as e:
             event("importance.failed", logging.WARNING, item=i, error=repr(e)[:300])

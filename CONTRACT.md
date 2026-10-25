@@ -47,8 +47,8 @@ part that reads it.
   - `earth-empire/telegram`: `{"api_id", "api_hash"}`; `earth-empire/telegram-session`: `{"session", "user_id"}`,
     a Telethon session string the owner makes once with `monitor/deploy/telegram-login.py` (the monitor reads
     public channels with it, nothing else).
-  - `earth-empire/claude`: how the backend reaches Claude (the aicoin proxy and a server wallet
-    token, or an Anthropic key).
+  - `earth-empire/claude`: `{"anthropic_api_key": "sk-ant-…", "model"?: "claude-sonnet-5-5"}`, the key
+    the backend and the monitor call the Anthropic API with (see "AI").
 
 ### The box
 
@@ -264,6 +264,22 @@ or Russian) and reports the result as context:
 - An item with hits carries them as `detection`, so the site shows the chip and the full-screen mode
   starts the video at the first matched moment (`hits[0].media`, `hits[0].at`). Without hits it
   plays from the start.
+
+## AI
+
+The backend and the monitor call Claude **directly through the Anthropic API**
+(`api.anthropic.com/v1/messages`), with the key in `earth-empire/claude`. Speech is transcribed on the
+box with faster-whisper (open source). Nothing goes through the aicoin proxy.
+
+- **Putting the key in** (once; it is picked up within a minute, with no restart):
+  `aws secretsmanager put-secret-value --region us-east-1 --secret-id earth-empire/claude --secret-string '{"anthropic_api_key":"sk-ant-…"}'`
+- **Until a key is there**, every AI lane (analysis, importance, facets, rubric review, the monitor's
+  judgements) waits. `GET /v1/status` shows the `claude` component as `degraded` with "waiting for
+  Anthropic API key". A rejected key (401) or an account out of credit shows there too, and the
+  lanes wait and retry every minute.
+- **Cost guard:** at most `ai.daily_budget_usd` ($10 by default) a day, counted from the API's own
+  usage numbers at Anthropic's list prices. The per-day caps on analyses, re-scores and facet runs
+  apply as well. The system prompt is sent with prompt caching.
 
 ## Facets
 

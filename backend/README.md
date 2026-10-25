@@ -136,9 +136,9 @@ People are named only from the post's own signals or a name the owner gave earli
 post's text links to it, never by appearance; the fixtures confirmed it (one person named from an
 on-screen caption, the others described).
 
-**Measured cost** (7 analyses of the fixtures, 2026-10-25): 7,100 input + 1,060 output tokens per
-item on average, **4.9 coins ≈ $0.037 per item** at the proxy's metering, plus **1 coin per video**
-for transcription. Photo post ≈ 3 coins, carousel ≈ 4, short video ≈ 7-8 with transcription.
+**Measured** (7 analyses of the fixtures, 2026-10-25): 7,100 input + 1,060 output tokens per item on
+average, which at Anthropic's Sonnet 5.5 prices ($2 / $10 per million) is **about $0.025 per item**;
+transcription runs on the box for free. Photo post ≈ 3 coins, carousel ≈ 4, short video ≈ 7-8 with transcription.
 **Backlog of N items ≈ 6 × N coins ≈ $0.055 × N** (1,000 items ≈ 6,000 coins ≈ $55; mostly-video
 accounts toward the upper end, long videos a little more since frames are capped at 16).
 
@@ -149,27 +149,21 @@ waits; an empty wallet waits an hour.
 To work through an approved backlog: `ee settings analysis.daily_cap 1000`. `ee estimate` shows
 what is pending.
 
-### The server wallet (how the backend pays)
+### The Anthropic API key (how the backend pays)
 
-`ee wallet init` (done) generated an Ed25519 key **on the box**; the key exists only in the secret
-`earth-empire/claude`. The backend mints itself a one-hour API token from it as needed.
-
-- Address and balance: `ee wallet show` on the box (the address is public by design; the key is not)
-
-**Funding it** (the operator, nobody else): in the aicoin admin app (`~/src/aicoin/ios-admin`),
-Wallets → this address → Credit; or
+Claude is called directly through the Anthropic API (`ee/llm.py`); the aicoin proxy is no longer used,
+and the earlier server wallet's coins stay where they are. Create a key at console.anthropic.com
+(Settings → API keys) on the account that should pay, then:
 
 ```sh
-curl -X POST https://proxy.aicoin.oeaio.com/admin/credit -H "X-Admin-Token: $AICOIN_ADMIN_TOKEN" \
-  -H 'Content-Type: application/json' \
-  -d '{"address":"<the wallet address>","amount":6000,
-       "reason":"earth-empire analysis","reference":"earth-empire-2026-10-a"}'
+aws secretsmanager put-secret-value --region us-east-1 --secret-id earth-empire/claude \
+  --secret-string '{"anthropic_api_key":"sk-ant-…"}'
 ```
 
-(`reference` makes a repeat harmless; at most 1,000,000 per call.) Optionally exempt the wallet
-from the IAP spend budget so Earth Empire's analyses don't use up what apps may sell:
-`aicoin-proxy/scripts/set-budget.sh --internal <the wallet address>`. With an empty wallet, analysis
-waits (`analysis.out_of_coins` in the log) and resumes by itself once credited.
+It is picked up within a minute, with no restart. Check it with `ee ai` on the box (never prints the
+key) or the `claude` component of `GET /v1/status`. Spend is capped at `ai.daily_budget_usd` ($10/day by
+default, `ee settings ai.daily_budget_usd 20` to change it). Speech is transcribed on the box with
+faster-whisper (`small`, int8), at no cost.
 
 ## The X poster
 

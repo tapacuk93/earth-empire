@@ -46,10 +46,10 @@ PROOF_DIR = config.DATA_DIR / "facebook"
 L = {  # accessible names, as regular expressions, in the languages the owner may use
     "composer": r"What's on your mind|Що у вас на думці|Що у вас нового|О чём вы думаете|Что у вас нового",
     "not_now": r"^(Not now|Не зараз|Не сейчас)$",
-    # Informational notices with only a Continue button (e.g. "Review audience: all video posts are
-    # now reels"). Continue keeps the account's existing default audience; nothing is chosen.
-    "notice": r"Review audience|Перевірте аудиторію|Проверьте аудиторию",
-    "continue": r"^(Continue|Продовжити|Продолжить)$",
+    # Facebook asking the owner to decide something about the account (e.g. "Review audience":
+    # the default audience of future posts and reels). Its Continue leads into settings, so the
+    # poster never answers it: the owner does, once, by hand.
+    "owner_decision": r"Review audience|Перевірте аудиторію|Проверьте аудиторию|Update settings|Оновіть налаштування",
     "dialog": r"Create post|Створити допис|Створення допису|Создать публикацию|Создание публикации",
     "photo": r"^(Photo/video|Фото/відео|Фото/видео)$",
     "next": r"^(Next|Далі|Далее)$",
@@ -69,6 +69,10 @@ class FacebookError(Exception):
 
 class NeedsOwner(FacebookError):
     """Logged out or challenged: only the owner can fix this."""
+
+
+class OwnerDecision(FacebookError):
+    """Facebook wants the owner to choose a setting; posting waits (12 h) until they have."""
 
 
 class Warned(FacebookError):
@@ -152,7 +156,8 @@ class Browser:
         self.check("home")
 
     def dismiss_prompts(self):
-        """Close 'remember password' cards and acknowledge informational notices; nothing else."""
+        """Close 'remember password' cards. A dialog that asks the owner to decide a setting stops
+        the run (OwnerDecision); nothing else is ever answered."""
         b = self.page.get_by_role("button", name=re.compile(L["not_now"], re.I))
         if b.count():
             try:
@@ -161,16 +166,16 @@ class Browser:
             except Exception:
                 pass
         for i in range(self.page.locator("[role=dialog]").count()):
-            d = self.page.locator("[role=dialog]").nth(i)
             try:
-                if re.search(L["notice"], d.inner_text(timeout=2000) or "", re.I):
-                    btn = d.get_by_role("button", name=re.compile(L["continue"], re.I))
-                    if btn.count():
-                        event("facebook.notice_acknowledged", text=(d.inner_text(timeout=2000) or "")[:160])
-                        btn.first.click(timeout=5000)
-                        pause()
+                text = self.page.locator("[role=dialog]").nth(i).inner_text(timeout=2000) or ""
             except Exception:
-                pass
+                continue
+            m = re.search(L["owner_decision"], text, re.I)
+            if m:
+                p = self.shot("owner-decision")
+                raise OwnerDecision(f"Facebook asks the owner to decide '{m.group(0)}' ({text[:160]!r}); "
+                                    f"open facebook.com, start a post with a video and complete that step "
+                                    f"once by hand. Screenshot {p}")
 
     def open_composer(self):
         self.dismiss_prompts()
@@ -370,6 +375,10 @@ def handle_block(c, e: Exception):
         set_setting(c, "facebook.paused_until", "session:" + session_fingerprint(session_state()))
         event("facebook.needs_owner", logging.ERROR, error=str(e),
               action="refresh the secret earth-empire/facebook-session; posting resumes by itself")
+    elif isinstance(e, OwnerDecision):
+        until = (datetime.now(timezone.utc) + timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        set_setting(c, "facebook.paused_until", until)
+        event("facebook.owner_decision", logging.ERROR, error=str(e), paused_until=until)
     elif isinstance(e, Warned):
         until = (datetime.now(timezone.utc) + timedelta(hours=72)).strftime("%Y-%m-%dT%H:%M:%SZ")
         set_setting(c, "facebook.paused_until", until)

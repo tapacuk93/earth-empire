@@ -139,7 +139,7 @@ def facebook_once(c) -> bool:
     try:
         fbposter.post_item(c, item_id, dry_run=False)
         fbposter.schedule_next(c)
-    except (fbposter.NeedsOwner, fbposter.Warned) as e:
+    except (fbposter.NeedsOwner, fbposter.Warned, fbposter.OwnerDecision) as e:
         fbposter.handle_block(c, e)
         store.set_step(c, item_id, "facebook", "pending", note=str(e)[:500])
     except Exception as e:

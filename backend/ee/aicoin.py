@@ -34,7 +34,21 @@ class AicoinError(Exception):
 
 
 class OutOfCoins(AicoinError):
-    pass
+    """Nothing to do here but wait: an empty wallet, the app's daily cap, providers out of credit."""
+
+
+class ProviderOutOfCredit(OutOfCoins):
+    """Every provider that could serve the call is out of credit or failing."""
+
+
+class CapReached(OutOfCoins):
+    """The proxy's per-app daily cap (or our own dollar budget) is reached; wait until `reset_at`."""
+    def __init__(self, msg, reset_at: str, status=None, body=None):
+        super().__init__(msg, status, body)
+        self.reset_at = reset_at
+
+
+APP_ID = "earth-empire"   # sent as X-AICoin-App on every call: the proxy's per-app daily cap counts it
 
 
 class ProviderOutOfCredit(OutOfCoins):
@@ -100,34 +114,246 @@ def balance(address: str | None = None) -> dict:
 PROVIDER_BILLING = ("credit balance is too low", "insufficient_quota", "billing", "exceeded your current quota")
 
 
+PROVIDER_BILLING = ("credit balance is too low", "insufficient_quota", "exceeded your current quota")
+
+
+def _reset_at(r) -> str:
+    """When a cap resets: the body's reset_at/resets_at, Retry-After, else the next UTC midnight."""
+    try:
+        d = r.json()
+        for k in ("reset_at", "resets_at", "reset", "retry_at"):
+            if isinstance(d.get(k), str):
+                return d[k]
+    except ValueError:
+        pass
+    ra = r.headers.get("retry-after")
+    if ra and ra.isdigit():
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + int(ra)))
+    t = time.gmtime(time.time() + 86400)
+    return time.strftime("%Y-%m-%dT00:00:00Z", t)
+
+
+def _hhmm(iso: str) -> str:
+    return f"{iso[11:16]} UTC" if iso and len(iso) >= 16 else str(iso)
+
+
 def _check(r, what: str):
-    if r.status_code in (400, 403, 429, 503) and any(p in (r.text or "").lower() for p in PROVIDER_BILLING):
-        raise ProviderOutOfCredit(f"{what}: the AI provider behind the aicoin proxy is out of credit: {r.text[:300]}",
-                                  r.status_code, r.text[:500])
+    text = (r.text or "").lower()
+    if r.status_code in (402, 403, 429) and "cap" in text and ("daily" in text or "app" in text or "budget" in text):
+        reset = _reset_at(r)
+        raise CapReached(f"waiting for budget: app cap, resets {_hhmm(reset)}", reset, r.status_code, r.text[:500])
+    if r.status_code in (400, 403, 429, 503) and any(p in text for p in PROVIDER_BILLING):
+        raise ProviderOutOfCredit(f"waiting for budget: provider credit ({what})", r.status_code, r.text[:500])
     if r.status_code == 402:
-        raise OutOfCoins(f"{what}: the server wallet is out of aicoin", 402, r.text[:500])
+        raise OutOfCoins("waiting for budget: wallet empty", 402, r.text[:500])
     if r.status_code >= 400:
         raise AicoinError(f"{what}: HTTP {r.status_code}: {r.text[:500]}", r.status_code, r.text[:2000])
 
 
-def claude(body: dict, timeout: float = 300) -> tuple[dict, float]:
-    """POST /v1/messages through the proxy. Returns (response JSON, coins charged)."""
+def _state(state: str, reason: str | None = None, **extra):
+    """For GET /v1/status: what the AI lanes are doing right now (any process may write it)."""
+    try:
+        from . import db
+        db.set_setting(db.conn(), "ai.state", json.dumps({"state": state, "reason": reason, **extra,
+                                                          "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}))
+    except Exception:
+        pass
+
+
+def _paused_until() -> str | None:
+    try:
+        from . import db
+        until = db.setting(db.conn(), "ai.paused_until") or ""
+        return until if until > time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()) else None
+    except Exception:
+        return None
+
+
+def _guard():
+    """Our own second limit, in dollars (the proxy's per-app cap is the first)."""
+    until = _paused_until()
+    if until:
+        raise CapReached(f"waiting for budget: app cap, resets {_hhmm(until)}", until)
+    try:
+        from . import db
+        c = db.conn()
+        day = time.strftime("%Y-%m-%d", time.gmtime())
+        spent = c.execute("SELECT COALESCE(SUM(usd), 0) s FROM costs WHERE at >= ? AND ok=1", (day,)).fetchone()["s"]
+        budget = float(db.setting(c, "ai.daily_budget_usd") or 20)
+    except Exception:
+        return
+    if spent >= budget:
+        reset = time.strftime("%Y-%m-%dT00:00:00Z", time.gmtime(time.time() + 86400))
+        e = CapReached(f"waiting for budget: Earth Empire's own ${budget:.0f}/day, resets {_hhmm(reset)}", reset)
+        e.own = True
+        raise e
+
+
+def _pause(e: "CapReached"):
+    try:
+        from . import db
+        db.set_setting(db.conn(), "ai.paused_until", e.reset_at)
+    except Exception:
+        pass
+    _state("waiting", str(e)[:300], resets_at=e.reset_at)
+
+
+FALLBACKS = [("google", "gemini-3.5-flash"), ("openai", "gpt-5")]
+_skip_until: dict[str, float] = {}
+
+
+def _headers(provider: str) -> dict:
+    h = {"X-AI": provider, "X-Api-Key": token(), "X-AICoin-App": APP_ID}
+    if provider == "anthropic":
+        h["anthropic-version"] = "2023-06-01"
+    return h
+
+
+def _post(path: str, provider: str, payload: dict, timeout: float):
     import httpx
+    s = settings()
+    for attempt in range(3):
+        r = httpx.post(f"{s['proxy_url']}{path}", json=payload, timeout=timeout,
+                       headers={**_headers(provider), "content-type": "application/json"})
+        text = (r.text or "").lower()
+        if r.status_code in (429, 500, 502, 503, 529) and attempt < 2 and "cap" not in text and not any(
+                p in text for p in PROVIDER_BILLING):
+            wait = 10 * (attempt + 1)
+            event("aicoin.retry", logging.WARNING, provider=provider, status=r.status_code, wait=wait, body=r.text[:200])
+            time.sleep(wait)
+            continue
+        _check(r, provider)
+        return r.json(), float(r.headers.get("X-Aicoin-Charged") or 0)
+    raise AicoinError("unreachable")
+
+
+def _schema(body):
+    return ((body.get("output_config") or {}).get("format") or {}).get("schema")
+
+
+def _blocks(body):
+    for m in body.get("messages") or []:
+        content = m.get("content")
+        if isinstance(content, str):
+            yield {"type": "text", "text": content}
+        else:
+            yield from content or []
+
+
+def _system_text(body) -> str:
+    s = body.get("system")
+    return s if isinstance(s, str) else "\n".join(b.get("text", "") for b in s or [])
+
+
+def _via_google(body, model, timeout):
+    parts = []
+    for b in _blocks(body):
+        if b.get("type") == "text":
+            parts.append({"text": b["text"]})
+        elif b.get("type") == "image":
+            parts.append({"inline_data": {"mime_type": b["source"]["media_type"], "data": b["source"]["data"]}})
+    cfg = {"maxOutputTokens": max(int(body.get("max_tokens") or 8000), 8000), "responseMimeType": "application/json"}
+    if _schema(body):
+        cfg["responseJsonSchema"] = _schema(body)
+    payload = {"contents": [{"role": "user", "parts": parts}], "generationConfig": cfg}
+    if _system_text(body):
+        payload["systemInstruction"] = {"parts": [{"text": _system_text(body)}]}
+    out, coins = _post(f"/v1beta/models/{model}:generateContent", "google", payload, timeout)
+    cand = (out.get("candidates") or [{}])[0]
+    text = "".join(p.get("text", "") for p in (cand.get("content") or {}).get("parts") or [] if not p.get("thought"))
+    u = out.get("usageMetadata") or {}
+    return {"content": [{"type": "text", "text": text}], "model": out.get("modelVersion") or model, "provider": "google",
+            "stop_reason": "max_tokens" if cand.get("finishReason") == "MAX_TOKENS" else "end_turn",
+            "usage": {"input_tokens": u.get("promptTokenCount", 0),
+                      "output_tokens": u.get("candidatesTokenCount", 0) + u.get("thoughtsTokenCount", 0)}}, coins
+
+
+def _via_openai(body, model, timeout):
+    parts = []
+    for b in _blocks(body):
+        if b.get("type") == "text":
+            parts.append({"type": "text", "text": b["text"]})
+        elif b.get("type") == "image":
+            parts.append({"type": "image_url",
+                          "image_url": {"url": f"data:{b['source']['media_type']};base64,{b['source']['data']}"}})
+    msgs = ([{"role": "system", "content": _system_text(body)}] if _system_text(body) else []) + \
+        [{"role": "user", "content": parts}]
+    payload = {"model": model, "messages": msgs, "max_completion_tokens": max(int(body.get("max_tokens") or 8000), 8000)}
+    if _schema(body):
+        payload["response_format"] = {"type": "json_schema",
+                                      "json_schema": {"name": "result", "schema": _schema(body), "strict": False}}
+    out, coins = _post("/v1/chat/completions", "openai", payload, timeout)
+    ch = (out.get("choices") or [{}])[0]
+    u = out.get("usage") or {}
+    return {"content": [{"type": "text", "text": (ch.get("message") or {}).get("content") or ""}],
+            "model": out.get("model") or model, "provider": "openai",
+            "stop_reason": "max_tokens" if ch.get("finish_reason") == "length" else "end_turn",
+            "usage": {"input_tokens": u.get("prompt_tokens", 0), "output_tokens": u.get("completion_tokens", 0)}}, coins
+
+
+def _provider_failure(e: Exception) -> bool:
+    if isinstance(e, ProviderOutOfCredit):
+        return True
+    if isinstance(e, OutOfCoins):   # our wallet or a cap: every provider would refuse the same way
+        return False
+    if isinstance(e, AicoinError):
+        return e.status is None or e.status >= 500 or e.status in (429, 529) or "overloaded" in (e.body or "").lower()
+    return "timeout" in type(e).__name__.lower()
+
+
+def claude(body: dict, timeout: float = 300) -> tuple[dict, float]:
+    try:
+        return _claude(body, timeout)
+    except CapReached as e:
+        _pause(e) if not getattr(e, "own", False) else None
+        _state("waiting", str(e), resets_at=e.reset_at)
+        raise
+
+
+def _claude(body: dict, timeout: float = 300) -> tuple[dict, float]:
+    """A structured generation through the aicoin proxy, paid by the server wallet, identified as
+    earth-empire: Claude first; when Claude's side fails (out of credit, overloaded, 5xx) Gemini, then
+    OpenAI, with the same images and JSON schema. Returns an Anthropic-shaped response with
+    "provider"; raises OutOfCoins/CapReached for the lanes to wait on."""
+    _guard()
     s = settings()
     body = dict(body)
     body.setdefault("model", s["model"])
-    for attempt in range(4):
-        r = httpx.post(f"{s['proxy_url']}/v1/messages", json=body, timeout=timeout,
-                       headers={"X-AI": "anthropic", "X-Api-Key": token(), "anthropic-version": "2023-06-01",
-                                "content-type": "application/json"})
-        if r.status_code in (429, 500, 502, 503, 529) and attempt < 3:
-            wait = 15 * (attempt + 1)
-            event("aicoin.retry", logging.WARNING, status=r.status_code, wait=wait, body=r.text[:300])
-            time.sleep(wait)
+    errors = []
+    plan = [("anthropic", None)] + FALLBACKS
+    for provider, model in plan:
+        if _skip_until.get(provider, 0) > time.time():
+            errors.append(f"{provider}: skipped (failing recently)")
             continue
-        _check(r, "claude")
-        return r.json(), float(r.headers.get("X-Aicoin-Charged") or 0)
-    raise AicoinError("unreachable")
+        try:
+            if provider == "anthropic":
+                out, coins = _post("/v1/messages", "anthropic", body, timeout)
+                out["provider"] = "anthropic"
+            else:
+                out, coins = (_via_google if provider == "google" else _via_openai)(body, model, timeout)
+            if errors:
+                out["fallback_from"] = errors
+                event("aicoin.served_by", provider=provider, model=out.get("model"), after=errors)
+            _state("ok", None, provider=provider, model=out.get("model"),
+                   fallback="; ".join(errors)[:400] if errors else None)
+            return out, coins
+        except CapReached:
+            raise
+        except OutOfCoins as e:
+            if isinstance(e, ProviderOutOfCredit):
+                _skip_until[provider] = time.time() + 900
+                errors.append(f"{provider}: {str(e)[:160]}")
+                event("aicoin.fallback", logging.WARNING, failed=provider, error=str(e)[:300])
+                continue
+            _state("waiting", str(e))
+            raise
+        except Exception as e:
+            if not _provider_failure(e):
+                raise
+            errors.append(f"{provider}: {str(e)[:160]}")
+            event("aicoin.fallback", logging.WARNING, failed=provider, error=str(e)[:300])
+    _state("waiting", "waiting for budget: provider credit (" + " | ".join(errors)[:240] + ")")
+    raise ProviderOutOfCredit("waiting for budget: provider credit")
 
 
 def transcribe(audio_path: str, timeout: float = 300) -> tuple[dict, float]:
@@ -136,7 +362,7 @@ def transcribe(audio_path: str, timeout: float = 300) -> tuple[dict, float]:
     s = settings()
     with open(audio_path, "rb") as f:
         r = httpx.post(f"{s['proxy_url']}/v1/audio/transcriptions", timeout=timeout,
-                       headers={"X-AI": "openai", "X-Api-Key": token()},
+                       headers=_headers("openai"),
                        data={"model": s["transcribe_model"], "response_format": "verbose_json",
                              "timestamp_granularities[]": "segment"},
                        files={"file": (os.path.basename(audio_path), f, "audio/mpeg")})

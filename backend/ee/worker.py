@@ -48,6 +48,39 @@ def lane(name, fn, idle=30):
 
 
 # ------------------------------------------------------------------ analyze
+_budget_waits: dict[str, int] = {}
+
+
+def ai_wait(e, lane: str = "ai") -> float:
+    """Waiting for budget: until the cap resets when the answer says when, else a growing backoff
+    (1, 2, 4 ... minutes, at most 15) with jitter. Never a reason to fail an item. The next retry
+    time goes to GET /v1/status."""
+    reset = getattr(e, "reset_at", None)
+    secs = None
+    if reset:
+        try:
+            secs = (datetime.strptime(reset[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc)
+                    - datetime.now(timezone.utc)).total_seconds() + random.uniform(5, 60)
+            secs = max(30.0, min(secs, 900.0))   # look again at least every 15 minutes
+        except ValueError:
+            secs = None
+    if secs is None:
+        n = _budget_waits[lane] = _budget_waits.get(lane, 0) + 1
+        secs = min(60.0 * 2 ** (n - 1), 900.0) * random.uniform(0.8, 1.2)
+    try:
+        from .db import conn, set_setting
+        set_setting(conn(), "ai.next_retry", (datetime.now(timezone.utc) + timedelta(seconds=secs))
+                    .strftime("%Y-%m-%dT%H:%M:%SZ"))
+    except Exception:
+        pass
+    return secs
+
+
+def ai_ok(lane: str = "ai"):
+    _budget_waits.pop(lane, None)
+
+
+
 def analyze_once(c) -> bool:
     if setting(c, "analysis.enabled") != "1":
         return False
@@ -60,24 +93,13 @@ def analyze_once(c) -> bool:
     store.job_start(c, "analyze", "analyzer", "analyzing an item", item_id, "starting")
     try:
         analysis.analyze(c, item_id, job="analyze")
+        ai_ok("analyze")
         stop.wait(random.uniform(5, 20))   # gentle on the proxy between items
-    except aicoin.ProviderOutOfCredit as e:
-        store.set_step(c, item_id, "analyze", "pending", note="the AI provider is out of credit, waiting")
-        store.record(c, "analyzer", "provider", "the AI provider behind the aicoin proxy is out of credit; "
-                     "analysis waits", ok=False)
-        event("aicoin.provider_out_of_credit", logging.ERROR, error=str(e)[:300])
+    except aicoin.OutOfCoins as e:   # a cap, the wallet, or every provider out of credit: wait, keep the item
+        store.set_step(c, item_id, "analyze", "pending", note=str(e)[:200])
+        event("analysis.waiting", logging.WARNING, item=item_id, reason=str(e)[:300])
         metric("WorkerErrors")
-        stop.wait(1800)
-        return False
-    except aicoin.OutOfCoins as e:
-        store.set_step(c, item_id, "analyze", "pending", note="out of coins, waiting")
-        from .db import set_setting
-        set_setting(c, "analysis.out_of_coins_at", utcnow())
-        store.record(c, "analyzer", "wallet", "the server wallet is out of coins; analysis waits", ok=False)
-        event("analysis.out_of_coins", logging.ERROR, item=item_id,
-              action="fund the server wallet (backend/README.md)")
-        metric("WorkerErrors")
-        stop.wait(3600)
+        stop.wait(ai_wait(e, "analyze"))
         return False
     except Exception as e:
         store.fail_step(c, item_id, "analyze", f"{type(e).__name__}: {e}")
@@ -120,8 +142,9 @@ def facets_once(c) -> bool:
     try:
         doc = facets.run(c)
         store.record(c, "facets", "generated", f"{len(doc['facets'])} facets over {doc['items']} items ({why})")
-    except aicoin.OutOfCoins:
-        stop.wait(3600)
+        ai_ok("facets")
+    except aicoin.OutOfCoins as e:
+        stop.wait(ai_wait(e, "facets"))
     except Exception as e:
         event("facets.failed", logging.WARNING, error=repr(e)[:500])
         from .db import set_setting
@@ -140,12 +163,15 @@ def rubric_once(c) -> bool:
     if (setting(c, "importance.rubric_reviewed") or "") >= day:
         return False
     from .db import set_setting
-    set_setting(c, "importance.rubric_reviewed", day)
     store.job_start(c, "rubric", "rubric", "Claude is reviewing the importance rubric")
     try:
         from . import rubric
         rubric.review(c)
+        set_setting(c, "importance.rubric_reviewed", day)
+    except aicoin.OutOfCoins as e:   # budget: try again later today
+        stop.wait(ai_wait(e, "rubric"))
     except Exception as e:
+        set_setting(c, "importance.rubric_reviewed", day)   # a real error: once a day is enough
         event("rubric.review_failed", logging.WARNING, error=repr(e)[:300])
     finally:
         store.job_end(c, "rubric")
@@ -180,10 +206,11 @@ def importance_once(c) -> bool:
     try:
         importance.backfill_one(c, ids[0], job="importance")
         _score_failures.pop(ids[0], None)
+        ai_ok("importance")
         stop.wait(random.uniform(3, 10))
-    except aicoin.OutOfCoins as e:   # our wallet, or the provider behind the proxy: wait, do not burn items
-        event("importance.paused", logging.ERROR, error=str(e)[:300])
-        stop.wait(1800)
+    except aicoin.OutOfCoins as e:   # a cap, the wallet, or the providers: wait, do not burn items
+        event("importance.paused", logging.WARNING, error=str(e)[:300])
+        stop.wait(ai_wait(e, "importance"))
     except Exception as e:
         n = _score_failures[ids[0]] = _score_failures.get(ids[0], 0) + 1
         event("importance.failed", logging.WARNING, item=ids[0], error=repr(e)[:300], attempt=n)

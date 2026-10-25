@@ -33,7 +33,8 @@ CONTEXT_ITEMS = 30
 MAX_NEW_CATEGORIES = 2
 
 RATES = {  # USD per million tokens (input, output): what the proxy meters at
-    "claude-opus": (5.0, 25.0), "claude-sonnet": (3.0, 15.0), "claude-haiku": (1.0, 5.0)}
+    "claude-opus": (5.0, 25.0), "claude-sonnet": (3.0, 15.0), "claude-haiku": (1.0, 5.0),
+    "gemini": (0.30, 2.50), "gpt-5": (1.25, 10.0)}
 
 
 def usd_for(model: str, usage: dict) -> float:
@@ -366,7 +367,7 @@ def slugify(s: str) -> str:
     return s[:40]
 
 
-def apply_result(c, item_id: str, out: dict, model: str) -> list[str]:
+def apply_result(c, item_id: str, out: dict, model: str, provider: str = "anthropic") -> list[str]:
     ts = now()
     with tx(c):
         existing = {r["slug"] for r in c.execute("SELECT slug FROM categories")}
@@ -392,7 +393,7 @@ def apply_result(c, item_id: str, out: dict, model: str) -> list[str]:
         analysis = {k: out.get(k) for k in ("people", "what", "events", "when", "where", "objects", "animals", "brands",
                                             "on_screen_text", "speech", "music", "mood", "language", "context",
                                             "keywords")}
-        analysis.update({"model": model, "analyzed_at": ts})
+        analysis.update({"model": model, "provider": provider, "analyzed_at": ts})
         imp = out.get("importance")
         imp = min(1.0, max(0.0, float(imp))) if isinstance(imp, (int, float)) else None
         data = json.loads(c.execute("SELECT data FROM items WHERE id=?", (item_id,)).fetchone()["data"])
@@ -511,10 +512,11 @@ def analyze(c, item_id: str, *, dry_run: bool = False, job: str | None = None) -
             raise RuntimeError(f"the answer is not JSON (stop_reason {resp.get('stop_reason')}): {text[:300]}")
         _progress(c, job, "saving the analysis and covers")
         covers = save_covers(c, item_id, out.get("covers"), info["videos"])
-        cats = apply_result(c, item_id, out, resp.get("model") or model)
+        cats = apply_result(c, item_id, out, resp.get("model") or model, resp.get("provider") or "anthropic")
         c.execute("UPDATE items SET importance_version=?, importance_method=2 WHERE id=?",
                   (info.get("rubric_version"), item_id))
-        result = {"item": item_id, "categories": cats, "summary": out.get("summary"),
+        result = {"item": item_id, "provider": resp.get("provider"), "model": resp.get("model"),
+                  "categories": cats, "summary": out.get("summary"),
                   "input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),
                   "coins": coins + info["coins"], "usd": round(usd, 4), "seconds": round(time.time() - t0, 1),
                   "images": info["images"], "frames": info["frames"], "audio_s": round(info["audio_s"], 1),

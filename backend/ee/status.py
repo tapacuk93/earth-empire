@@ -145,14 +145,14 @@ def build(c) -> dict:
     today = c.execute("SELECT COUNT(*) n FROM costs WHERE purpose='analyze' AND at >= ?", (day,)).fetchone()["n"]
     cap = int(setting(c, "analysis.daily_cap") or 0)
     bal = setting(c, "analysis.wallet_balance")
-    ooc = _age(setting(c, "analysis.out_of_coins_at"))
     funded = None if bal == "" else float(bal) >= 1
+    ai = json.loads(setting(c, "ai.state") or "null") or {}
     a_state = "ok"
     reason = None
     if setting(c, "analysis.enabled") != "1":
         a_state, reason = "off", "turned off"
-    elif funded is False or (ooc is not None and ooc < 3600):
-        a_state, reason = "degraded", "waiting for coins"
+    elif ai.get("state") == "waiting":
+        a_state, reason = "degraded", ai.get("reason")
     elif q.get("pending", 0) and today >= cap:
         a_state, reason = "degraded", "daily cap reached; the rest waits for tomorrow"
     elif fail and done and fail["at"] > done["at"]:
@@ -162,6 +162,30 @@ def build(c) -> dict:
                       details={"reason": reason, "model": "Claude Sonnet 5.5", "pending": q.get("pending", 0),
                                "running": q.get("running", 0), "done": q.get("done", 0), "failed": q.get("failed", 0),
                                "analyzed_today": today, "daily_cap": cap, "wallet_funded": funded}))
+    prov = {}
+    for r in c.execute("SELECT model, COUNT(*) n, SUM(coins) coins, SUM(usd) usd FROM costs WHERE at >= ? AND ok=1 "
+                       "AND purpose != 'transcribe' GROUP BY model", (day,)):
+        m = r["model"] or ""
+        p = "anthropic" if m.startswith("claude") else "google" if "gemini" in m else "openai" if m.startswith("gpt") else "other"
+        e = prov.setdefault(p, {"calls": 0, "coins": 0.0, "usd": 0.0})
+        e["calls"] += r["n"]
+        e["coins"] = round(e["coins"] + (r["coins"] or 0), 1)
+        e["usd"] = round(e["usd"] + (r["usd"] or 0), 3)
+    spent = sum(v["usd"] for v in prov.values())
+    paused = setting(c, "ai.paused_until") or None
+    comps.append(comp("ai", "AI through aicoin", "degraded" if ai.get("state") == "waiting" or ai.get("fallback") else "ok",
+                      last_success=ai.get("at") if ai.get("state") == "ok" else None,
+                      last_error=err(ai.get("at"), ai.get("reason") or ai.get("fallback"))
+                      if ai.get("state") == "waiting" or ai.get("fallback") else None,
+                      details={"app": "earth-empire", "serving": ai.get("provider"), "model": ai.get("model"),
+                               "fallback_because": scrub(ai.get("fallback"), 200),
+                               "waiting": ai.get("reason") if ai.get("state") == "waiting" else None,
+                               "paused_until": paused if paused and paused > _ts() else None,
+                               "next_retry": (setting(c, "ai.next_retry") or None) if ai.get("state") == "waiting" else None,
+                               "order": ["anthropic", "google (Gemini)", "openai (GPT)"],
+                               "spent_today_usd": round(spent, 2),
+                               "own_daily_budget_usd": float(setting(c, "ai.daily_budget_usd") or 20),
+                               "proxy_daily_cap_usd": 20, "calls_today_by_provider": prov}))
 
     # collector and other parts that report heartbeats
     last = c.execute("SELECT finished_at, ok, counts, received_at FROM runs ORDER BY id DESC LIMIT 1").fetchone()

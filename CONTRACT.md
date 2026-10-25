@@ -265,6 +265,25 @@ or Russian) and reports the result as context:
   starts the video at the first matched moment (`hits[0].media`, `hits[0].at`). Without hits it
   plays from the start.
 
+## AI calls
+
+Every AI call of the backend and the monitor goes through the aicoin proxy, paid by Earth Empire's
+server wallet (`earth-empire/claude`) and identified by the header **`X-AICoin-App: earth-empire`**.
+The proxy holds Earth Empire to a per-app daily cap of $20.
+
+- **Order:** Claude first. If Claude's side fails (its account is out of credit, it is overloaded,
+  5xx), the call goes to Gemini (`gemini-3.5-flash`), then OpenAI (`gpt-5`), through the same proxy and
+  wallet, with the same images, frames and JSON schema. The proxy's `/text` carries no images, so the
+  provider-native routes are used. Each result records its provider (`analysis.provider`,
+  `analysis.model`).
+- **Budgets never fail an item.** The proxy's app cap (429 `app_daily_cap_reached`, `reset_at`), an
+  empty wallet (402), a provider's credit ("credit balance too low"), and Earth Empire's own limits
+  (`ai.daily_budget_usd` $20, the daily caps on analyses, re-scores and facet runs) keep the item
+  queued as it is. The lane waits until `reset_at` when there is one, otherwise backs off 1, 2, 4 …
+  minutes up to 15 with jitter, and retries with no limit. New items stay first. `GET /v1/status`
+  shows it on the `ai` component ("waiting for budget: app cap, resets 00:00 UTC", "wallet empty",
+  "provider credit", and `next_retry`). Other errors keep their normal limited retries.
+
 ## Facets
 
 The groupings the site and apps browse by (places, themes, people, projects, …) are not fixed.

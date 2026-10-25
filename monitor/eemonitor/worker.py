@@ -575,6 +575,11 @@ def scan(c, v) -> None:
                     heartbeat(c, f"missed a mirrored match ({', '.join(res['misses'])}); improved", "learn")
             except Exception as e:  # noqa: BLE001
                 log.warning("learn.evaluate failed: %s", e)
+            try:   # the gate: send this item's detection as soon as all its media are scanned
+                from . import gate
+                gate.refresh(c)
+            except Exception as e:  # noqa: BLE001
+                log.warning("gate refresh failed: %s", e)
         c.execute("""UPDATE videos SET state='done', scanned_at=?, transcript=?, languages=?, audio_s=?, cpu_s=?,
                      model=?, error=NULL, duration=COALESCE(duration, ?) WHERE id=?""",
                   (db.now(), store_transcript(tr), db.j(transcribe.languages(tr)), tr["duration"], tr["cpu_s"],

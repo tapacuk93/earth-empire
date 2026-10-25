@@ -36,6 +36,7 @@ part that reads it.
   - `earth-empire/ingest-token`: a random string; the collector sends it as `Authorization: Bearer`.
   - `earth-empire/x`: X API credentials (OAuth 1.0a user context: api_key, api_secret,
     access_token, access_secret; or OAuth 2.0 user tokens).
+  - `earth-empire/facebook-session`: a Playwright `storageState` JSON for the owner's Facebook login.
   - `earth-empire/claude`: how the backend reaches Claude (the aicoin proxy and a server wallet
     token, or an Anthropic key).
 
@@ -104,6 +105,9 @@ store it in `extra`.
   },
   "categories": ["travel", "food"],        // slugs; set by the backend, never by the collector
   "summary": "one sentence" | null,        // set by the backend
+  "description": "…" | null,               // set by the backend: a few sentences on who, what, when,
+                                           // where and context, written to be published and shown
+                                           // by the site and the app; for a repost it covers the original too
   "analysis": null | {                     // set by the backend - see "Analysis" below
     "people": [{"who": "@username" | "a name" | null, "description": "…", "basis": "tag|mention|caption|speech|on-screen text|description only", "role": "…", "appears": [{"media": 0, "from": 1.5, "to": 8.0}]}],
     "what": "what is happening, in a few sentences",
@@ -120,7 +124,8 @@ store it in `extra`.
     "model": "…", "analyzed_at": "…"
   },
   "extra": {},                             // anything else the source had
-  "collected_at": "…", "updated_at": "…"
+  "collected_at": "…", "updated_at": "…",
+  "published_at": "…"                      // set by the backend when the item went public (see "The pipeline")
 }
 
 // Highlight
@@ -168,7 +173,7 @@ original of a repost too). Claude sees all of the following:
 - the caption, tags, mentions, stickers, location, music, date, highlight names;
 - the account's earlier items, for recurring people, places and series.
 
-From these it writes `analysis`, then `categories` and `summary`.
+From these it writes `analysis`, then `categories`, `summary` and `description`.
 
 - **Who:** people are named only from what the post itself says - photo tags, mentions,
   caption, speech, on-screen text - or from a name the owner gave to a person in earlier items. A
@@ -176,6 +181,30 @@ From these it writes `analysis`, then `categories` and `summary`.
 - **Re-analysis:** an item is analyzed again when its media or caption changes, or when the owner
   asks.
 - **Search:** `q` searches the analysis too.
+
+## The pipeline
+
+Every item goes through these steps in order. The backlog goes oldest first, and each new item
+goes through as it arrives. Each step has its own recorded state, and a failure retries with
+backoff without blocking other items. Every transition is logged.
+
+1. **Downloaded:** the collector has ingested it (a post, carousel, reel, story, highlight story, or
+   a repost together with its original).
+2. **Analyzed:** the backend has written `analysis`, `categories`, `summary` and `description`.
+   The public API shows an item only from this point on. `published_at` is when that happened.
+   Analysis spends money, so the backend caps how many items it analyzes per day. The owner raises
+   the cap to work through the backlog.
+3. **Published** to each destination, with its own state for each: `pending`, `posted` (with the
+   destination's id or URL), `failed` (with the reason), or `skipped`. The destinations are:
+   - `site`: empire.earth and the app, which happens on reaching step 2;
+   - `x`: the X API;
+   - `facebook`: the browser session.
+
+   A post on X or Facebook carries the description, the original caption, the date, the highlight
+   names, the categories as hashtags, and the repost credit.
+
+`GET /v1/admin/pipeline` (with the ingest token) returns the counts in each state and the latest
+failures.
 
 ## Rules every part follows
 
@@ -196,8 +225,10 @@ From these it writes `analysis`, then `categories` and `summary`.
   A repost goes up with the original's video, credited to its author ("Reel by @author" and the
   source link). State lives in the backend's database, so nothing is posted twice.
 - **The Facebook poster** posts the same content, oldest first, to the owner's own Facebook profile
-  through the browser profile `facebook` on the box. The owner logs in through the remote view, and
-  posting is paced gently with a daily cap. State lives in the backend's database.
+  with a headless browser on the box. It loads the session as a Playwright `storageState` from the
+  secret `earth-empire/facebook-session` (cookies and localStorage, captured where the owner logged
+  in). When that session is logged out, the poster stops, logs it, saves a screenshot and waits for
+  the secret to be refreshed. It never logs in by itself. Posting is paced gently, with a daily cap.
 - Media URLs: the collector may send any `url` the API's `media-url` returned. The API stores the
   key and serves URLs under the current media host, so they move to `media.empire.earth` once its
   certificate is issued.

@@ -91,7 +91,7 @@ Resources:
     Properties:
       Name: earth-empire-site-rewrite
       AutoPublish: true
-      FunctionConfig: {Comment: "www -> apex; /path/ -> /path/index.html", Runtime: cloudfront-js-2.0}
+      FunctionConfig: {Comment: "www -> apex; /path and /path/ -> /path/index.html", Runtime: cloudfront-js-2.0}
       FunctionCode: |
         function handler(event) {
           var r = event.request;
@@ -103,8 +103,9 @@ Resources:
           }
           if (r.uri.endsWith('/')) r.uri += 'index.html';
           else if (r.uri.lastIndexOf('.') < r.uri.lastIndexOf('/') + 1) {
-            // an extensionless path is a client-side route: serve the app shell
-            r.uri = '/index.html';
+            // an extensionless route: the prerendered shell in its folder (web/README.md);
+            // a route without one falls through to 404.html, the generic app shell
+            r.uri += '/index.html';
           }
           return r;
         }
@@ -137,8 +138,9 @@ Resources:
           ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03 # SecurityHeadersPolicy
           FunctionAssociations:
             - {EventType: viewer-request, FunctionARN: !GetAtt SiteRewrite.FunctionMetadata.FunctionARN}
-        CustomErrorResponses:
-          - {ErrorCode: 403, ResponseCode: 404, ResponsePagePath: /index.html, ErrorCachingMinTTL: 10}
+        CustomErrorResponses:   # 404.html is the app shell: new items still render, unknown paths 404
+          - {ErrorCode: 403, ResponseCode: 404, ResponsePagePath: /404.html, ErrorCachingMinTTL: 10}
+          - {ErrorCode: 404, ResponseCode: 404, ResponsePagePath: /404.html, ErrorCachingMinTTL: 10}
       Tags: [{Key: project, Value: earth-empire}]
 
   SiteBucketPolicy:
@@ -226,9 +228,14 @@ Resources:
               - Effect: Allow
                 Action: [logs:CreateLogStream, logs:PutLogEvents, logs:DescribeLogStreams]
                 Resource: !Sub "${LogGroup.Arn}*"
+              - Effect: Allow   # the box rebuilds and publishes the site as items go public
+                Action: [s3:GetObject, s3:PutObject, s3:DeleteObject, s3:ListBucket]
+                Resource: [!GetAtt SiteBucket.Arn, !Sub "${SiteBucket.Arn}/*"]
               - Effect: Allow
                 Action: cloudfront:CreateInvalidation
-                Resource: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${MediaDistribution}"
+                Resource:
+                  - !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${MediaDistribution}"
+                  - !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${SiteDistribution}"
       Tags: [{Key: project, Value: earth-empire}]
 
   BoxProfile:

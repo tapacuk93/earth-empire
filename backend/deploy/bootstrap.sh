@@ -7,15 +7,24 @@ ROOT=/opt/earth-empire
 REPO=$ROOT/repo
 
 # --- packages: python, ffmpeg, nginx, the remote view (Xvfb + x11vnc + noVNC), tools
-if [ ! -f /var/lib/earth-empire/.base-packages-v1 ]; then
+if [ ! -f /var/lib/earth-empire/.base-packages-v2 ]; then
   apt-get update
-  apt-get install -y python3 python3-venv python3-pip ffmpeg nginx sqlite3 jq unzip curl git \
+  apt-get install -y python3 python3-venv python3-pip ffmpeg nginx sqlite3 jq unzip curl git rsync xz-utils \
     xvfb x11vnc novnc websockify fonts-noto fonts-noto-color-emoji fonts-noto-cjk
   if ! command -v aws >/dev/null; then
     curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-$(uname -m).zip" -o /tmp/awscli.zip
     unzip -q -o /tmp/awscli.zip -d /tmp && /tmp/aws/install --update && rm -rf /tmp/aws /tmp/awscli.zip
   fi
-  mkdir -p /var/lib/earth-empire && touch /var/lib/earth-empire/.base-packages-v1
+  mkdir -p /var/lib/earth-empire && touch /var/lib/earth-empire/.base-packages-v2
+fi
+
+# --- Node.js for building the site on the box (web/ uses Vite 8: Node 20.19+)
+NODE_VERSION=v22.12.0
+if [ "$(/opt/earth-empire/node/bin/node --version 2>/dev/null)" != "$NODE_VERSION" ]; then
+  ARCH=$(uname -m | sed 's/aarch64/arm64/; s/x86_64/x64/')
+  curl -fsSL "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-linux-$ARCH.tar.xz" -o /tmp/node.tar.xz
+  rm -rf /opt/earth-empire/node && mkdir -p /opt/earth-empire/node
+  tar -xJf /tmp/node.tar.xz -C /opt/earth-empire/node --strip-components=1 && rm /tmp/node.tar.xz
 fi
 
 # --- swap: headless Chromium, ffmpeg and the API share 4 GB

@@ -92,6 +92,8 @@ DEFAULT_SETTINGS = {
     "facebook.timezone": "Europe/Kyiv",
     "facebook.paused_until": "",
     "x.paused_until": "",
+    "site.auto_build": "1",     # rebuild and publish the site when items go public
+    "site.built_at": "",
 }
 
 STEPS = ("analyze", "site", "x", "facebook")

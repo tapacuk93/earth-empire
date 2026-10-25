@@ -17,6 +17,7 @@ else
   API=https://$(out ApiHost); MEDIA=https://$(out MediaHost)
 fi
 MEDIA_HOSTS=$(out MediaHost)
+SITE_DIST=$(out SiteDistributionId)
 
 read -r -d '' SCRIPT <<EOF || true
 set -euxo pipefail
@@ -28,6 +29,7 @@ setkv() { grep -q "^\$1=" \$f && sed -i "s|^\$1=.*|\$1=\$2|" \$f || echo "\$1=\$
 setkv EE_PUBLIC_API_URL $API
 setkv EE_MEDIA_BASE_URL $MEDIA
 setkv EE_MEDIA_HOSTS $MEDIA_HOSTS
+setkv EE_SITE_DISTRIBUTION_ID $SITE_DIST
 for p in ${PARTS:-*}; do
   if [ -x "\$p/deploy/install.sh" ] || [ -f "\$p/deploy/install.sh" ]; then echo "== \$p"; bash "\$p/deploy/install.sh"; fi
 done

@@ -8,8 +8,8 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 DIST=${1:-$ROOT/web/dist}
 [ -f "$DIST/index.html" ] || { echo "no $DIST/index.html - build the site first (see web/)" >&2; exit 1; }
 BUCKET=earth-empire-site
-DIST_ID=$(aws cloudformation describe-stacks --stack-name earth-empire \
-  --query "Stacks[0].Outputs[?OutputKey=='SiteDistributionId'].OutputValue" --output text)
+DIST_ID=${EE_SITE_DISTRIBUTION_ID:-$(aws cloudformation describe-stacks --stack-name earth-empire \
+  --query "Stacks[0].Outputs[?OutputKey=='SiteDistributionId'].OutputValue" --output text)}
 # 1. hashed assets (name-<hash>.ext under assets/), immutable
 aws s3 sync "$DIST" "s3://$BUCKET" --exclude '*' --include 'assets/*' \
   --cache-control 'public, max-age=31536000, immutable' --only-show-errors

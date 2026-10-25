@@ -155,7 +155,28 @@ def facebook_once(c) -> bool:
 
 
 # ------------------------------------------------------------------ housekeeping
-_last = {"beat": 0.0, "backup": ""}
+_last = {"beat": 0.0, "backup": "", "site": 0.0}
+SITE_BUILD = "/opt/earth-empire/repo/backend/deploy/build-site.sh"
+
+
+def site_once(c) -> None:
+    """Rebuild the site (prerendered item pages) when items went public since the last build;
+    at most every 15 minutes."""
+    if setting(c, "site.auto_build") != "1" or time.time() - _last["site"] < 900:
+        return
+    newest = c.execute("SELECT MAX(published_at) t FROM items").fetchone()["t"]
+    if not newest or newest <= (setting(c, "site.built_at") or ""):
+        return
+    _last["site"] = time.time()
+    t0 = time.time()
+    p = subprocess.run(["bash", SITE_BUILD], capture_output=True, text=True, timeout=1800)
+    if p.returncode == 0:
+        from .db import set_setting
+        set_setting(c, "site.built_at", newest)
+        event("site.built", seconds=round(time.time() - t0), newest=newest, out=p.stdout[-300:])
+    else:
+        event("site.build_failed", logging.ERROR, code=p.returncode, err=(p.stderr or p.stdout)[-1500:])
+        metric("WorkerErrors")
 
 
 def house_once(c) -> bool:
@@ -169,6 +190,8 @@ def house_once(c) -> bool:
     if config.CLOUDWATCH and _last["backup"] != day and datetime.now(timezone.utc).hour >= 3:
         _last["backup"] = day
         backup(c)
+    if config.CLOUDWATCH:
+        site_once(c)
     return False
 
 

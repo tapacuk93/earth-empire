@@ -39,6 +39,35 @@ part that reads it.
   - `earth-empire/claude`: how the backend reaches Claude (the aicoin proxy and a server wallet
     token, or an Anthropic key).
 
+### The box
+
+One EC2 instance runs the API, the workers, the collector and the browsers. Its details beyond
+these live in `backend/README.md`.
+
+- `t4g.medium` (arm64, 2 vCPU, 4 GB, plus 4 GB swap), Ubuntu 24.04, tags `Name=earth-empire` and
+  `project=earth-empire`. Reached with SSM only, never SSH: `aws ssm start-session --target <id>`,
+  with the id from `aws ec2 describe-instances --filters Name=tag:Name,Values=earth-empire`.
+- The repository is checked out at `/opt/earth-empire/repo` and owned by the user `earth`, which
+  runs every service. A deploy (`backend/deploy/deploy-box.sh`) pulls `main`, then runs
+  `<part>/deploy/install.sh` as root for every part that has one. That script is idempotent and
+  installs that part's dependencies and systemd units.
+- Data lives in `/var/lib/earth-empire/<part>/`, and config not in git in `/etc/earth-empire/env`
+  (`EE_API_URL=http://127.0.0.1:8000` for parts on the box, `EE_PUBLIC_API_URL`,
+  `EE_MEDIA_BASE_URL`, `AWS_REGION`). Secrets are read from Secrets Manager with the instance
+  role, never written to disk.
+- Playwright's browsers are shared in `/opt/earth-empire/ms-playwright`
+  (`PLAYWRIGHT_BROWSERS_PATH`); `ffmpeg` is installed.
+- **Browser profiles** (logged-in sessions) live in `/var/lib/earth-empire/browser/<name>/`, mode
+  700, never in git or S3. `<name>` is `instagram` or `facebook`. Only one process may use a profile
+  at a time: hold `flock /var/lib/earth-empire/browser/<name>.lock` while using it.
+- **Remote view** for the owner to log in by hand: the service `ee-remote-view` runs an X display
+  `:99` (Xvfb), x11vnc and noVNC, listening on `127.0.0.1:6080` only. A browser that needs a human
+  runs headed on `DISPLAY=:99`. `sudo -u earth ee-browser-login <name> <url>` takes the profile's
+  lock and opens Chromium with it on that display, and the owner opens the view through SSM port
+  forwarding (steps in `backend/README.md`). Automation never types a password or solves a
+  challenge: when a session is logged out or a checkpoint appears, it stops, logs it, saves a
+  screenshot and waits for the owner.
+
 ## The data
 
 Every id is a string. Times are ISO 8601 UTC. Everything the source shows is kept: when in doubt,
@@ -166,4 +195,10 @@ From these it writes `analysis`, then `categories` and `summary`.
 
   A repost goes up with the original's video, credited to its author ("Reel by @author" and the
   source link). State lives in the backend's database, so nothing is posted twice.
+- **The Facebook poster** posts the same content, oldest first, to the owner's own Facebook profile
+  through the browser profile `facebook` on the box. The owner logs in through the remote view, and
+  posting is paced gently with a daily cap. State lives in the backend's database.
+- Media URLs: the collector may send any `url` the API's `media-url` returned. The API stores the
+  key and serves URLs under the current media host, so they move to `media.empire.earth` once its
+  certificate is issued.
 - Log what happens - every run, every request that failed, and why - and diagnose from the logs.

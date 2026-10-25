@@ -41,7 +41,12 @@ class FakeIG:
             return [self.data["hl"]]          # the viewer preloads the neighbouring highlights too
         if "/stories/" in url:
             return [self.data["user"]]
-        return [self.data["profile"], self.data["tray"]]
+        if url.endswith("/reels/"):
+            return [self.data["clips"]]
+        # the profile grid: the first page on opening, the rest after scrolling
+        if scrolls <= 1:
+            return [self.data["profile"], self.data["tray"], self.data["feed1"]]
+        return [self.data["profile"], self.data["tray"], self.data["feed1"], self.data["feed2"]]
 
     def feed(self, uid, cursor):
         self.calls.append(f"feed:{cursor}")
@@ -140,7 +145,8 @@ def test_full_then_incremental(env):
     c2.run("incremental")
     assert len(dl.urls) == n_dl + 0, dl.urls[n_dl:]
     assert len(store.uploads) == n_up
-    assert "feed:None" in ig.calls and not any(x.startswith("feed:33") for x in ig.calls)
+    assert not any(x.startswith("feed:") for x in ig.calls)       # no REST feed: the profile page lists
+    assert ig.calls.count("browse:https://www.instagram.com/example.owner/") == 1
     assert not any("/stories/highlights/" in x for x in ig.calls)  # tray unchanged
     assert not any(x.startswith("info:") for x in ig.calls)            # repost already resolved
 
@@ -165,21 +171,24 @@ def test_new_story_added_to_highlight(env):
 
 
 def test_backfill_resumes_from_checkpoint(env):
+    """A step that fails leaves the rest of the run and the timeline intact; the next run goes on."""
     store, backend, state = env
     ig, dl = FakeIG(), FakeDL()
-    ig.fail_feed_after = 1
+    orig = ig.browse
+
+    def grid_fails(url, scrolls=1, click=()):
+        if url.endswith("/example.owner/") and scrolls > 1:
+            raise RuntimeError("simulated crash while scrolling the grid")
+        return orig(url, scrolls)
+    ig.browse = grid_fails
     c = Collector(ig, backend, state, dl, "example.owner")
-    c.run("full")                      # the feed step fails; the run goes on and ends
+    c.run("full")                      # listing older posts fails; the run goes on and ends
     assert c.counts["failed_list_feed"] == 1 and state.get("backfill.done_at") is None
-    assert state.get("backfill.feed.cursor") == "3300000000000000002_1000000001"
-    assert "ig_3300000000000000003" not in store.items or True
-    ig.fail_feed_after = None
-    ig.calls.clear()
+    assert "ig_3300000000000000001" in store.items            # the profile page's posts went in
+    ig.browse = orig
     Collector(ig, backend, state, dl, "example.owner").run("full")
-    feed_calls = [x for x in ig.calls if x.startswith("feed:")]
-    assert feed_calls[0] == "feed:3300000000000000002_1000000001"  # continued, not restarted
     assert "ig_3300000000000000003" in store.items
-    assert state.get("backfill.feed.done") is True
+    assert state.get("backfill.feed.done") is True and state.get("backfill.done_at")
 
 
 def test_budget_stops_backfill_at_checkpoint(env):

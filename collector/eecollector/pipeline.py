@@ -24,6 +24,7 @@ log = logging.getLogger("ee.run")
 BATCH = 12
 STORY_EVERY = 45 * 60
 PROFILE_EVERY = 6 * 3600
+HIGHLIGHTS_PER_RUN = 15
 
 
 class Collector:
@@ -283,7 +284,9 @@ class Collector:
         self.tray = tray
         changed = [h for h in tray if (full and not self.state.get(f"backfill.hl.{h['id']}"))
                    or not self.state.highlight(h["id"]) or self.state.highlight(h["id"])[1] != h["sig"]]
-        log.info("list highlights: %d in the tray, %d to read", len(tray), len(changed))
+        cap = HIGHLIGHTS_PER_RUN if full else len(changed)
+        log.info("list highlights: %d in the tray, %d to read, up to %d this run", len(tray), len(changed), cap)
+        changed = changed[:cap]
         loaded: dict[str, dict] = {}
         for i, h in enumerate(changed):
             self.beat(f"listing highlights {i}/{len(changed)}", i / len(changed))
@@ -350,41 +353,43 @@ class Collector:
         self.bump("highlights", len(ordered))
 
     def list_feed(self, full: bool) -> None:
-        """Older posts, page by page from a saved cursor (requests only, no downloads)."""
+        """Older posts as the web app loads them: scrolling the profile grid (its own GraphQL
+        timeline requests). /api/v1/feed/user/ is no longer served to the web session."""
         if not full or self.state.get("backfill.feed.done"):
-            if self.recent_new is not None and self.recent_new < len(self.harvested):
-                return  # the profile page reached posts we have: caught up
-            self._list_pages("feed", self.ig.feed, parse.feed_page, False, self.recent_cursor)
-            return
-        self._list_pages("feed", self.ig.feed, parse.feed_page, True, self.recent_cursor)
+            return  # the profile page's posts were listed already
+        self._list_grid("feed", f"https://www.instagram.com/{self.target}/", story=False)
 
     def list_clips(self, full: bool) -> None:
-        """Reels only in the Reels tab (most are in the feed too); once, during the backfill."""
+        """Reels, some only in the Reels tab; once, during the backfill."""
         if full and not self.state.get("backfill.clips.done"):
-            self._list_pages("clips", self.ig.clips, parse.clips_page, True, None)
+            self._list_grid("clips", f"https://www.instagram.com/{self.target}/reels/", story=False)
 
-    def _list_pages(self, name: str, fetch, parse_page, full: bool, start: str | None) -> None:
-        key, done_key = f"backfill.{name}.cursor", f"backfill.{name}.done"
-        cursor = (self.state.get(key) or start) if full else start
-        pages = 0
-        while True:
-            if self.out_of_time():
-                log.info("list %s: run budget used up; the cursor is saved", name)
-                break
-            self.beat(f"listing {name} page {pages + 1}")
-            media, nxt = parse_page(fetch(self.uid, cursor))
-            pages += 1
-            new = sum(self.enqueue(f"ig_{parse.media_pk(m)}", "post", m) for m in media)
-            log.info("list %s page %d: %d items, %d to ingest", name, pages, len(media), new)
-            if full:
-                self.state.set(key, nxt)
-                if not nxt:
-                    self.state.set(done_key, True)
-            if not nxt or (not full and new == 0):
-                break
-            if self.limit and pages * 12 >= self.limit:
-                break
-            cursor = nxt
+    def _list_grid(self, name: str, url: str, story: bool) -> None:
+        if self.out_of_time():
+            return
+        self.beat(f"listing {name}", force=True)
+        scrolls = int(self.state.get(f"backfill.{name}.scrolls", 6))
+        bodies = self.ig.browse(url, scrolls=scrolls)
+        media = self.owner_media(bodies, story=story)
+        flags = []   # one per loaded page of the grid; the last page says there is no more
+        for body in bodies:
+            for d in parse.walk(body):
+                pi = d.get("page_info") if isinstance(d.get("page_info"), dict) else None
+                if pi and "has_next_page" in pi and d.get("edges"):
+                    flags.append(bool(pi.get("has_next_page")))
+                if "more_available" in d and isinstance(d.get("items"), list):
+                    flags.append(bool(d.get("more_available")))
+                pg = d.get("paging_info") if isinstance(d.get("paging_info"), dict) else None
+                if pg and "more_available" in pg:
+                    flags.append(bool(pg.get("more_available")))
+        more = bool(flags) and all(flags)
+        new = sum(self.enqueue(f"ig_{parse.media_pk(m)}", "post", m) for m in media)
+        log.info("list %s: %d on the page after %d scrolls, %d to ingest, more: %s", name, len(media), scrolls, new, more)
+        if more:
+            # the next run scrolls further down (the grid always starts at the top)
+            self.state.set(f"backfill.{name}.scrolls", min(scrolls + 6, 60))
+        else:
+            self.state.set(f"backfill.{name}.done", True)
 
     # ------------------------------------------------------------ ingesting the timeline
 

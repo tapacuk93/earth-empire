@@ -73,7 +73,7 @@ export function TimelineView({ items, hrefFor }: { items: Item[]; hrefFor: (it: 
       if (s >= 110) {
         ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(sx, sy + s - 22, s, 22);
         ctx.fillStyle = '#fff'; ctx.font = '600 12px system-ui, sans-serif';
-        ctx.fillText(fmtShort(t.it.taken_at), sx + 6, sy + s - 7);
+        ctx.fillText(dayFmt.format(new Date(t.it.taken_at)) + ', ' + t.it.taken_at.slice(0, 4), sx + 6, sy + s - 7); // the same UTC day as its row
       }
       if (hover.current === t) { ctx.strokeStyle = fg; ctx.lineWidth = 3; ctx.strokeRect(sx + 1.5, sy + 1.5, s - 3, s - 3); }
     }

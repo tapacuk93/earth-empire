@@ -46,6 +46,10 @@ PROOF_DIR = config.DATA_DIR / "facebook"
 L = {  # accessible names, as regular expressions, in the languages the owner may use
     "composer": r"What's on your mind|Що у вас на думці|Що у вас нового|О чём вы думаете|Что у вас нового",
     "not_now": r"^(Not now|Не зараз|Не сейчас)$",
+    # Informational notices with only a Continue button (e.g. "Review audience: all video posts are
+    # now reels"). Continue keeps the account's existing default audience; nothing is chosen.
+    "notice": r"Review audience|Перевірте аудиторію|Проверьте аудиторию",
+    "continue": r"^(Continue|Продовжити|Продолжить)$",
     "dialog": r"Create post|Створити допис|Створення допису|Создать публикацию|Создание публикации",
     "photo": r"^(Photo/video|Фото/відео|Фото/видео)$",
     "next": r"^(Next|Далі|Далее)$",
@@ -148,12 +152,23 @@ class Browser:
         self.check("home")
 
     def dismiss_prompts(self):
-        """Close 'remember password' and similar cards, never answering them otherwise."""
+        """Close 'remember password' cards and acknowledge informational notices; nothing else."""
         b = self.page.get_by_role("button", name=re.compile(L["not_now"], re.I))
         if b.count():
             try:
                 b.first.click(timeout=5000)
                 pause()
+            except Exception:
+                pass
+        for i in range(self.page.locator("[role=dialog]").count()):
+            d = self.page.locator("[role=dialog]").nth(i)
+            try:
+                if re.search(L["notice"], d.inner_text(timeout=2000) or "", re.I):
+                    btn = d.get_by_role("button", name=re.compile(L["continue"], re.I))
+                    if btn.count():
+                        event("facebook.notice_acknowledged", text=(d.inner_text(timeout=2000) or "")[:160])
+                        btn.first.click(timeout=5000)
+                        pause()
             except Exception:
                 pass
 
@@ -190,9 +205,11 @@ class Browser:
         while time.time() < deadline:
             pause(2000, 3000)
             busy = dlg.locator("[role=progressbar]").count()
+            self.dismiss_prompts()
             if not busy:
                 break
         pause(1500, 3000)
+        self.dismiss_prompts()
 
     def type_text(self, dlg, text: str):
         box = dlg.get_by_role("textbox").first

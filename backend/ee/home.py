@@ -80,18 +80,25 @@ def published_hits() -> list[dict]:
     if not m:
         return []
     try:
-        rows = m.execute("SELECT id, data, published_at, section FROM hits WHERE published_at IS NOT NULL").fetchall()
+        cols = {r[1] for r in m.execute("PRAGMA table_info(hits)")}
+        extra = ", ".join(c for c in ("level", "level_by") if c in cols) or "NULL"
+        rows = m.execute(f"SELECT id, data, published_at, section, {extra} FROM hits "
+                         "WHERE published_at IS NOT NULL").fetchall()
     except sqlite3.Error:
         return []
     finally:
         m.close()
     out = []
-    for hid, data, pub, section in rows:
+    for row in rows:
+        hid, data, pub, section = row[:4]
         try:
             d = json.loads(data or "{}")
         except ValueError:
             d = {}
-        out.append({"id": hid, "data": d, "published_at": pub, "section": section or "common"})
+        level = row[4] if len(row) > 4 else None
+        level_by = row[5] if len(row) > 5 else None
+        out.append({"id": hid, "data": d, "published_at": pub, "section": section,
+                    "level": level if level in (1, 2, 3, 4) else None, "level_by": level_by})
     return out
 
 
@@ -236,11 +243,13 @@ def members(c) -> dict[str, dict]:
                             r["kind"], "Posts")}
     for h in published_hits():
         d = h["data"]
-        lvl = d.get("level") if d.get("level") in (1, 2, 3, 4) else 3
+        # the monitor's effective level (AI-chosen or the owner's override); L3 only if it has none yet
+        lvl = h.get("level") or (d.get("level") if d.get("level") in (1, 2, 3, 4) else 3)
         lw = {1: W["dedicated"], 2: W["shared"], 3: W["repost"], 4: W["story"]}[lvl]
         out["hit:" + h["id"]] = {"half": "all", "kind": "hit", "video": True, "source": "ai_found", "level": lvl,
                                  "curation": lw,
-                                 "curation_reason": "AI-chosen level L%d: %s" % (lvl, (d.get("level_reason") or "not rated yet")[:120]),
+                                 "curation_reason": ("level L%d set by the owner" % lvl) if h.get("level_by") == "owner"
+                                 else "AI-chosen level L%d: %s" % (lvl, (d.get("level_reason") or "rated by the monitor")[:120]),
                                  "original_at": (d.get("video") or {}).get("posted_at") or h["published_at"],
                                  "curation_reason": "detected, published in the top section" if top_hit
                                  else "detected, published in the bottom section",

@@ -204,9 +204,11 @@ async def media_url(request: Request):
     import boto3
     s3 = boto3.client("s3", region_name=config.REGION,
                       config=__import__("botocore.config").config.Config(signature_version="s3v4"))
+    # Only Content-Type is signed, so a client that sends just that header (as CONTRACT.md says)
+    # matches the signature. (Signing Cache-Control too made such PUTs fail with 403
+    # SignatureDoesNotMatch.) CloudFront caches media by its own policy.
     url = s3.generate_presigned_url("put_object", ExpiresIn=3600, HttpMethod="PUT",
-                                    Params={"Bucket": config.MEDIA_BUCKET, "Key": key, "ContentType": ctype,
-                                            "CacheControl": "public, max-age=31536000"})
+                                    Params={"Bucket": config.MEDIA_BUCKET, "Key": key, "ContentType": ctype})
     exists = False
     try:
         head = s3.head_object(Bucket=config.MEDIA_BUCKET, Key=key)
@@ -215,7 +217,7 @@ async def media_url(request: Request):
     except Exception:
         size = None
     return {"upload_url": url, "public_url": f"{config.MEDIA_BASE_URL}/{key}",
-            "headers": {"Content-Type": ctype, "Cache-Control": "public, max-age=31536000"},
+            "headers": {"Content-Type": ctype},
             "exists": exists, "size": size}
 
 

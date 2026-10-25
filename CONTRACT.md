@@ -178,7 +178,9 @@ Public, read-only:
 Ingest, for the collector only (`Authorization: Bearer <earth-empire/ingest-token>`):
 
 - `POST /v1/ingest/media-url` `{"key": "items/<id>/0.mp4", "content_type": "video/mp4"}` →
-  `{"upload_url": "<presigned PUT>", "public_url": "https://media.empire.earth/…"}`
+  `{"upload_url": "<presigned PUT>", "public_url": "https://media.empire.earth/…", "headers":
+  {"Content-Type": "video/mp4"}, "exists": bool}`. PUT the bytes to `upload_url` with exactly the
+  `Content-Type` that was asked for (it is signed); `exists` says the key is already there.
 - `PUT /v1/ingest/items` `{"items": [Item without categories/summary]}`: an upsert by id. A
   repeated item updates its fields and keeps its categories unless its caption or media changed.
 - `PUT /v1/ingest/highlights` `{"highlights": [Highlight]}`: the upsert.
@@ -390,7 +392,9 @@ media CDN refuses every path under `/monitor/` except `/monitor/public/` (403, e
 backend's stack). So:
 
 - The monitor stores clips and frames privately in S3 under `monitor/clips/` and `monitor/frames/`.
-  In owner responses, an unpublished hit's `clip`/`frame` are presigned S3 GET URLs (at most 1 hour).
+  In owner responses, an unpublished hit's `clip`/`frame` are presigned S3 GET URLs (at most 1 hour),
+  signed with the box's instance role. Nothing else is presigned: `video.url`, `video.thumbnail` and
+  `at_url` are the platform's own public URLs.
 - On publish, the monitor copies them to `monitor/public/<hit id>.<ext>`, and the hit's URLs become
   `https://media.empire.earth/monitor/public/…`. On unpublish, it deletes those copies and
   invalidates `/monitor/public/<hit id>.*` on the media distribution (the box role may).

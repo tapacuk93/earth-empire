@@ -6,7 +6,7 @@ import { API_BASE, MOCK } from './config';
 import type { Item } from './types';
 
 export interface LayoutTile { id: string; kind: 'item' | 'hit'; x: number; y: number; size: number; label?: string; taken_at?: string; attached_to?: string | null }
-export interface Layout { top: LayoutTile[]; bottom: LayoutTile[] }
+export interface Layout { top: LayoutTile[]; bottom: LayoutTile[]; exponent: number }
 export interface Related { id: string; kind: 'item' | 'hit'; half?: string; score?: number; item?: Item }
 export interface GraphNode { tag: string; kinds?: string[]; count: number; level: number; facet?: string; facet_name?: string; category?: string }
 export interface GraphEdge { a: string; b: string; count: number; weight?: number }
@@ -20,7 +20,7 @@ async function get<T>(path: string): Promise<T | null> {
 }
 
 let layout: Promise<Layout | null> | null = null;
-export const getLayout = () => (layout ??= get<{ halves: Layout }>('/v1/layout').then((j) => (j?.halves ? j.halves : null)));
+export const getLayout = () => (layout ??= get<{ halves: { top: LayoutTile[]; bottom: LayoutTile[] }; display_exponent?: number }>('/v1/layout').then((j) => (j?.halves ? { ...j.halves, exponent: j.display_exponent || 2 } : null)));
 
 export const getRelated = (id: string, limit = 40) =>
   get<{ related: Related[] }>(`/v1/items/${encodeURIComponent(id)}/related?limit=${limit}`).then((j) => j?.related || null);

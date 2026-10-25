@@ -39,7 +39,7 @@ export function TagGraphView({ nodes, edges, onOpen, labelFor }: { nodes: GNode[
     const shown: GNode[] = [];
     for (const n of nodes) {
       if (n.rank >= limit) continue;
-      const x = sx(n), y = sy(n), r = Math.max(3, n.r * v.k);
+      const x = sx(n), y = sy(n), r = n.r * v.k;
       if (x + r < 0 || y + r < 0 || x - r > w || y - r > h) continue;
       shown.push(n);
       ctx.fillStyle = css.getPropertyValue(COLOR[n.kind] || '--g-tags').trim() || '#36c';
@@ -51,14 +51,14 @@ export function TagGraphView({ nodes, edges, onOpen, labelFor }: { nodes: GNode[
     // Labels never overlap: most used first, each tried below, above, right and left of its node,
     // skipped when every spot collides with a label already placed. Zooming in makes room for more.
     const placed: [number, number, number, number][] = [];
-    const circles = shown.map((n) => [sx(n), sy(n), Math.max(3, n.r * v.k)] as const);
+    const circles = shown.map((n) => [sx(n), sy(n), n.r * v.k] as const);
     const hitsCircle = (a: [number, number, number, number]) => circles.some(([cx, cy, r]) => {
       const nx = Math.max(a[0], Math.min(cx, a[0] + a[2])), ny = Math.max(a[1], Math.min(cy, a[1] + a[3]));
       return (cx - nx) ** 2 + (cy - ny) ** 2 < (r + 1) ** 2;
     });
     const hits = (a: [number, number, number, number]) => hitsCircle(a) || placed.some((b) => a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3]);
     for (const n of shown.slice().sort((a, b) => a.rank - b.rank)) {
-      const x = sx(n), y = sy(n), r = Math.max(3, n.r * v.k);
+      const x = sx(n), y = sy(n), r = n.r * v.k;
       const fs = Math.max(10, Math.min(18, r * 0.6 + 8));
       ctx.font = `${n.rank < 10 ? 700 : 500} ${fs}px system-ui, sans-serif`;
       const text = labelFor(n);

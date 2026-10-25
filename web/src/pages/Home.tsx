@@ -6,6 +6,7 @@ import { MosaicView } from '../components/MosaicView';
 import { useCategories, useData, useHighlights, useProfile } from '../components/Profile';
 import { TagGraphView } from '../components/TagGraphView';
 import { TimelineView } from '../components/TimelineView';
+import { EarthButton } from '../components/Chrome';
 import { modesTopSaved, saveModesTop } from '../components/zoom';
 import { VideoFeed } from '../components/VideoFeed';
 import { SITE_NAME } from '../config';
@@ -78,7 +79,7 @@ export function Home({ route }: { route: Route }) {
     return (['dedicated', 'common'] as SectionId[]).map((id) => ({
       id,
       mosaic: placeAttached(L
-        ? mosaicFromLayout(id === 'dedicated' ? L.top : L.bottom, byId, hitById)
+        ? mosaicFromLayout(id === 'dedicated' ? L.top : L.bottom, byId, hitById, L.exponent)
         : buildMosaic(sectionItems(id, items, hl), sectionHighlights(id, hl), hits.filter((h) => hitSection(h) === id)), attach),
     }));
   }, [ready, lay.loading, items, hl, hits]);
@@ -101,12 +102,27 @@ export function Home({ route }: { route: Route }) {
   const first = items[items.length - 1], last = items[0];
   const modes = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState(0);
-  const onModesScroll = () => { const el = modes.current; if (el?.clientHeight) { saveModesTop(el.scrollTop); setMode(Math.round(el.scrollTop / el.clientHeight)); } };
+  // The mode on screen is remembered (by index) and restored on return; scroll events before the
+  // restore must not overwrite it.
+  const restored = useRef(false);
+  const onModesScroll = () => {
+    const el = modes.current;
+    if (!el?.clientHeight) return;
+    const i = Math.round(el.scrollTop / el.clientHeight);
+    setMode(i);
+    if (restored.current) saveModesTop(i);
+  };
   useEffect(() => {
     if (!ready) return;
     const want = modesTopSaved();
     let n = 0;
-    const go = () => { const el = modes.current; if (!el) return; el.scrollTop = want; onModesScroll(); if (Math.abs(el.scrollTop - want) > 2 && ++n < 40) setTimeout(go, 50); };
+    const go = () => {
+      const el = modes.current;
+      if (!el) return;
+      el.scrollTop = want * el.clientHeight;
+      onModesScroll();
+      if (Math.abs(el.scrollTop - want * el.clientHeight) > 2 && ++n < 60) setTimeout(go, 50); else restored.current = true;
+    };
     go();
   }, [ready]);
   const openHit = (id?: string) => navigate(withParam(route, 'watch', id), { replace: !!watch || !id, keepScroll: true });
@@ -148,7 +164,7 @@ export function Home({ route }: { route: Route }) {
         </section>
       </div>
       <header class="home-pill fui">
-        <h1><span class="logo" aria-hidden="true" />{SITE_NAME}</h1>
+        <h1><EarthButton label={SITE_NAME} />{SITE_NAME}</h1>
         {all.error ? <p class="error" role="alert">Could not load Earth Empire: {all.error.message}</p> : all.data && (
           <p class="stats-line">
             <b>{items.length}</b> videos{first && last && <> · <b>{spanOf(first.taken_at, last.taken_at)}</b></>} · <b>{places(items).length}</b> places · <b>{people(items).length}</b> people{profile.data && <> · from <a href={`https://www.instagram.com/${profile.data.username}/`} rel="external noopener">@{profile.data.username}</a></>}
@@ -158,7 +174,7 @@ export function Home({ route }: { route: Route }) {
       <nav class="mode-dots fui" aria-label="Modes">
         {MODES.map(([mid, label], i) => (
           <button key={mid} aria-label={label} aria-current={mode === i ? 'true' : undefined} title={label}
-            onClick={() => document.getElementById(mid)?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth' })}>
+            onClick={() => { const el = modes.current; if (el) el.scrollTo({ top: i * el.clientHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' }); void mid; }}>
             <span aria-hidden="true" /></button>
         ))}
       </nav>

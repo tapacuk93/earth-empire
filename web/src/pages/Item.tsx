@@ -199,6 +199,7 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
 
   return (
     <div class="ifeed" role="dialog" aria-modal="true" aria-label={`${label}: item ${cur + 1} of ${items.length}`}
+      style={{ '--ar': String((() => { const md = item && (item.media[0] || item.repost_of?.media?.[0]); return md?.width && md?.height ? md.width / md.height : 9 / 16; })()) }}
       onKeyDown={(e) => {
         const t = e.target as HTMLElement;
         if (t.tagName === 'INPUT' || (t.tagName === 'BUTTON' && (e.key === ' ' || e.key === 'Enter'))) return;
@@ -281,20 +282,27 @@ function Slide({ item, active, muted, forced, onTapVideo, info, setInfo, loop, o
   };
   useEffect(() => { if (first && (first.media ?? 0) !== m && active && !started.current) { const el = row.current; if (el) el.scrollLeft = (first.media ?? 0) * el.clientWidth; } }, [active]);
   const curHits = hits.filter((h) => (h.media ?? 0) === m);
+  // Playback shows the whole picture (contain) unless its shape is within 10% of the screen's, when it may fill (cover).
+  const [dims, setDims] = useState<Record<number, number>>({});
+  const arOf = (i: number) => dims[i] || (media[i]?.width && media[i]?.height ? media[i].width! / media[i].height! : 9 / 16);
+  const fit = (i: number) => { const sar = innerWidth / Math.max(1, innerHeight); return Math.abs(arOf(i) - sar) / sar < 0.1 ? 'fit-cover' : 'fit-contain'; };
+  const learn = (i: number, w: number, h: number) => { if (w && h && Math.abs((dims[i] || 0) - w / h) > 0.01) setDims((d) => ({ ...d, [i]: w / h })); };
   return (
     <>
       <div class="imedia" ref={row} onScroll={(e) => { const el = e.currentTarget as HTMLElement; const i = Math.round(el.scrollLeft / (el.clientWidth || 1)); if (i !== m) setM(i); }}
         aria-roledescription={media.length > 1 ? 'carousel' : undefined} aria-label={media.length > 1 ? `${media.length} photos and videos; swipe sideways` : undefined}>
         {media.map((md, i) => (
           <div key={i} class="imedia-slide" data-n={i} data-on={i === m ? '1' : '0'}>
+            <div class="ibg" aria-hidden="true" style={{ backgroundImage: `url("${posterOf(md) || md.url}")` }} />
             {md.type === 'video'
-              ? <video src={md.url} poster={posterOf(md)} muted={muted || forced || !active} loop={loop} onLoadedMetadata={(e) => onMeta(e, i)}
+              ? <video src={md.url} poster={posterOf(md)} muted={muted || forced || !active} loop={loop} class={fit(i)} onLoadedMetadata={(e) => { const v = e.currentTarget as HTMLVideoElement; learn(i, v.videoWidth, v.videoHeight); onMeta(e, i); }}
                   onTimeUpdate={(e) => { if (i === m) { const v = e.currentTarget as HTMLVideoElement; setT({ cur: v.currentTime, dur: v.duration || 0 }); } }} onEnded={() => { if (i === media.length - 1) onEnded(); else { row.current?.scrollTo({ left: (i + 1) * (row.current.clientWidth || 0) }); setM(i + 1); } }} playsinline autoplay={false} preload={active ? 'auto' : 'metadata'}
                   aria-label={altFor(item, i, md)} onClick={onTapVideo} />
-              : <img src={md.url} alt={altFor(item, i, md)} decoding="async" draggable={false} />}
+              : <img class={fit(i)} src={md.url} alt={altFor(item, i, md)} decoding="async" draggable={false} onLoad={(e) => { const g = e.currentTarget as HTMLImageElement; learn(i, g.naturalWidth, g.naturalHeight); }} />}
           </div>
         ))}
       </div>
+      <div class="icol" style={{ '--ar': String(arOf(m)) }}>
       {media.length > 1 && <div class="idots" aria-hidden="true">{media.map((_, i) => <span key={i} class={i === m ? 'on' : ''} />)}</div>}
       {forced && active && media[m]?.type === 'video' && <button class="unmute" onClick={onTapVideo}><Icon name="sound" size={16} /> Tap for sound</button>}
       {active && first && (
@@ -331,6 +339,7 @@ function Slide({ item, active, muted, forced, onTapVideo, info, setInfo, loop, o
             <p class="muted small">{fmtDateTime(item.taken_at)}{item.counts?.likes !== undefined && ` · ${fmtCount(item.counts.likes)} likes`}</p>
           </div>
         )}
+      </div>
       </div>
     </>
   );

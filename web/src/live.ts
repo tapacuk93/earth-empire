@@ -163,14 +163,14 @@ export async function rejectPhraseSuggestion(text: string) {
 // ---- the importance rubric and size formula (CONTRACT.md: GET/PUT /v1/admin/settings, owner only) ----
 export interface RubricVersion { version: number; text: string; reason?: string; by?: string; applied?: boolean; created_at?: string }
 export interface AdminSettings {
-  size: { half_life_days?: number; age_floor?: number; importance_w?: number };
+  size: { half_life_days?: number; age_floor?: number; importance_w?: number; display_exponent?: number };
   placement: Record<string, number>;
   rubric: { version?: number; text: string; reason?: string; by?: string; history?: RubricVersion[] };
   rubric_review?: boolean;
   formula?: string;
 }
 let mockSettings: AdminSettings = {
-  size: { half_life_days: 180, age_floor: 0.05, importance_w: 0.15 },
+  size: { half_life_days: 7, age_floor: 0.05, importance_w: 0.4, display_exponent: 2 },
   placement: { post: 1, dedicated: 1, shared: 0.5, repost: 0.25, story: 0.125, hit_top: 1, hit_bottom: 0.5 },
   rubric: { version: 2, text: 'Important: moments that show the owner taking part, speaking, or being named; events with lasting meaning. Less important: reshared news without the owner, filler.', reason: 'Clearer wording', by: 'claude',
     history: [
@@ -178,7 +178,7 @@ let mockSettings: AdminSettings = {
       { version: 2, text: 'Important: moments that show the owner taking part, speaking, or being named; events with lasting meaning. Less important: reshared news without the owner, filler.', reason: 'Clearer wording', by: 'claude', applied: true, created_at: '2026-10-25T10:00:00Z' },
     ] },
   rubric_review: true,
-  formula: 'size = placement × age_factor × (1 − w + w × importance); age_factor = max(floor, 0.5^(age_days / half_life_days))',
+  formula: 'size = placement × age_factor × (1 − w + w × importance); age_factor = max(floor, 0.5^(age_days / half_life_days)); tile area ∝ size^display_exponent',
 };
 export async function getAdminSettings(): Promise<AdminSettings> {
   if (MOCK) { if (adminToken() !== 'owner') throw new ApiError(401, '401 Unauthorized'); return JSON.parse(JSON.stringify(mockSettings)); }

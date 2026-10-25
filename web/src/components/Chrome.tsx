@@ -22,28 +22,37 @@ export function ThemeToggle() {
 }
 
 /**
- * The owner's hidden way in, as in the apps: on the footer's final dot, one tap, a pause, then three
- * quick taps opens the admin key prompt. The key is checked with GET /v1/admin/me and kept locally.
+ * The owner's hidden way in, on the Earth icon (as in the apps): one tap, a pause of about
+ * 0.5-1.5 s, then three quick taps (under 300 ms apart) open the admin key prompt. A plain tap
+ * still does what the icon does (go Home), after a short wait in case the pattern is starting.
+ * Taps count while the floating controls are faded too: the icon keeps taking taps then, so a tap
+ * never falls through to a tile underneath.
  */
-export function SecretDot() {
+export function EarthButton({ class: cls, onSingle, label }: { class?: string; onSingle?: () => void; label: string }) {
   const taps = useRef<number[]>([]);
+  const timer = useRef(0);
   const [open, setOpen] = useState(false);
   const owner = useOwner();
-  const tap = () => {
+  const tap = (e: Event) => {
+    e.preventDefault();
     const now = Date.now();
-    const t = [...taps.current, now].filter((x) => now - x < 4000).slice(-4);
+    const t = [...taps.current, now].filter((x) => now - x < 3500).slice(-4);
     taps.current = t;
-    if (t.length === 4 && t[1] - t[0] >= 600 && t[2] - t[1] < 450 && t[3] - t[2] < 450) { taps.current = []; setOpen(true); }
+    clearTimeout(timer.current);
+    const ok = t.length === 4 && t[1] - t[0] >= 450 && t[1] - t[0] <= 1600 && t[2] - t[1] < 320 && t[3] - t[2] < 320;
+    if (ok) { taps.current = []; if (!owner) setOpen(true); return; }
+    // A lone tap acts once it is clear no pattern follows.
+    timer.current = window.setTimeout(() => { if (taps.current.length === 1) onSingle?.(); taps.current = []; }, 1700);
   };
   return (
     <>
-      <button type="button" class="secret-dot" onClick={tap} aria-label="." tabIndex={-1}>.</button>
-      {open && !owner && <OwnerPrompt onClose={() => setOpen(false)} />}
+      <button type="button" class={`earth-btn ${cls || ''}`} onClick={tap} aria-label={label}><span class="logo" aria-hidden="true" /></button>
+      {open && <OwnerPrompt onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function OwnerPrompt({ onClose }: { onClose: () => void }) {
+export function OwnerPrompt({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); }, []);
   return (

@@ -164,13 +164,26 @@ function layoutGraph(top: Tag[], edges: GEdge[]): { nodes: GNode[]; edges: GEdge
     }
     nodes.forEach((p) => { p.x *= 0.995; p.y *= 0.995; });
   }
+  // Final relaxation: no two circles overlap (with padding). Positions scale with zoom, so this holds at every zoom.
+  for (let pass = 0; pass < 400; pass++) {
+    let moved = false;
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const p = nodes[i], q = nodes[j];
+      let dx = q.x - p.x, dy = q.y - p.y;
+      let d = Math.hypot(dx, dy);
+      if (d < 1e-6) { dx = 0.01 * (j - i); dy = 0.01; d = Math.hypot(dx, dy); }
+      const min = (p.r + q.r) * 1.15;
+      if (d < min) { const f = (min - d) / 2 / d; p.x -= dx * f; p.y -= dy * f; q.x += dx * f; q.y += dy * f; moved = true; }
+    }
+    if (!moved) break;
+  }
   return { nodes, edges };
 }
 
 const FEEDISH = new Set(['reels', 'posts', 'stories', 'feed', '']);
 
 /** The API's layout for one half (x, y in 0..1, size 0.15..1) as a mosaic. */
-export function mosaicFromLayout(lt: { id: string; kind: string; x: number; y: number; size: number; label?: string; taken_at?: string }[], items: Map<string, Item>, hits: Map<string, Hit>): Mosaic {
+export function mosaicFromLayout(lt: { id: string; kind: string; x: number; y: number; size: number; label?: string; taken_at?: string }[], items: Map<string, Item>, hits: Map<string, Hit>, exponent = 2): Mosaic {
   const span = Math.max(6, Math.sqrt(lt.length) * 4.5);
   const tiles: Tile[] = [];
   for (const t of lt) {
@@ -181,7 +194,7 @@ export function mosaicFromLayout(lt: { id: string; kind: string; x: number; y: n
     const group = h ? (label || 'Detected') : FEEDISH.has(label.toLowerCase()) ? '' : label;
     const m = it ? it.media[0] || it.repost_of?.media?.[0] : undefined;
     tiles.push({
-      id: t.id, item: it, hit: h, x: (t.x - 0.5) * span, y: (t.y - 0.5) * span, r: 1.6 * Math.sqrt(Math.max(0.005, Math.min(1, t.size))),
+      id: t.id, item: it, hit: h, x: (t.x - 0.5) * span, y: (t.y - 0.5) * span, r: 1.6 * Math.pow(Math.max(0.005, Math.min(1, t.size)), exponent / 2), // area ∝ size ^ display_exponent
       cover: it ? cover(it) : h!.frame || h!.video?.thumbnail || undefined, video: it ? (m?.type === 'video' ? m.url : undefined) : h!.clip || undefined,
       group, date: it?.taken_at || t.taken_at || h?.video?.posted_at || undefined, text: it ? it.summary || it.caption || '' : `${whatOf(h!)} · ${titleOf(h!)}`,
       tags: it ? tagSet(it) : hitTags(h!),

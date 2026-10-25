@@ -696,3 +696,30 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .importance textarea, .importance input { width: 100%; min-height: 40px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 16px; }
 .history li { padding: 8px 0; border-top: 1px solid var(--line); } .history blockquote { margin: 4px 0 0; white-space: pre-wrap; font-size: .9rem; }
 .history .not-applied { opacity: .7; }
+/* Phones: the top half moves out from under the name pill while the pill shows */
+@media (max-width: 600px) {
+  .home-main .mode-mosaic { padding-top: calc(env(safe-area-inset-top) + 62px); transition: padding-top .35s ease; }
+  .ui-idle .home-main .mode-mosaic { padding-top: 0; }
+}
+
+/* Playback: whole picture over a blurred copy; fills only when its shape is close to the screen's */
+.imedia-slide { position: relative; overflow: hidden; }
+.ibg { position: absolute; inset: -40px; background: center/cover no-repeat; filter: blur(32px) brightness(.45) saturate(1.2); transform: translateZ(0); }
+.imedia-slide img, .imedia-slide video { position: relative; }
+.imedia-slide .fit-contain { object-fit: contain; }
+.imedia-slide .fit-cover { object-fit: cover; }
+.icol { position: absolute; inset: 0; margin: 0 auto; width: min(100%, max(360px, calc(100dvh * var(--ar, .5625)))); pointer-events: none; }
+.icol > * { pointer-events: auto; }
+.icol .ioverlay { pointer-events: auto; }
+@media (min-aspect-ratio: 4/5) {
+  .ifeed .ioverlay { left: 12px; right: 12px; width: auto; bottom: 16px; }
+  .ifeed-top { left: 50%; right: auto; translate: -50% 0; width: min(100%, max(360px, calc(100dvh * var(--ar, .5625)))); }
+  .ifeed-nav { right: max(10px, calc(50% - min(50%, max(180px, calc(50dvh * var(--ar, .5625)))) + 10px)); }
+}
+.earth-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; margin: -6px 2px -6px -6px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.earth-btn .logo { width: 22px; height: 22px; }
+.float-home { padding: 0; }
+.float-home .earth-btn { width: 40px; height: 40px; margin: 0; }
+.float-home .earth-btn .logo { width: 26px; height: 26px; }
+/* Faded, the Earth icon still takes taps (never falling through to a tile) and counts them */
+.ui-idle .home-pill, .ui-idle .float-home { pointer-events: auto; }

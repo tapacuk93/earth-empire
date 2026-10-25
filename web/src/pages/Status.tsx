@@ -66,7 +66,7 @@ export function StatusPage() {
     let live = true, timer = 0;
     const tick = () => {
       if (!document.hidden) getStatus().then((s) => { if (live) { setSt(s); setErr(undefined); } }, (e) => live && setErr(e.message));
-      timer = window.setTimeout(tick, 10000);
+      timer = window.setTimeout(tick, 4000);
     };
     tick();
     const vis = () => { if (!document.hidden) { clearTimeout(timer); tick(); } };
@@ -80,7 +80,7 @@ export function StatusPage() {
     <>
       <header class="page-head">
         <h1>Status</h1>
-        {st ? <p class="lead">Overall: <Pill state={st.overall} /> <span class="muted small">updated {rel(st.generated_at)}, refreshes every 10 s</span></p>
+        {st ? <p class="lead">Overall: <Pill state={st.overall} /> <span class="muted small">updated {rel(st.generated_at)}, refreshes every 4 s</span></p>
           : <p class="muted">{err ? `Could not load the status: ${err}` : 'Loading…'}</p>}
         {st && err && <p class="error small" role="alert">Last refresh failed: {err}</p>}
       </header>

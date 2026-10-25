@@ -157,6 +157,7 @@ function Importance() {
       <div class="imp-grid">
         <label>w (weight of importance)<input type="number" step="0.01" min="0" max="1" value={draft.size.importance_w ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, importance_w: num((e.target as HTMLInputElement).value) } })} /></label>
         <label>Age half-life (days)<input type="number" step="1" min="1" value={draft.size.half_life_days ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, half_life_days: num((e.target as HTMLInputElement).value) } })} /></label>
+        <label>Display exponent (area ∝ size^e)<input type="number" step="0.1" min="0.5" max="4" value={draft.size.display_exponent ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, display_exponent: num((e.target as HTMLInputElement).value) } })} /></label>
         <label>Age floor<input type="number" step="0.01" min="0" max="1" value={draft.size.age_floor ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, age_floor: num((e.target as HTMLInputElement).value) } })} /></label>
       </div>
       <h3>Placement weights</h3>

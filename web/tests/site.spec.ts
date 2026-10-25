@@ -120,7 +120,7 @@ test('floating controls fade after a few seconds and come back on input', async 
   await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('ui-idle')), { timeout: 8000 }).toBe(true);
   await page.mouse.move(50, 300);
   await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('ui-idle'))).toBe(false);
-  await expect(page.locator('.corner-dot .secret-dot')).toBeAttached();
+  await expect(page.locator('.home-pill .earth-btn')).toBeAttached();
 });
 
 test('mosaic: opening a video starts the wheel through that half, most related first', async ({ page }) => {
@@ -146,6 +146,8 @@ test('tag graph: a tag opens the wheel for that tag', async ({ page }) => {
 test('timeline: newest first; a video opens the wheel in time order from there; Close returns to the timeline', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Timeline mode' }).click();
+  await expect(page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Timeline mode' })).toHaveAttribute('aria-current', 'true');
+  await expect.poll(() => page.locator('.modes').evaluate((el) => Math.abs(el.scrollTop - 2 * el.clientHeight))).toBeLessThan(3);
   const links = list(page, 'Every video, newest first').getByRole('link');
   await expect(links).toHaveCount(28);
   await expect(links.first()).toHaveText(/^Oct 2[34], 2026: A sunset run/);
@@ -354,6 +356,16 @@ test.describe('app banner on iPhone', () => {
   });
 });
 
+async function earthGesture(page: Page, icon: ReturnType<Page['locator']>) {
+  const box = (await icon.boundingBox())!;
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  const touch = await page.evaluate(() => matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0);
+  const tap = () => (touch ? page.touchscreen.tap(x, y) : page.mouse.click(x, y));
+  await tap();
+  await page.waitForTimeout(800);
+  await tap(); await tap(); await tap();
+}
+
 async function signIn(page: Page) {
   await page.goto('/settings');
   await page.locator('#admin-token').fill('owner');
@@ -374,12 +386,9 @@ test('visitors see only Home; the hidden dot gesture opens the admin key prompt'
   expect((await request.get('/detected')).status()).toBe(404);
   const sitemap = await (await request.get('/sitemap.xml')).text();
   expect(sitemap).not.toMatch(/detected|status|settings|monitor/);
-  // The hidden way in: on the footer's dot, one tap, a pause, then three quick taps.
+  // The hidden way in: on the Earth icon, one tap, a pause, then three quick taps.
   await page.goto('/');
-  const dot = page.locator('.secret-dot');
-  await dot.click();
-  await page.waitForTimeout(800);
-  await dot.click(); await dot.click(); await dot.click();
+  await earthGesture(page, page.locator('.home-pill .earth-btn'));
   const prompt = page.getByRole('dialog', { name: 'Admin key' });
   await expect(prompt).toBeVisible();
   await prompt.locator('#admin-token').fill('nope');
@@ -559,6 +568,10 @@ test('tag graph: no two labels overlap, at any zoom', async ({ page }) => {
     const circles: number[][] = JSON.parse((await canvas.getAttribute('data-circles')) || '[]');
     const [cw, ch] = ((await canvas.getAttribute('data-size')) || '0x0').split('x').map(Number);
     expect(boxes.length).toBeGreaterThan(0);
+    for (let i = 0; i < circles.length; i++) for (let j = i + 1; j < circles.length; j++) {
+      const [a, b] = [circles[i], circles[j]];
+      expect(Math.hypot(a[0] - b[0], a[1] - b[1]) + 0.5 >= a[2] + b[2], `circles ${i} and ${j} overlap`).toBe(true);
+    }
     for (const [x, y, w, h] of boxes) {
       expect(x >= 0 && y >= 0 && x + w <= cw && y + h <= ch, 'label inside the screen').toBe(true);
       for (const [cx, cy, r] of circles) {
@@ -640,7 +653,8 @@ test('settings: importance - formula, w, age, placement weights and a versioned 
   await signIn(page);
   const imp = page.getByRole('region', { name: 'Importance' });
   await expect(imp.locator('.formula')).toContainText('size = placement × age_factor');
-  await expect(imp.getByLabel('w (weight of importance)')).toHaveValue('0.15');
+  await expect(imp.getByLabel('w (weight of importance)')).toHaveValue('0.4');
+  await expect(imp.getByLabel('Display exponent (area ∝ size^e)')).toHaveValue('2');
   await expect(imp.getByLabel('Story')).toHaveValue('0.125');
   await imp.getByLabel('Importance rubric').fill('Important: the owner speaking.');
   await imp.getByLabel('Reason for the change').fill('Shorter');
@@ -649,4 +663,15 @@ test('settings: importance - formula, w, age, placement weights and a versioned 
   await imp.locator('summary').click();
   await expect(imp.locator('.history li').first()).toContainText('v3');
   await expect(imp.locator('.history li').first()).toContainText('Shorter');
+});
+
+test('the Earth icon on other screens: a single tap goes Home, the pattern opens the key prompt', async ({ page }) => {
+  await page.goto('/settings');
+  const icon = page.locator('.float-home .earth-btn');
+  await earthGesture(page, icon);
+  await expect(page.getByRole('dialog', { name: 'Admin key' })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.waitForTimeout(1800);
+  await icon.click();
+  await expect(page).toHaveURL(/\/$/, { timeout: 4000 });
 });

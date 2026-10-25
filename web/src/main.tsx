@@ -3,7 +3,8 @@ import { useEffect, useRef } from 'preact/hooks';
 import './styles.css';
 import './idle';
 import { AppBanner } from './components/AppBanner';
-import { SecretDot, ThemeToggle } from './components/Chrome';
+import { EarthButton, ThemeToggle } from './components/Chrome';
+import { navigate } from './router';
 import { SITE_NAME } from './config';
 import { CategoryRedirect } from './pages/CategoryRedirect';
 import { HighlightPage } from './pages/Highlight';
@@ -53,7 +54,6 @@ function App() {
         <a class="skip" href="#main" onClick={(e) => { e.preventDefault(); mainRef.current?.focus(); }}>Skip to content</a>
         <main id="main" ref={mainRef} tabIndex={-1} class="home-main"><Home route={route} /></main>
         <div class="float-tools fui">{nav}<ThemeToggle /></div>
-        <span class="corner-dot"><SecretDot /></span>
         <AppBanner route={route} />
       </>
     );
@@ -72,9 +72,8 @@ function App() {
     <>
       <a class="skip" href="#main" onClick={(e) => { e.preventDefault(); mainRef.current?.focus(); }}>Skip to content</a>
       <main id="main" ref={mainRef} tabIndex={-1} class="page-full">{page}</main>
-      <a class="float-home fui" href="/" aria-label={`${SITE_NAME}, home`}><span class="logo" aria-hidden="true" /></a>
+      <div class="float-home fui"><EarthButton label={`${SITE_NAME}, home`} onSingle={() => navigate('/')} /></div>
       <div class="float-tools fui">{nav}<ThemeToggle /></div>
-      <span class="corner-dot"><SecretDot /></span>
       <AppBanner route={route} />
     </>
   );

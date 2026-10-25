@@ -25,9 +25,11 @@ STORY_EVERY = 45 * 60
 
 class Collector:
     def __init__(self, ig, backend: Backend, state: State, dl: Downloader, target: str,
-                 limit: int | None = None):
+                 limit: int | None = None, budget_s: float | None = None):
         self.ig, self.backend, self.state, self.dl, self.target = ig, backend, state, dl, target
         self.limit = limit
+        self.deadline = time.time() + budget_s if budget_s else None
+        self.incomplete = False
         self.uid: str | None = None
         self.counts: dict[str, int] = {}
         self.pending: list[dict] = []
@@ -48,9 +50,18 @@ class Collector:
         self.do_clips(full=(mode == "full"))
         self.do_reposts_tab(full=(mode == "full"))
         self.flush()
-        if mode == "full":
+        if mode == "full" and not self.incomplete:
             self.state.set("backfill.done_at", parse.now_iso())
+        elif self.incomplete:
+            log.info("run budget used up; the backfill continues from its checkpoint next run")
+            self.bump("backfill_incomplete")
         return self.counts
+
+    def out_of_time(self) -> bool:
+        if self.deadline and time.time() > self.deadline:
+            self.incomplete = True
+            return True
+        return False
 
     def maybe_stories(self) -> None:
         if time.time() - self.last_stories > STORY_EVERY:
@@ -102,6 +113,8 @@ class Collector:
                 changed.append(h)
         log.info("highlights: %d in tray, %d to read", len(tray), len(changed))
         for i in range(0, len(changed), 4):
+            if full and self.out_of_time():
+                break
             self.maybe_stories()
             chunk = changed[i:i + 4]
             rs = parse.reels(self.ig.reels([h["reel_id"] for h in chunk]))
@@ -198,6 +211,9 @@ class Collector:
                 break
             if not full and new == 0 and pages >= 1:
                 break  # caught up; pinned posts make page 1 never fully new, so stop on the first all-known page
+            if full and self.out_of_time():
+                log.info("%s: run budget used up; stopping at the checkpoint", name)
+                break
             if self.limit and self.counts.get("items", 0) >= self.limit:
                 log.info("%s: stopping at --limit %d", name, self.limit)
                 break

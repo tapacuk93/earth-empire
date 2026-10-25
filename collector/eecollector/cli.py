@@ -61,6 +61,11 @@ def lock(s: Settings):
 
 def cmd_run(args, s: Settings, secrets: Secrets) -> int:
     mode = "full" if args.cmd == "backfill" else "incremental"
+    budget = float(args.budget) * 60 if args.budget else None
+    if mode == "incremental" and not State(s.state_db).get("backfill.done_at"):
+        # until the whole account is in, every timer run continues the backfill for a while
+        mode = "full"
+        budget = budget or 40 * 60
     setup_logging(s, mode)
     lk = lock(s)
     if not lk:
@@ -82,7 +87,8 @@ def cmd_run(args, s: Settings, secrets: Secrets) -> int:
             except IGStop:
                 ig.screenshot(s.state_dir / "screenshots")
                 raise
-            c = Collector(ig, backend, state, Downloader(ig.user_agent), target, limit=args.limit)
+            c = Collector(ig, backend, state, Downloader(ig.user_agent), target, limit=args.limit,
+                          budget_s=budget)
             try:
                 counts = c.run(mode)
             except IGStop:
@@ -130,7 +136,7 @@ def cmd_login(args, s: Settings, secrets: Secrets) -> int:
         while time.time() < deadline:
             if ig.logged_in() and "/accounts/login" not in ig.page.url and "/challenge" not in ig.page.url:
                 ig.page.wait_for_timeout(5000)  # let "save login info" settle
-                state.set("login.last_failed_at", 0)
+                ig.mark_logged_in()
                 log.info("logged in; the session is saved in %s", s.profile_dir)
                 return 0
             ig.page.wait_for_timeout(2000)
@@ -165,11 +171,14 @@ def cmd_import(args, s: Settings, secrets: Secrets) -> int:
     if not st:
         log.error("no storageState found")
         return 2
-    with IGBrowser(s) as ig:
+    with IGBrowser(s, state=State(s.state_db)) as ig:
         n = ig.import_state(st)
         ig.goto("https://www.instagram.com/")
         log.info("imported %d cookies; logged in: %s", n, ig.logged_in())
-        return 0 if ig.logged_in() else 4
+        if ig.logged_in():
+            ig.mark_logged_in()
+            return 0
+        return 4
 
 
 def cmd_status(args, s: Settings, secrets: Secrets) -> int:
@@ -188,6 +197,7 @@ def main(argv: list[str] | None = None) -> int:
         p = sub.add_parser(name)
         p.add_argument("--target", help="override earth-empire/target (testing)")
         p.add_argument("--limit", type=int, help="stop paging after about this many items (testing)")
+        p.add_argument("--budget", type=float, help="minutes; a backfill stops at its checkpoint after this")
     p = sub.add_parser("login", help="headed login on the remote display (noVNC)")
     p.add_argument("--wait", type=int, default=30, help="minutes to wait")
     sub.add_parser("auto-login", help="one headless login attempt with the stored credentials")

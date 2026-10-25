@@ -207,6 +207,11 @@ class IGBrowser:
         self.ctx.add_cookies(good)
         return len(good)
 
+    def mark_logged_in(self) -> None:
+        if self.state is not None:
+            self.state.set("login.last_failed_at", 0)
+            self.state.set("login.refused", None)
+
     def ensure_session(self) -> None:
         """Logged in, or IGStop. Order: saved profile, handed-over storageState, automatic login."""
         if not self.logged_in() and self.session_state:
@@ -217,6 +222,7 @@ class IGBrowser:
         self.goto(IG + "/")
         if self.logged_in() and "/accounts/login" not in self.page.url:
             log.info("session: reusing the saved Instagram session")
+            self.mark_logged_in()
             return
         self.login()
 
@@ -225,7 +231,12 @@ class IGBrowser:
         if not creds or is_placeholder(creds.get("username")) or is_placeholder(creds.get("password")):
             raise IGStop("config", "no usable credentials in earth-empire/instagram (placeholder?); "
                                    "log in by hand through the remote browser instead")
-        # never brute-force: at most one automatic attempt per 12 hours after a failure
+        # never brute-force: after Instagram refused the credentials, no automatic login until a
+        # person logs in (ee-collector login / import-session); after other failures, one try per 12h
+        if self.state is not None and self.state.get("login.refused"):
+            raise IGStop("login", f"Instagram refused the automatic login earlier ({self.state.get('login.refused')}); "
+                                  "not trying again. Log in by hand: ee-collector login (remote view), "
+                                  "or put a storageState in earth-empire/instagram-session")
         if self.state is not None:
             last = self.state.get("login.last_failed_at", 0)
             if time.time() - last < 12 * 3600:
@@ -274,6 +285,8 @@ class IGBrowser:
         if result != "ok":
             if self.state is not None:
                 self.state.set("login.last_failed_at", time.time())
+                if result.startswith("refused") or result.startswith("checkpoint"):
+                    self.state.set("login.refused", result[:200])
             raise IGStop("checkpoint" if result.startswith("checkpoint") else "login", f"login: {result}")
         if self.state is not None:
             self.state.set("login.last_failed_at", 0)

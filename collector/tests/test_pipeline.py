@@ -169,3 +169,16 @@ def test_backfill_resumes_from_checkpoint(env):
     assert feed_calls[0] == "feed:3300000000000000002_1000000001"  # continued, not restarted
     assert "ig_3300000000000000003" in store.items
     assert state.get("backfill.feed.done") is True
+
+
+def test_budget_stops_backfill_at_checkpoint(env):
+    store, backend, state = env
+    ig, dl = FakeIG(), FakeDL()
+    c = Collector(ig, backend, state, dl, "example.owner", budget_s=0.001)
+    import time as _t
+    _t.sleep(0.01)
+    c.run("full")
+    assert c.incomplete and state.get("backfill.done_at") is None
+    assert state.get("backfill.feed.cursor") == "3300000000000000002_1000000001"
+    Collector(ig, backend, state, dl, "example.owner").run("full")
+    assert state.get("backfill.done_at") and "ig_3300000000000000003" in store.items

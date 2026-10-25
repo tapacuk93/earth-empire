@@ -159,3 +159,16 @@ class ComposeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WorkerTest(unittest.TestCase):
+    def test_worker_imports_and_has_every_lane(self):
+        import importlib
+        import types
+        try:
+            import httpx  # noqa: F401
+        except ImportError:   # the box has it; a bare local python may not
+            sys.modules["httpx"] = types.ModuleType("httpx")
+        w = importlib.import_module("ee.worker")
+        for fn in ("analyze_once", "thumbs_once", "x_once", "facebook_once", "house_once", "site_once", "main"):
+            self.assertTrue(callable(getattr(w, fn, None)), fn)

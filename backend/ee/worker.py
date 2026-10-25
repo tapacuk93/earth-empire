@@ -248,6 +248,42 @@ def site_once(c) -> None:
         metric("WorkerErrors")
 
 
+def house_once(c) -> bool:
+    t = time.time()
+    if t - _last["beat"] >= 300:
+        _last["beat"] = t
+        metric("Heartbeat")
+        st = c.execute("SELECT step, state, COUNT(*) n FROM steps GROUP BY step, state").fetchall()
+        event("worker.heartbeat", steps={f"{r['step']}.{r['state']}": r["n"] for r in st})
+    from .db import set_setting
+    set_setting(c, "worker.heartbeat_at", utcnow())
+    if config.CLOUDWATCH and t - _last["backup"] >= 3600:   # hourly; the first each day also kept dated
+        _last["backup"] = t
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        try:
+            from . import backup
+            keys = backup.backup_all(daily=_last["backup_day"] != day)
+            _last["backup_day"] = day
+            set_setting(c, "backup.last_at", utcnow())
+            store.record(c, "db", "backup", f"backed up {len(keys)} database(s)")
+        except Exception as e:
+            set_setting(c, "backup.last_error", f"{utcnow()} {e}"[:300])
+            store.record(c, "db", "backup", f"backup failed: {type(e).__name__}", ok=False)
+            event("backup.failed", logging.ERROR, error=repr(e))
+            metric("WorkerErrors")
+    if config.CLOUDWATCH and t - _last["wallet"] >= 3600:
+        _last["wallet"] = t
+        try:
+            bal = aicoin.balance()
+            set_setting(c, "analysis.wallet_balance", str(bal.get("balance", 0)))
+            set_setting(c, "analysis.wallet_checked_at", utcnow())
+        except Exception as e:
+            event("wallet.balance_unavailable", logging.WARNING, error=str(e))
+    if config.CLOUDWATCH:
+        site_once(c)
+    return False
+
+
 def main():
     setup("worker")
     c = db.conn()

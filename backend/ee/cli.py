@@ -199,20 +199,16 @@ def main(argv=None):
             print(json.dumps(r, ensure_ascii=False))
     elif a.cmd == "unpublish-rule":
         n = 0
-        for r in c.execute("SELECT id, data FROM items WHERE published_at IS NOT NULL").fetchall():
-            ok, why = store.publishable(json.loads(r["data"]))
-            if not ok:
-                with db.tx(c):
-                    c.execute("UPDATE items SET published_at=NULL WHERE id=?", (r["id"],))
-                    c.execute("DELETE FROM layout WHERE id=?", (r["id"],))
-                    c.execute("DELETE FROM embeddings WHERE id=?", (r["id"],))
-                    for step in ("site", "x", "facebook"):
-                        store._set_step(c, r["id"], step, "skipped", note=why)
+        for r in c.execute("SELECT id, published_at FROM items WHERE analysis IS NOT NULL").fetchall():
+            with db.tx(c):
+                public, why = store.gate(c, r["id"], legacy_ok=True)
+            if r["published_at"] and not public:
                 print("unpublished", r["id"], "-", why)
                 n += 1
         if n:
             db.set_setting(c, "site.force", db.now())   # the worker rebuilds the site without them
-        print(f"{n} unpublished")
+        print(f"{n} unpublished; public now:",
+              c.execute("SELECT COUNT(*) FROM items WHERE published_at IS NOT NULL").fetchone()[0])
     elif a.cmd == "delete":
         ids = list(a.ids)
         if a.tests:

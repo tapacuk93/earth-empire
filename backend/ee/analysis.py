@@ -386,11 +386,8 @@ def apply_result(c, item_id: str, out: dict, model: str) -> list[str]:
         imp = out.get("importance")
         imp = min(1.0, max(0.0, float(imp))) if isinstance(imp, (int, float)) else None
         data = json.loads(c.execute("SELECT data FROM items WHERE id=?", (item_id,)).fetchone()["data"])
-        public, why = store.publishable(data)
-        c.execute("""UPDATE items SET analysis=?, categories=?, summary=?, description=?, importance=?,
-                     published_at=CASE WHEN ? THEN COALESCE(published_at, ?) ELSE NULL END WHERE id=?""",
-                  (j(analysis), j(cats), out.get("summary"), out.get("description"), imp, 1 if public else 0,
-                   ts, item_id))
+        c.execute("""UPDATE items SET analysis=?, categories=?, summary=?, description=?, importance=? WHERE id=?""",
+                  (j(analysis), j(cats), out.get("summary"), out.get("description"), imp, item_id))
         c.execute("DELETE FROM item_categories WHERE item_id=?", (item_id,))
         for s in cats:
             c.execute("INSERT INTO item_categories VALUES (?,?)", (item_id, s))
@@ -399,11 +396,8 @@ def apply_result(c, item_id: str, out: dict, model: str) -> list[str]:
             c.execute("INSERT OR IGNORE INTO item_tags VALUES (?,?,?)", (item_id, tag, kind))
         store.index_item(c, item_id)
         store._set_step(c, item_id, "analyze", "done", note=f"categories {cats}, new {added}")
-        if public:
-            store._set_step(c, item_id, "site", "posted", remote_id=item_id, note="public")
-        else:   # kept and analyzed, never shown or posted anywhere
-            for step in ("site", "x", "facebook"):
-                store._set_step(c, item_id, step, "skipped", note=why)
+        # public only when not an image-only repost and the monitor's scan matched (store.gate)
+        store.gate(c, item_id, legacy_ok=True)
     return cats
 
 

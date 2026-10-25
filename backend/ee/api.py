@@ -264,6 +264,42 @@ async def ingest_items(request: Request):
     return {"ok": True, **counts}
 
 
+@app.put("/v1/ingest/detections", dependencies=[Depends(require_token)])
+async def ingest_detections(request: Request):
+    """The monitor's scan of archive items (CONTRACT.md "Detection gate"); publishes or unpublishes them."""
+    body = await request.json()
+    rows = body.get("detections") if isinstance(body, dict) else None
+    if not isinstance(rows, list):
+        raise HTTPException(400, 'body must be {"detections": [{"id": "ig_…", "detection": {"matched": bool, "hits": [...]}}]}')
+    c = conn()
+    out = {"published": [], "unpublished": [], "unchanged": 0, "unknown": []}
+    changed = False
+    for r in rows:
+        iid, det = (r or {}).get("id"), (r or {}).get("detection")
+        if not iid or not isinstance(det, dict) or not isinstance(det.get("matched"), bool):
+            raise HTTPException(400, "every entry needs id and detection.matched (bool)")
+        det.setdefault("scanned_at", db.now())
+        with db.tx(c):
+            before = c.execute("SELECT published_at FROM items WHERE id=?", (iid,)).fetchone()
+            if not before:
+                out["unknown"].append(iid)
+                continue
+            c.execute("UPDATE items SET detection=? WHERE id=?", (db.j(det), iid))
+            public, why = store.gate(c, iid)
+            store.index_item(c, iid)
+        if public and not before["published_at"]:
+            out["published"].append(iid)
+        elif not public and before["published_at"]:
+            out["unpublished"].append(iid)
+            changed = True
+        else:
+            out["unchanged"] += 1
+    if changed:
+        db.set_setting(c, "site.force", db.now())   # rebuild the site without them
+    event("ingest.detections", n=len(rows), published=len(out["published"]), unpublished=len(out["unpublished"]))
+    return {"ok": True, **out}
+
+
 @app.put("/v1/ingest/highlights", dependencies=[Depends(require_token)])
 async def ingest_highlights(request: Request):
     body = await request.json()

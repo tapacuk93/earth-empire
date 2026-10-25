@@ -146,6 +146,8 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
         conn.execute("ALTER TABLE items ADD COLUMN thumbs TEXT")
     if "importance" not in cols:   # added 2026-10-25: 0-1, judged by Claude
         conn.execute("ALTER TABLE items ADD COLUMN importance REAL")
+    if "detection" not in cols:    # added 2026-10-25: the monitor's scan of the item (the public gate)
+        conn.execute("ALTER TABLE items ADD COLUMN detection TEXT")
     if "curation" not in cols:     # added 2026-10-25: 0-1, how the owner curated it (home.curation)
         conn.execute("ALTER TABLE items ADD COLUMN curation REAL")
         conn.execute("ALTER TABLE items ADD COLUMN curation_reason TEXT")

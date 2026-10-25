@@ -83,6 +83,51 @@ def publishable(d: dict) -> tuple[bool, str | None]:
     return True, None
 
 
+def gate(c, item_id: str, *, legacy_ok: bool = False) -> tuple[bool, str]:
+    """Is this item public? Analyzed, not an image-only repost, and scanned by the monitor with
+    detection.matched = true. Apply the answer: publish (site step posted, the posters may post)
+    or unpublish (site skipped; X/Facebook skipped unless they already posted). `legacy_ok` keeps an
+    item that was public before the gate existed public until its scan arrives."""
+    row = c.execute("SELECT data, analysis, detection, published_at FROM items WHERE id=?", (item_id,)).fetchone()
+    if not row:
+        return False, "no such item"
+    ok, why = publishable(json.loads(row["data"]))
+    det = json.loads(row["detection"]) if row["detection"] else None
+    if not row["analysis"]:
+        public, why = False, "not analyzed yet"
+    elif not ok:
+        public = False
+    elif det is None:
+        public = bool(legacy_ok and row["published_at"])
+        why = "public before the detection gate; waiting for its scan" if public else "waiting for the detection scan"
+    elif det.get("matched"):
+        public, why = True, "detection matched"
+    else:
+        public, why = False, "no detection match"
+    ts = now()
+    if public and not row["published_at"]:
+        c.execute("UPDATE items SET published_at=? WHERE id=?", (ts, item_id))
+    elif not public and row["published_at"]:
+        c.execute("UPDATE items SET published_at=NULL WHERE id=?", (item_id,))
+        c.execute("DELETE FROM layout WHERE id=?", (item_id,))
+        c.execute("DELETE FROM embeddings WHERE id=?", (item_id,))
+    states = {r["step"]: r["state"] for r in c.execute("SELECT step, state FROM steps WHERE item_id=?", (item_id,))}
+    if public:
+        if states.get("site") != "posted":
+            _set_step(c, item_id, "site", "posted", remote_id=item_id, note=why)
+        for step in ("x", "facebook"):
+            if states.get(step) == "skipped":
+                _set_step(c, item_id, step, "pending", note=why)
+    else:
+        target = "pending" if why in ("not analyzed yet", "waiting for the detection scan") else "skipped"
+        if states.get("site") != target:
+            _set_step(c, item_id, "site", target, note=why)
+        for step in ("x", "facebook"):
+            if states.get(step) not in ("posted", "running", target):
+                _set_step(c, item_id, step, target, note=why)
+    return public, why
+
+
 # ------------------------------------------------------------------ ingest
 def upsert_items(c: sqlite3.Connection, items: list[dict]) -> dict:
     counts = {"inserted": 0, "updated": 0, "changed": 0, "unchanged": 0}
@@ -216,6 +261,8 @@ def render_item(c: sqlite3.Connection, row: sqlite3.Row) -> dict:
     d["summary"] = row["summary"]
     d["description"] = row["description"]
     d["importance"] = row["importance"] if "importance" in row.keys() else None
+    if "detection" in row.keys():
+        d["detection"] = json.loads(row["detection"]) if row["detection"] else None
     if "curation" in row.keys():
         d["curation"] = row["curation"]
         d["curation_reason"] = row["curation_reason"]

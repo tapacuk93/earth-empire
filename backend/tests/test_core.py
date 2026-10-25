@@ -51,7 +51,17 @@ class StoreTest(unittest.TestCase):
             "keywords": ["sea"], "people": [], "what": "w", "when": {}, "where": {"place": "Lisbon"},
             "mood": "calm", "language": "en", "context": ""}, "test-model")
         row = self.c.execute("SELECT * FROM items WHERE id=?", (iid,)).fetchone()
-        self.assertIsNotNone(row["published_at"])
+        self.assertIsNone(row["published_at"])          # analyzed, but not scanned yet
+        self.c.execute("UPDATE items SET detection=? WHERE id=?", ('{"matched": true, "hits": []}', iid))
+        self.assertTrue(store.gate(self.c, iid)[0])
+        self.assertIsNotNone(self.c.execute("SELECT published_at FROM items WHERE id=?", (iid,)).fetchone()[0])
+        self.c.execute("UPDATE items SET detection=? WHERE id=?", ('{"matched": false, "hits": []}', iid))
+        self.assertEqual(store.gate(self.c, iid), (False, "no detection match"))
+        self.assertIsNone(self.c.execute("SELECT published_at FROM items WHERE id=?", (iid,)).fetchone()[0])
+        self.assertEqual(self.c.execute("SELECT state FROM steps WHERE item_id=? AND step='site'", (iid,)).fetchone()[0],
+                         "skipped")
+        self.c.execute("UPDATE items SET detection=? WHERE id=?", ('{"matched": true, "hits": []}', iid))
+        store.gate(self.c, iid)
         tags = {(r["tag"], r["kind"]) for r in self.c.execute("SELECT tag, kind FROM item_tags WHERE item_id=?", (iid,))}
         self.assertIn(("lisbon", "place"), tags)
         self.assertIn(("travel", "category"), tags)

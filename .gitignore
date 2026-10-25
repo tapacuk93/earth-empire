@@ -1,0 +1,14 @@
+.env
+.env.*
+*.pem
+*.p8
+secrets/
+node_modules/
+.venv/
+__pycache__/
+build/
+DerivedData/
+.DS_Store
+*.tfstate
+*.tfstate.*
+.terraform/

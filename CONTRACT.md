@@ -4,14 +4,18 @@ An archive of one Instagram account (the owner's), mirrored to **https://empire.
 app **Earth Empire**, and the owner's X account. Claude, on the backend, sorts every item into
 categories.
 
-| Repo | Owns |
-|---|---|
-| `~/src/earth-empire` | AWS infra, the database, the API at `api.empire.earth`, categorization with Claude, the X poster, deploys (including the site's hosting) |
-| `~/src/earth-empire-collector` | the headless browser in AWS that reads the account and feeds the API |
-| `~/src/earth-empire-web` | the site at `empire.earth` - a static app over the API, every browser and screen size |
-| `~/src/earth-empire-ios` | the iOS app Earth Empire (`com.oeaio.earthempire`) over the API |
+One public repository, github.com/tapacuk93/earth-empire - so no secret, password, token or
+account detail is ever committed; they live in AWS Secrets Manager.
 
-Only this file is shared; change it only together with every part that reads it.
+| Folder | Owns |
+|---|---|
+| `backend/` | AWS infra, the database, the API at `api.empire.earth`, analysis and categories with Claude, the X poster, deploys (including the site's hosting) |
+| `collector/` | the headless browser in AWS that reads the account and feeds the API |
+| `web/` | the site at `empire.earth` - a static app over the API, every browser and screen size |
+| `ios/` | the iOS app Earth Empire (`com.oeaio.earthempire`) over the API |
+
+Each part changes only its own folder. This file is shared; change it only together with every
+part that reads it.
 
 ## Infrastructure
 

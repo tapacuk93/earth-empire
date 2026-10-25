@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import platform
 import random
 import sys
 import time
@@ -144,7 +143,7 @@ class IGBrowser:
         if sys.platform == "darwin":
             osname = "Macintosh; Intel Mac OS X 10_15_7"
         else:
-            osname = f"X11; Linux {platform.machine() or 'x86_64'}"
+            osname = "X11; Linux x86_64"  # what Chrome reports on every Linux, ARM too (UA reduction)
         ua = f"Mozilla/5.0 ({osname}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
         f.write_text(ua)
         return ua
@@ -245,7 +244,11 @@ class IGBrowser:
         btn = p.query_selector('[role="button"][aria-label="Log In"], [role="button"][aria-label="Log in"], '
                                'button[type="submit"]')
         disabled = btn.get_attribute("aria-disabled") if btn else None
-        log.info("login: form filled (button %s, disabled=%s)", "found" if btn else "missing", disabled)
+        typed_ok = (len(p.locator(user_sel).first.input_value()) == len(creds["username"])
+                    and len(p.locator(pass_sel).first.input_value()) == len(creds["password"]))
+        if not typed_ok:  # never submit a mangled password: that is a failed login for nothing
+            raise IGStop("login", "login: the form did not take the typed credentials; not submitting")
+        log.info("login: form filled (button %s, disabled=%s, lengths match)", "found" if btn else "missing", disabled)
 
         def on_login_response(r):
             if "login" in r.url and r.request.method == "POST":
@@ -314,6 +317,11 @@ class IGBrowser:
             (btn.click() if btn else p.keyboard.press("Enter"))
             return "totp"
         if "/accounts/login" in url:
+            body = p.evaluate("document.body.innerText") or ""
+            for phrase in ("login information you entered is incorrect", "password was incorrect",
+                           "password you entered", "couldn't connect to Instagram", "Please wait a few minutes"):
+                if phrase.lower() in body.lower():
+                    return f"refused: Instagram says '{phrase}'"
             for sel in ('#slfErrorAlert', '[role="alert"]', 'span:has-text("password was incorrect")',
                         'span:has-text("password you entered")', 'div:has-text("Sorry, ") >> nth=-1'):
                 err = p.query_selector(sel)

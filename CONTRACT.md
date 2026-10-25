@@ -275,8 +275,11 @@ carry the excerpt so a person can judge. The monitor is its own service on the b
 
 Sources have a `source_kind`: `official` (the registry `monitor/sources.json`, and accounts the
 owner adds), `followed` (accounts tapacuk93 follows), `reposted_author` / `reposted` (the owner's
-Instagram reposts and their authors) and `recommended` (what a platform suggests next to a seed;
-`via` names the seed: a hit id or a backend item id, at most `rec.max_hops` hops away).
+Instagram reposts and their authors), `recommended` (what a platform suggests next to a seed;
+`via` names the seed: a hit id or a backend item id, at most `rec.max_hops` hops away) and `mirror`
+(the owner's own video posts, scanned as ground truth; left out of `/v1/monitor/hits` unless
+`source_kind=mirror` is asked for). The monitor only watches: it never likes, follows, comments or
+messages on any platform.
 
 ```jsonc
 // Hit
@@ -293,8 +296,8 @@ Instagram reposts and their authors) and `recommended` (what a platform suggests
   "judge": {"by": "claude", "name_probability": 0.7, "reason": "…"} | null,
   "language": "ru",                         // the language of the speech around it
   "expected_languages": ["en"],
-  "platform": "telegram" | "youtube" | "facebook" | "instagram" | "x" | "web",
-  "source_kind": "official" | "followed" | "reposted_author" | "reposted" | "recommended",
+  "platform": "telegram" | "youtube" | "facebook" | "instagram" | "tiktok" | "x" | "web",
+  "source_kind": "official" | "followed" | "reposted_author" | "reposted" | "recommended" | "mirror",
   "via": "h_…" | "ig_…" | null, "hop": 0,
   "source": {"id": "ru_mid", "name": "Ministry of Foreign Affairs of Russia", "kind": "ministry",
              "country": "RU", "source_kind": "official"},
@@ -307,7 +310,10 @@ Instagram reposts and their authors) and `recommended` (what a platform suggests
   "clip": "https://…" | null,              // <= 20 s around the hit; see "Monitor media" below
   "frame": "https://…" | null,
   "model": "faster-whisper small int8", "found_at": "…",
-  "published_at": "…" | null                // set by the owner's publish
+  "published_at": "…" | null,               // set by the owner's publish
+  "suggested_section": "dedicated" | "common" | null,   // Claude's suggestion for Home (null: not judged yet)
+  "section_reason": "…" | null,
+  "section": "dedicated" | "common" | null  // set on publish
 }
 ```
 
@@ -315,8 +321,10 @@ Instagram reposts and their authors) and `recommended` (what a platform suggests
 
 Public (CORS open):
 
-- `GET /v1/published` → `{"hits": [Hit], "next"}`: the hits the owner published, newest first, for the
-  apps' Home screen. Their `clip`/`frame` are public URLs under `media.empire.earth/monitor/public/`.
+- `GET /v1/published?section=dedicated|common&before=&limit=` → `{"dedicated": [Hit], "common": [Hit],
+  "hits": [Hit], "next"}`: the hits the owner published, newest first, for the apps' Home screen -
+  `dedicated` is the upper section (moments that belong with the owner's dedicated highlights),
+  `common` the lower one; `hits` is both together. Their `clip`/`frame` are public URLs under `media.empire.earth/monitor/public/`.
 - `GET /v1/items…`, `/v1/highlights`, `/v1/categories`, `/v1/tags`, `/v1/profile`, `/v1/health` (see "The API").
 
 Owner only (`Authorization: Bearer <earth-empire/admin-token>`, via the same check as the backend's
@@ -333,17 +341,43 @@ Owner only (`Authorization: Bearer <earth-empire/admin-token>`, via the same che
   "source_kind", "origin", "source_url", "expected_languages", "languages_inferred", "accounts":
   [{"id", "platform", "handle", "platform_id", "enabled", "last_polled_at", "last_error", "videos", "scanned"}]}]}`
 - `GET /v1/monitor/phrases` → `{"phrases": [{"text", "variants": ["…"], "mishearings": ["…"],
-  "claude_variants": ["…"], "updated_at"}]}`
+  "claude_variants": ["…"], "updated_at"}], "suggested": [{"text", "why", "sounds": {"uk", "ru", "en"},
+  "source": "highlights", "state": "suggested", "created_at"}]}` - `suggested` are phrases Claude
+  proposes from tapacuk93's highlight titles; nothing is listened for until the owner accepts it:
+  `POST /v1/monitor/phrases/suggested/{text}/accept` | `/reject` → as GET.
+  `POST /v1/monitor/phrases/suggest` asks again now (it also runs when the highlights change).
 - `GET /v1/monitor/videos?state=&platform=&limit=` → recent videos and their scan state
   (`new | queued | running | done | failed | blocked | skipped`, with `error`, `languages`, `hits`).
 - `GET /v1/monitor/status` → queue by platform and state, totals, throughput (`cpu_per_audio`),
   today's usage against the caps, open fetch requests, and `stops` (a platform paused by a
   checkpoint, warning, login or billing refusal, with the reason).
-- `POST /v1/monitor/hits/{id}/publish`, `POST /v1/monitor/hits/{id}/unpublish` → Hit
+- `POST /v1/monitor/hits/{id}/publish {"section"?: "dedicated" | "common"}` (the section defaults to the
+  hit's `suggested_section`, else `common`), `POST /v1/monitor/hits/{id}/unpublish` → Hit
+- `GET /v1/monitor/sections` → `{"highlights": [{"id", "title", "section": "dedicated" | "common"}]}`;
+  `PUT /v1/monitor/sections {"dedicated": ["hl_…"]}` marks which highlights are the owner's dedicated
+  ones (the rest are common). Claude judges each new hit's `suggested_section` from how those are themed.
 - `PUT /v1/monitor/phrases {"phrases": ["тарас", "тарас маслов", "маслов"], "claude"?: true, "rescan"?: true}`
   → as GET. Replaces the list; variants are generated by rule, Claude adds spellings once per new
   phrase (cached), and stored transcripts are matched again (`rescan`).
 - `POST /v1/monitor/rescan` → `{"ok", "videos"}`: detection again over every stored transcript.
+- `GET /v1/monitor/learning` → misses and improvements (below): `{"checked", "matched", "found_first",
+  "recall", "misses_by_cause": {cause: n}, "recall_by_day": [{"day", "matched", "found_first", "recall"}],
+  "improvements": [{"at", "cause", "change", "reason", "applied", "detail"}], "misses": [{"at", "video_id",
+  "item_id", "kind", "phrase", "cause", "detail"}]}`. `GET /v1/monitor/status` carries the summary in
+  `learning`, and the heartbeat's `detail` the counts (`recall_mirror`, `mirror_matched`,
+  `mirror_found_first`, `misses`, `improvements`) for the Status screen.
+
+**Misses and improvements.** The mirror of tapacuk93's Instagram is ground truth. Every mirrored video
+(the owner's video posts, and the originals of the owner's reposts) is scanned with the same detectors.
+When it has a hit, the monitor checks whether it had found that video on its own first (the same
+platform id or shortcode, the author and date, or the transcript's fingerprint, on a video reached as
+official / followed / recommended - TikTok and Facebook included). If not, it records a miss with
+one cause - `source_not_in_registry`, `not_scanned_yet`, `not_reached`, `download_failed`,
+`transcription_missed`, `below_threshold`, `variant_missing`, `language_id_wrong` - and applies the safe
+fix within bounds (add or raise the source, queue its video, seed recommendations from it, learn the
+variant, lower a threshold inside fixed bounds, a bigger Whisper model for up to 5 sources). Anything
+beyond the bounds or costly is recorded as a suggestion (`applied: false`) for the owner. Recall is the
+share of mirrored matches the monitor found first.
 - `POST /v1/monitor/sources {"name", "platform", "handle", "expected_languages"?, "kind"?, "country"?, "channel_id"?}`
   → `{"source_id", "account_id"}`
 

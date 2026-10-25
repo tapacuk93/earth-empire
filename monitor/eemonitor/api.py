@@ -86,6 +86,8 @@ def render(c, row) -> dict:
                     "language": h.get("language"), "en": h.get("excerpt_en")},
         "clip": media.url(row, h, "clip"), "frame": media.url(row, h, "frame"),
         "model": h.get("model"), "found_at": row["found_at"], "published_at": row["published_at"],
+        "suggested_section": h.get("suggested_section"), "section_reason": h.get("section_reason"),
+        "section": row["section"] if "section" in row.keys() else None,
     }
 
 
@@ -140,13 +142,22 @@ def hit(hit_id: str):
 
 
 @owner.post("/v1/monitor/hits/{hit_id}/publish")
-def publish(hit_id: str):
+async def publish(hit_id: str, request: Request):
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    section = (body or {}).get("section") if isinstance(body, dict) else None
+    if section not in (None, "dedicated", "common"):
+        raise HTTPException(400, 'section must be "dedicated" or "common"')
     c = conn()
     if not c.execute("SELECT 1 FROM hits WHERE id=?", (hit_id,)).fetchone():
         raise HTTPException(404, "no such hit")
     row = c.execute("SELECT * FROM hits WHERE id=?", (hit_id,)).fetchone()
-    media.publish(row, json.loads(row["data"]))
-    c.execute("UPDATE hits SET published_at=COALESCE(published_at, ?) WHERE id=?", (db.now(), hit_id))
+    data = json.loads(row["data"])
+    media.publish(row, data)
+    section = section or data.get("suggested_section") or "common"
+    c.execute("UPDATE hits SET published_at=COALESCE(published_at, ?), section=? WHERE id=?", (db.now(), section, hit_id))
     return render(c, c.execute("SELECT * FROM hits WHERE id=?", (hit_id,)).fetchone())
 
 
@@ -162,12 +173,20 @@ def unpublish(hit_id: str):
 
 
 @app.get("/v1/published")
-def published(before: str | None = None, limit: int = Query(30, ge=1, le=100)):
+def published(section: str | None = Query(None, pattern="^(dedicated|common)$"), before: str | None = None,
+              limit: int = Query(30, ge=1, le=100)):
+    """The owner's published hits for Home: `dedicated` (upper) and `common` (lower), newest first."""
     c = conn()
     off = _offset(before)
-    rows = c.execute("SELECT * FROM hits WHERE published_at IS NOT NULL ORDER BY published_at DESC LIMIT ? OFFSET ?",
-                     (limit + 1, off)).fetchall()
-    return {"hits": [render(c, r) for r in rows[:limit]], "next": _cursor(off + limit) if len(rows) > limit else None}
+    out = {}
+    more = False
+    for sec in ([section] if section else ["dedicated", "common"]):
+        rows = c.execute("SELECT * FROM hits WHERE published_at IS NOT NULL AND COALESCE(section, 'common')=? "
+                         "ORDER BY published_at DESC LIMIT ? OFFSET ?", (sec, limit + 1, off)).fetchall()
+        more = more or len(rows) > limit
+        out[sec] = [render(c, r) for r in rows[:limit]]
+    hits = sorted([h for v in out.values() for h in v], key=lambda h: h["published_at"], reverse=True)
+    return {**out, "hits": hits, "next": _cursor(off + limit) if more else None}
 
 
 @owner.post("/v1/monitor/fetch")
@@ -220,7 +239,54 @@ async def add_source(request: Request):
 
 @owner.get("/v1/monitor/phrases")
 def get_phrases():
-    return {"phrases": worker.list_phrases(conn())}
+    from . import highlights
+    c = conn()
+    return {"phrases": worker.list_phrases(c), "suggested": highlights.list_suggestions(c)}
+
+
+@owner.post("/v1/monitor/phrases/suggested/{text}/accept")
+def accept_suggestion(text: str):
+    from . import highlights
+    c = conn()
+    if not highlights.decide(c, text, True):
+        raise HTTPException(404, "no such suggestion")
+    return get_phrases()
+
+
+@owner.post("/v1/monitor/phrases/suggested/{text}/reject")
+def reject_suggestion(text: str):
+    from . import highlights
+    c = conn()
+    if not highlights.decide(c, text, False):
+        raise HTTPException(404, "no such suggestion")
+    return get_phrases()
+
+
+@owner.post("/v1/monitor/phrases/suggest")
+def make_suggestions():
+    """Ask Claude now (it also runs by itself when the highlights change)."""
+    from . import highlights
+    c = conn()
+    n = highlights.suggest_phrases(c, force=True)
+    return {"added": n, **get_phrases()}
+
+
+@owner.get("/v1/monitor/sections")
+def get_sections():
+    from . import highlights
+    return highlights.sections(conn())
+
+
+@owner.put("/v1/monitor/sections")
+async def put_sections(request: Request):
+    from . import highlights
+    body = await request.json()
+    ids = body.get("dedicated") if isinstance(body, dict) else None
+    if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
+        raise HTTPException(400, 'body must be {"dedicated": ["hl_...", ...]}')
+    c = conn()
+    highlights.set_dedicated(c, ids)
+    return highlights.sections(c)
 
 
 @owner.put("/v1/monitor/phrases")
@@ -230,10 +296,10 @@ async def put_phrases(request: Request):
     if not isinstance(ps, list) or not all(isinstance(p, str) for p in ps) or not ps:
         raise HTTPException(400, 'body must be {"phrases": ["...", ...]}')
     c = conn()
-    out = worker.set_phrases(c, ps, use_claude=body.get("claude", True) is not False)
+    worker.set_phrases(c, ps, use_claude=body.get("claude", True) is not False)
     if body.get("rescan", True):
         db.set_setting(c, "rescan.requested", db.now())
-    return {"phrases": out}
+    return get_phrases()
 
 
 @owner.post("/v1/monitor/rescan")

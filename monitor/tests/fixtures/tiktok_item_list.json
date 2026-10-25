@@ -1,0 +1,8 @@
+{"_note": "Synthetic, in the shape of TikTok's /api/post/item_list/ (values made up).",
+ "itemList": [{"id": "7430000000000000001", "desc": "Statement by the spokesperson", "createTime": 1759312800,
+   "author": {"id": "6800000000000000000", "uniqueId": "nato", "nickname": "NATO", "verified": true},
+   "video": {"duration": 42, "cover": "https://p16-sign.tiktokcdn.com/cover.jpeg",
+             "playAddr": "https://v16-webapp-prime.tiktok.com/video/tos/play.mp4"}},
+  {"id": "7430000000000000002", "desc": "no address", "createTime": 1759312900, "author": {"uniqueId": "nato"},
+   "video": {"duration": 10, "bitrateInfo": [{"PlayAddr": {"UrlList": ["https://v16/bitrate.mp4"]}}]}}],
+ "hasMore": true, "cursor": "1759312800000"}

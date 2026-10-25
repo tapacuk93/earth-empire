@@ -14,7 +14,7 @@ from . import db
 log = logging.getLogger("ee.monitor.pace")
 
 GAPS = {  # seconds between two requests to the same platform (min, max), before jitter pauses
-    "telegram": (4, 10), "youtube": (3, 8), "x": (5, 12), "instagram": (8, 20), "facebook": (8, 22),
+    "telegram": (4, 10), "youtube": (3, 8), "x": (5, 12), "instagram": (8, 20), "facebook": (8, 22), "tiktok": (12, 30),
     "media": (1, 3),
 }
 BACKOFF = (60, 300, 1200)
@@ -59,7 +59,7 @@ def halt(c, e: Stop) -> None:
     """Record and log a stop. Rate limits pause for an hour; everything else until the owner clears it."""
     # rate limits pause an hour; a missing Instagram session is looked at again every 3 hours (it
     # appears when the owner logs the collector in); everything else waits for the owner
-    seconds = 3600 if e.kind == "rate_limit" else 3 * 3600 if (e.kind == "login" and e.platform == "instagram") \
+    seconds = 3600 if e.kind == "rate_limit" else 3 * 3600 if (e.kind == "login" and e.platform in ("instagram", "tiktok")) \
         else 24 * 3600 if e.kind == "cap" else None
     if e.kind == "cap":
         return  # a cap is not a stop; it resets at midnight UTC

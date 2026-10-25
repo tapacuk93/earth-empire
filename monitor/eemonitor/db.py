@@ -110,6 +110,7 @@ DEFAULTS = {
     "x.enabled": "0", "x.daily_requests": "50",
     "instagram.enabled": "1", "instagram.daily_requests": "300",
     "facebook.enabled": "1", "facebook.daily_requests": "200",
+    "tiktok.enabled": "1", "tiktok.daily_requests": "120",
     # Recommendations around seeds (hits and the owner's reposts).
     "rec.enabled": "1", "rec.max_hops": "2", "rec.daily_expansions": "20",
     "rec.min_seed_confidence": "0.25", "rec.per_seed": "8",
@@ -143,6 +144,8 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     cols = {r["name"] for r in c.execute("PRAGMA table_info(accounts)")}
     if "priority" not in cols:
         c.execute("ALTER TABLE accounts ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
+    if "section" not in {r["name"] for r in c.execute("PRAGMA table_info(hits)")}:
+        c.execute("ALTER TABLE hits ADD COLUMN section TEXT")   # dedicated | common, set on publish
     return c
 
 

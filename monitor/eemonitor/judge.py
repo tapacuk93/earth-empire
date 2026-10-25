@@ -49,7 +49,17 @@ def ask(c, prompt: str, purpose: str, video_id: str | None = None, max_tokens: i
 
 def review(c, video: dict, hits: list[dict]) -> None:
     """Fill each hit's `excerpt_en`, and for borderline name hits Claude's `judge` opinion (in place)."""
-    todo = [h for h in hits if h["kind"] == "language" or (h.get("language") or "en") != "en"
+    try:
+        from .highlights import themes
+        th = themes(c) if video.get("source_kind") not in ("mirror",) else None
+    except Exception as e:  # noqa: BLE001
+        log.warning("highlight themes unavailable: %s", e)
+        th = None
+    for h in hits:
+        if not th:
+            h["suggested_section"] = "common"
+            h["section_reason"] = "no dedicated highlights are set"
+    todo = [h for h in hits if th or h["kind"] == "language" or (h.get("language") or "en") != "en"
             or 0.08 <= h["confidence"] <= 0.75]
     if not todo:
         return
@@ -64,10 +74,22 @@ def review(c, video: dict, hits: list[dict]) -> None:
         "whether the heard word is plausibly the name/phrase in `phrase` (a person's name, any grammatical form) "
         "rather than a common word or another name: give name_probability 0..1 and a short reason. Recognition "
         "errors are common; do not be certain.\n"
-        "Answer only with JSON lines: {\"n\": <n>, \"en\": \"...\", \"name_probability\": <0..1 or null>, "
-        "\"reason\": \"...\"}\n\n" + "\n".join(lines))
+        + (("\nThe owner's home page has an upper section for their dedicated highlights and a lower one for "
+            "common highlights. Dedicated highlights (title: examples): "
+            + json.dumps(th["dedicated"], ensure_ascii=False)[:1500] + "\nCommon highlights: "
+            + json.dumps(th["common"], ensure_ascii=False)[:800]
+            + "\nFor each line also say which section the moment deserves, judged by how the dedicated "
+              "highlights are themed: \"section\": \"dedicated\" or \"common\", with a short \"section_reason\".\n")
+           if th else "")
+        + "Answer only with JSON lines: {\"n\": <n>, \"en\": \"...\", \"name_probability\": <0..1 or null>, "
+        "\"reason\": \"...\"" + (", \"section\": \"dedicated|common\", \"section_reason\": \"...\"" if th else "")
+        + "}\n\n" + "\n".join(lines))
     text = ask(c, prompt, "review", video.get("id"))
     if not text:
+        for h in hits:
+            if th and "suggested_section" not in h:
+                h["suggested_section"] = None
+                h["section_reason"] = "not judged yet (Claude unavailable)"
         return
     for line in text.splitlines():
         line = line.strip().strip(",")
@@ -80,6 +102,9 @@ def review(c, video: dict, hits: list[dict]) -> None:
             continue
         if r.get("en"):
             h["excerpt_en"] = r["en"]
+        if th and r.get("section") in ("dedicated", "common"):
+            h["suggested_section"] = r["section"]
+            h["section_reason"] = (r.get("section_reason") or "")[:300]
         p = r.get("name_probability")
         if h["kind"] == "name" and isinstance(p, (int, float)):
             h["judge"] = {"by": "claude", "name_probability": round(float(p), 2), "reason": (r.get("reason") or "")[:300]}

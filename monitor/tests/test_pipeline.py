@@ -216,3 +216,56 @@ def test_learning_unknown_source_and_missing_variant():
     assert again[0]["scores"]["sound"] >= 0.6   # now a known spelling
     rep = learn.report(c())
     assert rep["matched"] == 2 and rep["found_first"] == 0 and rep["misses_by_cause"]["variant_missing"] == 1
+
+
+def test_highlight_suggestions_and_sections(monkeypatch):
+    from fastapi.testclient import TestClient
+    from eemonitor import highlights, judge
+    hls = [{"id": "hl_1", "title": "Масловы", "item_ids": [], "summaries": ["family reunion in Lviv"]},
+           {"id": "hl_2", "title": "Food", "item_ids": [], "summaries": ["pizza"]}]
+    monkeypatch.setattr(highlights, "fetch_highlights", lambda: hls)
+    answers = {"phrase-suggestions": '{"text": "львів", "why": "Масловы: Lviv", "uk": "Львів", "ru": "Львов", "en": "Lviv"}\n'
+                                     '{"text": "тарас", "why": "already there"}',
+               "review": '{"n": 0, "en": "and thanks to Taras Maslov", "name_probability": 0.8, "reason": "a name", '
+                         '"section": "dedicated", "section_reason": "the family highlight"}'}
+    monkeypatch.setattr(judge, "ask", lambda c_, prompt, purpose, *a, **k: answers.get(purpose))
+    cl = TestClient(api.app)
+    auth = {"Authorization": "Bearer secret-admin"}
+    assert highlights.suggest_phrases(c()) == 1
+    ph = cl.get("/v1/monitor/phrases", headers=auth).json()
+    assert [s["text"] for s in ph["suggested"]] == ["львів"] and "львів" not in [p["text"] for p in ph["phrases"]]
+    ph = cl.post("/v1/monitor/phrases/suggested/львів/accept", headers=auth).json()
+    assert "львів" in [p["text"] for p in ph["phrases"]] and ph["suggested"] == []
+    lv = next(p for p in ph["phrases"] if p["text"] == "львів")
+    assert "lviv" in lv["claude_variants"] and "львов" in lv["claude_variants"]
+    # sections: the owner marks hl_1 dedicated; a new hit gets Claude's suggestion; publish defaults to it
+    assert cl.put("/v1/monitor/sections", json={"dedicated": ["hl_1"]}, headers=auth).json()["highlights"][0]["section"] == "dedicated"
+    hit = {"kind": "name", "phrase": "тарас маслов", "matched": "Тарасу Маслову", "language": "ru", "confidence": 0.8,
+           "excerpt": "и спасибо Тарасу Маслову", "scores": {"sound": 0.9, "asr": 0.9, "name": 0.85}}
+    judge.review(c(), {"id": "v", "title": "t", "platform": "telegram", "url": "u", "source_kind": "official"}, [hit])
+    assert hit["suggested_section"] == "dedicated" and hit["excerpt_en"]
+    v = c().execute("SELECT * FROM videos WHERE state='done' LIMIT 1").fetchone()
+    hit.update({"start": 50.0, "end": 51.0, "excerpt_start": 49, "excerpt_end": 52})
+    worker.save_hits(c(), v, worker.detect_all(c(), v, worker.load_transcript(v["transcript"])) + [hit], "test")
+    hid = worker.hit_id(v["id"], hit)
+    r = cl.post(f"/v1/monitor/hits/{hid}/publish", headers=auth).json()
+    assert r["section"] == "dedicated"
+    pub = cl.get("/v1/published").json()
+    assert hid in [h["id"] for h in pub["dedicated"]] and "common" in pub
+    r = cl.post(f"/v1/monitor/hits/{hid}/unpublish", headers=auth)
+    assert r.status_code == 200
+    r = cl.post(f"/v1/monitor/hits/{hid}/publish", json={"section": "common"}, headers=auth).json()
+    assert r["section"] == "common"
+
+
+def test_tiktok_items():
+    from eemonitor.platforms import tiktok
+    blob = json.loads((FIX / "tiktok_item_list.json").read_text())
+    vids = {v["id"]: v for v in tiktok.videos_in(blob)}
+    v = vids["tt:7430000000000000001"]
+    assert v["platform"] == "tiktok" and v["url"] == "https://www.tiktok.com/@nato/video/7430000000000000001"
+    assert v["media_url"].endswith("play.mp4") and v["duration"] == 42 and v["posted_at"].startswith("2025-10-01")
+    assert vids["tt:7430000000000000002"]["media_url"] == "https://v16/bitrate.mp4"
+    html = '<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">' + json.dumps(
+        {"__DEFAULT_SCOPE__": {"webapp.video-detail": {"itemInfo": {"itemStruct": blob["itemList"][0]}}}}) + "</script>"
+    assert [x["id"] for b in tiktok.blobs_in(html) for x in tiktok.videos_in(b)] == ["tt:7430000000000000001"]

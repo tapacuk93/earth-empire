@@ -18,7 +18,7 @@ import zlib
 from pathlib import Path
 
 from . import db, detect, pace, phrases, registry, transcribe
-from .platforms import facebook, instagram, telegram, youtube
+from .platforms import facebook, instagram, telegram, tiktok, youtube
 
 log = logging.getLogger("ee.monitor")
 MEDIA_BUCKET = os.environ.get("EE_MEDIA_BUCKET", "earth-empire-media")
@@ -194,7 +194,7 @@ def _claim_requested(c, platform: str) -> bool:
 
 
 # ------------------------------------------------------------------ discovery
-def poll_account(c, a, fb=None, ig=None) -> int:
+def poll_account(c, a, fb=None, ig=None, tt=None) -> int:
     """List an account's videos (newest page, or one page further back while a request wants more)."""
     platform = a["platform"]
     req = open_request(c)
@@ -208,6 +208,8 @@ def poll_account(c, a, fb=None, ig=None) -> int:
         vids, cursor = facebook.list_videos(c, dict(a), before, fb=fb)
     elif platform == "instagram":
         vids, cursor = ig.account_videos(a["handle"], a["platform_id"], before)
+    elif platform == "tiktok":
+        vids, cursor = tiktok.list_videos(c, dict(a), before, tt=tt)
     else:
         return 0
     src = c.execute("SELECT source_kind FROM sources WHERE id=?", (a["source_id"],)).fetchone()
@@ -274,6 +276,8 @@ def discover(c, browsers: bool = True) -> int:
     if db.setting(c, "instagram.enabled") == "1" and not db.stopped(c, "instagram") and instagram.session_exists():
         if due_accounts(c, "instagram", 1) or not db.setting(c, "instagram.following_synced"):
             n += browser_round(c, "instagram")
+    if db.setting(c, "tiktok.enabled") == "1" and not db.stopped(c, "tiktok") and due_accounts(c, "tiktok", 1):
+        n += browser_round(c, "tiktok", max_accounts=3)
     return n
 
 
@@ -289,6 +293,15 @@ def browser_round(c, platform: str, max_accounts: int = 4) -> int:
                 for a in due_accounts(c, "facebook", max_accounts):
                     try:
                         n += poll_account(c, a, fb=fb)
+                    except pace.Stop:
+                        raise
+                    except Exception as e:  # noqa: BLE001
+                        _account_error(c, a, e)
+        elif platform == "tiktok":
+            with tiktok.TikTok(c) as tt:
+                for a in due_accounts(c, "tiktok", max_accounts):
+                    try:
+                        n += poll_account(c, a, tt=tt)
                     except pace.Stop:
                         raise
                     except Exception as e:  # noqa: BLE001
@@ -398,6 +411,15 @@ def download(c, v, work: Path) -> Path:
         with instagram.Instagram(c) as ig:
             fresh = ig.media(extra.get("pk"))
             url = (fresh or {}).get("media_url") or url
+    if platform == "tiktok":
+        with tiktok.TikTok(c) as tt:
+            try:
+                return tt.download(url, work / "media.mp4")
+            except pace.HTTPFail:   # the address expired: read the video's page again
+                fresh = [x for x in tt.browse(v["url"], "video") if x["id"] == v["id"]]
+                if not fresh or not fresh[0]["media_url"]:
+                    raise
+                return tt.download(fresh[0]["media_url"], work / "media.mp4")
     if not url:
         raise youtube.Blocked("no media URL for this video")
     out = work / "media.mp4"
@@ -484,7 +506,8 @@ def save_hits(c, v, hits: list[dict], model: str, keep_media: bool = True) -> in
         h["model"] = model
         if hid in old:
             prev = json.loads(old[hid]["data"])
-            for k in ("clip_key", "frame_key", "clip", "frame", "excerpt_en", "judge"):
+            for k in ("clip_key", "frame_key", "clip", "frame", "excerpt_en", "judge", "suggested_section",
+                      "section_reason"):
                 if prev.get(k) and not h.get(k):
                     h[k] = prev[k]
         c.execute("""INSERT INTO hits(id, video_id, kind, start, "end", confidence, data, found_at)
@@ -646,16 +669,17 @@ def expand_one(c) -> int:
         return 0
     max_hops = int(db.fsetting(c, "rec.max_hops"))
     seed = c.execute("""SELECT v.*, NULL AS hit_id, NULL AS conf FROM videos v WHERE v.source_kind='reposted' AND v.expanded=0 AND v.state='done'
-                        AND v.platform IN ('instagram','facebook') ORDER BY v.discovered_at LIMIT 1""").fetchone()
+                        AND v.platform IN ('instagram','facebook','tiktok') ORDER BY v.discovered_at LIMIT 1""").fetchone()
     if not seed:
         seed = c.execute("""SELECT v.*, h.id AS hit_id, h.confidence AS conf FROM hits h JOIN videos v ON v.id=h.video_id
-                            WHERE v.expanded=0 AND v.hop < ? AND h.confidence >= ? AND v.platform IN ('instagram','facebook')
+                            WHERE v.expanded=0 AND v.hop < ? AND h.confidence >= ? AND v.platform IN ('instagram','facebook','tiktok')
                             ORDER BY h.confidence DESC LIMIT 1""",
                          (max_hops, db.fsetting(c, "rec.min_seed_confidence"))).fetchone()
     if not seed:
         return 0
     platform = seed["platform"]
-    if db.stopped(c, platform) or (platform == "instagram" and not instagram.session_exists()):
+    if db.stopped(c, platform) or (platform == "instagram" and not instagram.session_exists()) \
+            or (platform == "tiktok" and not tiktok.session_exists()):
         return 0
     extra = json.loads(seed["extra"] or "{}")
     via = seed["hit_id"] or seed["via"] or seed["id"]
@@ -667,6 +691,12 @@ def expand_one(c) -> int:
                     found += ig.around(extra["code"])
                 if extra.get("author"):
                     found += ig.account_videos(extra["author"], extra.get("author_id"))[0][:4]
+        elif platform == "tiktok":
+            with tiktok.TikTok(c) as tt:
+                found += tiktok.related(c, dict(seed), tt)
+                if db.used(c, "rec.foryou") < 2:   # the For You feed, twice a day at most
+                    db.add_usage(c, "rec.foryou")
+                    found += tiktok.for_you(c, tt)[:4]
         else:
             with facebook.FacebookDL(c) as fb:
                 fb.ensure_session()
@@ -694,6 +724,8 @@ def expand_one(c) -> int:
 
 # ------------------------------------------------------------------ loop
 def setup(c) -> None:
+    from . import highlights
+    highlights.ensure(c)
     ensure_phrases(c)
     if registry.FILE.exists():
         mtime = str(int(registry.FILE.stat().st_mtime))
@@ -722,6 +754,11 @@ def loop() -> None:
                 last_seed = time.time()
                 setup(c)
                 repost_seeds(c)
+                try:
+                    from . import highlights
+                    highlights.suggest_phrases(c)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("phrase suggestions failed: %s", e)
             busy = c.execute("SELECT 1 FROM videos WHERE state='queued' LIMIT 1").fetchone()
             discover(c, browsers=not busy or time.time() - _last_browser > 1200)
             v = pick(c)

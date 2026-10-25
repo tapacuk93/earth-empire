@@ -51,7 +51,8 @@ def find_independent(c, mv, tr: dict):
     pk, code, author = ex.get("pk"), ex.get("code"), ex.get("author")
     kinds = ",".join("'%s'" % k for k in INDEPENDENT)
     if pk:
-        r = c.execute(f"SELECT * FROM videos WHERE id=? AND source_kind IN ({kinds})", (f"ig:{pk}",)).fetchone()
+        r = c.execute(f"SELECT * FROM videos WHERE id IN (?, ?, ?) AND source_kind IN ({kinds})",
+                      (f"ig:{pk}", f"tt:{pk}", f"fb:{pk}")).fetchone()
         if r:
             return r, "platform id"
     if code:

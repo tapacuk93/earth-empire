@@ -19,7 +19,7 @@ FILE = Path(os.environ.get("EE_MONITOR_SOURCES") or (Path(__file__).resolve().pa
 if not FILE.exists():
     FILE = Path("/opt/earth-empire/repo/monitor/sources.json")
 PLATFORMS = ("youtube", "telegram", "x", "instagram", "facebook", "tiktok", "vk", "rutube")
-SCANNED = ("youtube", "telegram", "x", "instagram", "facebook")
+SCANNED = ("youtube", "telegram", "x", "instagram", "facebook", "tiktok")
 
 
 def slug(s: str) -> str:

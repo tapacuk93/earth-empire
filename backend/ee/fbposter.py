@@ -164,9 +164,17 @@ class Browser:
             btn = self.page.get_by_text(re.compile(L["composer"], re.I)).first
         btn.click()
         pause()
-        dlg = self.page.get_by_role("dialog", name=re.compile(L["dialog"], re.I)).first
+        # The composer is the dialog that holds an editable text box; its title varies by locale.
+        dlg = self.page.locator("[role=dialog]").filter(has=self.page.locator("[contenteditable=true][role=textbox]")).last
         dlg.wait_for(state="visible", timeout=20000)
         return dlg
+
+    def describe_dialogs(self) -> list[str]:
+        out = []
+        for i in range(self.page.locator("[role=dialog]").count()):
+            d = self.page.locator("[role=dialog]").nth(i)
+            out.append((d.get_attribute("aria-label") or "") + " | " + (d.inner_text(timeout=2000) or "")[:120].replace("\n", " / "))
+        return out
 
     def add_media(self, dlg, files: list[Path]):
         if not files:
@@ -211,7 +219,8 @@ class Browser:
         while time.time() < deadline:
             pause(2000, 3000)
             self.check("after-post")
-            if self.page.get_by_role("dialog", name=re.compile(L["dialog"], re.I)).count() == 0:
+            if self.page.locator("[role=dialog]").filter(
+                    has=self.page.locator("[contenteditable=true][role=textbox]")).count() == 0:
                 return
         raise FacebookError("the composer did not close within 5 minutes after Post")
 
@@ -285,42 +294,57 @@ def post_item(c, item_id: str, *, dry_run: bool) -> dict:
         files = [fetch.fetch(m["url"], f"{i}{Path(m['url']).suffix or '.bin'}") for i, m in enumerate(post.media)]
         with profile_lock():
             b = Browser(state)
-            b.open_home()
-            event("facebook.step", item=item_id, step="home", url=b.page.url)
-            dlg = b.open_composer()
-            event("facebook.step", item=item_id, step="composer open")
-            b.add_media(dlg, files)
-            event("facebook.step", item=item_id, step="media added", files=len(files))
-            b.type_text(dlg, text)
-            event("facebook.step", item=item_id, step="text typed", chars=len(text))
-            b.check("composer")
-            if dry_run:
-                p = b.shot(f"dry-run-{item_id}")
-                b.discard()
-                event("facebook.dry_run", item=item_id, screenshot=str(p))
-                print(f"=== {item_id}: dry run, composer filled and closed; screenshot {p}\n{text}")
-                return {"dry_run": True, "screenshot": str(p)}
-            # From here a retry could post twice: mark it, so a failure needs the owner to look.
-            store.set_step(c, item_id, "facebook", "running", detail={"submitted_at": now()})
-            b.submit(dlg)
-            event("facebook.step", item=item_id, step="posted")
-            pause(4000, 8000)
-            url = None
+            return _drive(c, b, item_id, files, text, dry_run)
+    except FacebookError:
+        raise
+    except Exception as e:
+        if b:
             try:
-                url = b.latest_post_url()
-            except FacebookError:
-                raise
-            except Exception as e:
-                event("facebook.url_unreadable", logging.WARNING, item=item_id, error=str(e))
-            p = b.shot(f"posted-{item_id}")
-            store.set_step(c, item_id, "facebook", "posted", remote_url=url, detail={"screenshot": p.name},
-                           note="posted")
-            metric("FacebookPosts")
-            return {"posted": url, "screenshot": str(p)}
+                p = b.shot(f"error-{item_id}")
+                event("facebook.error", logging.ERROR, item=item_id, error=repr(e)[:500], url=b.page.url,
+                      dialogs=b.describe_dialogs(), screenshot=str(p))
+            except Exception:
+                pass
+        raise
     finally:
         if b:
             b.close()
         shutil.rmtree(work, ignore_errors=True)
+
+
+def _drive(c, b: "Browser", item_id: str, files: list, text: str, dry_run: bool) -> dict:
+    b.open_home()
+    event("facebook.step", item=item_id, step="home", url=b.page.url)
+    dlg = b.open_composer()
+    event("facebook.step", item=item_id, step="composer open")
+    b.add_media(dlg, files)
+    event("facebook.step", item=item_id, step="media added", files=len(files))
+    b.type_text(dlg, text)
+    event("facebook.step", item=item_id, step="text typed", chars=len(text))
+    b.check("composer")
+    if dry_run:
+        p = b.shot(f"dry-run-{item_id}")
+        b.discard()
+        event("facebook.dry_run", item=item_id, screenshot=str(p))
+        print(f"=== {item_id}: dry run, composer filled and closed; screenshot {p}\n{text}")
+        return {"dry_run": True, "screenshot": str(p)}
+    # From here a retry could post twice: mark it, so a failure needs the owner to look.
+    store.set_step(c, item_id, "facebook", "running", detail={"submitted_at": now()})
+    b.submit(dlg)
+    event("facebook.step", item=item_id, step="posted")
+    pause(4000, 8000)
+    url = None
+    try:
+        url = b.latest_post_url()
+    except FacebookError:
+        raise
+    except Exception as e:
+        event("facebook.url_unreadable", logging.WARNING, item=item_id, error=str(e))
+    p = b.shot(f"posted-{item_id}")
+    store.set_step(c, item_id, "facebook", "posted", remote_url=url, detail={"screenshot": p.name},
+                   note="posted")
+    metric("FacebookPosts")
+    return {"posted": url, "screenshot": str(p)}
 
 
 def handle_block(c, e: Exception):

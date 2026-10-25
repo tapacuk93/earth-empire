@@ -3,6 +3,7 @@ package com.oeaio.earthempire.ui
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -43,7 +44,7 @@ class AppUiTest {
 
     @Test fun withoutTokenOnlyHomeAndADiscreetWayIn() {
         val c = launch()
-        rule.onNodeWithTag("profile.header").assertIsDisplayed()
+        rule.onNodeWithTag("figures").assertIsDisplayed()
         rule.onNodeWithTag("tabs").assertDoesNotExist()
         rule.onNodeWithTag("owner.signin").performClick()
         rule.onNodeWithTag("owner.token").performTextInput("owner")
@@ -57,6 +58,37 @@ class AppUiTest {
         rule.onNodeWithTag("owner.signin").assertDoesNotExist()
     }
 
+    @Test fun homeIsInfographicsNotAProfile() {
+        launch()
+        rule.onNodeWithTag("chart.timeline").assertExists()
+        rule.onNodeWithTag("home.list").performScrollToNode(hasTestTag("chart.map"))
+        rule.onNodeWithTag("home.list").performScrollToNode(hasTestTag("chart.tags"))
+        rule.onNodeWithTag("home.list").performScrollToNode(hasTestTag("chart.categories"))
+        // The owner's dedicated part comes before the common one.
+        rule.onNodeWithTag("home.list").performScrollToNode(hasTestTag("section.dedicated"))
+        rule.onNodeWithTag("home.list").performScrollToNode(hasTestTag("panel.hl_17900000000000003"))
+        rule.onNodeWithTag("home.list").performScrollToNode(hasTestTag("section.common"))
+        rule.onNodeWithTag("profile.header").assertDoesNotExist()
+    }
+
+    @Test fun panelMediaOpensTheVerticalFeedAndBackReturns() {
+        launch()
+        rule.onNodeWithTag("home.list").performScrollToNode(hasTestTag("panel.hl_17900000000000003"))
+        rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("media") { it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith("media.p:") == true } and hasAnyAncestor(hasTestTag("panel.hl_17900000000000003"))).onFirst().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("feed").assertExists()
+        rule.onNodeWithTag("feed.mute").assertExists()
+        rule.onNodeWithContentDescription("Unmute").assertExists()
+        rule.onAllNodesWithTag("feed.more").onFirst().performClick()
+        rule.waitForIdle()
+        rule.onAllNodesWithTag("feed.details").onFirst().assertExists()
+        rule.onNodeWithTag("feed.share").assertExists()
+        rule.onNodeWithTag("feed.back").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("feed").assertDoesNotExist()
+        rule.onNodeWithTag("panel.hl_17900000000000003").assertIsDisplayed()
+    }
+
     @Test fun ownerSeesDetectedByConfidence() {
         launch(token = "owner")
         rule.onNodeWithTag("tab.monitor").performClick()
@@ -64,20 +96,30 @@ class AppUiTest {
         rule.onNodeWithTag("tab.monitor").assertIsSelected()
         rule.onNodeWithText("Thank you, Taras, for the question.").assertIsDisplayed()
         rule.onNode(hasTestTag("hit.confidence") and hasAnyAncestor(hasTestTag("hit.mock_1")), useUnmergedTree = true).assertExists()
+        rule.onNode(hasTestTag("hit.suggestion") and hasAnyAncestor(hasTestTag("hit.mock_1")), useUnmergedTree = true).assertExists()
         // The lowest-confidence hit is labelled.
         rule.onNodeWithTag("monitor.list").performScrollToNode(hasTestTag("hit.mock_5"))
         rule.onNode(hasTestTag("hit.low") and hasAnyAncestor(hasTestTag("hit.mock_5")), useUnmergedTree = true).assertExists()
     }
 
-    @Test fun plusPublishesToHome() {
-        launch(token = "owner")
-        rule.onNodeWithTag("tab.monitor").performClick()
+    @Test fun plusPublishesInTheChosenSection() {
+        launch(token = "owner", tab = Tab.Monitor)
+        rule.onNode(hasTestTag("hit.add") and hasAnyAncestor(hasTestTag("hit.mock_1")), useUnmergedTree = true).performClick()
         rule.waitForIdle()
-        rule.onAllNodesWithTag("hit.add", useUnmergedTree = true).onFirst().performClick()
-        rule.waitUntil(3000) { rule.onAllNodesWithText("Published to Home and the site.").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNode(hasTestTag("hit.published") and hasAnyAncestor(hasTestTag("hit.mock_1")), useUnmergedTree = true).assertExists()
-        rule.onNodeWithTag("tab.home").performClick()
-        rule.onNodeWithTag("home.refresh").assertExists()
+        // The suggestion comes first.
+        rule.onNodeWithText("Publish in About the owner (suggested)").assertExists()
+        rule.onNodeWithTag("publish.common").performClick()
+        rule.waitUntil(3000) { rule.onAllNodesWithText("Published to Home and the site", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Published to Home and the site, in Everything else.").assertExists()
+    }
+
+    @Test fun hitOpensTheFeedOfDetected() {
+        launch(token = "owner", tab = Tab.Monitor)
+        rule.onNodeWithText("Thank you, Taras, for the question.").assertExists()
+        rule.onAllNodes(androidx.compose.ui.test.SemanticsMatcher("play") { it.config.getOrNull(androidx.compose.ui.semantics.SemanticsActions.OnClick)?.label == "Play from 1:42" }).onFirst().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("feed.hit.mock_1").assertExists()
+        rule.onNodeWithTag("tabs").assertDoesNotExist()
     }
 
     @Test fun kindFilterOnDetected() {
@@ -88,35 +130,14 @@ class AppUiTest {
         rule.onNodeWithTag("hit.mock_2").assertExists()
     }
 
-    @Test fun homeShowsProfileCloudPublishedAndTimeline() {
-        launch()
-        rule.onNodeWithTag("profile.header").assertIsDisplayed()
-        rule.onNodeWithTag("highlights.row").assertIsDisplayed()
-        rule.onNodeWithTag("published.row").assertExists()
-        rule.onNodeWithTag("home.grid").performScrollToNode(hasTestTag("tag.cloud"))
-        rule.onNodeWithText("Chronological").performClick()
-        rule.waitForIdle()
-        rule.onNodeWithTag("tag.cloud").assertDoesNotExist()
-        rule.onNodeWithTag("home.grid").performScrollToNode(hasTestTag("timeline.ig_3400000000000000012"))
-    }
-
-    @Test fun kindFilterNarrowsTheGrid() {
-        launch()
-        rule.onNodeWithTag("home.grid").performScrollToNode(hasTestTag("filters"))
-        rule.onNodeWithTag("filter.kind.reel").performClick()
-        rule.waitForIdle()
-        rule.onNodeWithTag("home.grid").performScrollToNode(hasTestTag("tile.ig_3400000000000000012"))
-        rule.onNodeWithTag("tile.ig_3300000000000000000").assertDoesNotExist()
-    }
-
-    @Test fun itemLinkShowsAnalysisAndRepostCredit() {
+    @Test fun itemLinkOpensTheFeed() {
         val links = Channel<DeepLink>(Channel.BUFFERED)
         launch(links = links)
         links.trySend(DeepLink.parse("https://empire.earth/item/ig_3400000000000000005")!!)
         rule.waitForIdle()
-        rule.onNodeWithTag("item.detail").performScrollToNode(hasTestTag("repost.card"))
-        rule.onNodeWithContentDescription("Repost. Original by @", substring = true).assertIsDisplayed()
-        rule.onNodeWithTag("item.detail").performScrollToNode(hasTestTag("analysis"))
+        rule.onNodeWithTag("feed.post.ig_3400000000000000005").assertExists()
+        rule.onNodeWithText("Original by @", substring = true).assertExists()
+        rule.onNodeWithTag("feed.more").performClick()
         rule.onNodeWithText("About this").assertExists()
     }
 
@@ -142,7 +163,19 @@ class AppUiTest {
         rule.onNodeWithTag("phrases.save").performClick()
         rule.waitUntil(3000) { rule.onAllNodesWithText("Phrases saved", substring = true).fetchSemanticsNodes().isNotEmpty() }
         assertEquals(0, rule.onAllNodes(hasText("Remove маслов")).fetchSemanticsNodes().size)
-        rule.onNodeWithTag("phrases.rescan").assertIsDisplayed()
+        rule.onNodeWithTag("phrases.rescan").assertExists()
+    }
+
+    @Test fun suggestedPhrasesAcceptAndReject() {
+        val c = launch(token = "owner", tab = Tab.Settings)
+        rule.waitUntil(3000) { rule.onAllNodesWithTag("suggestion.серфінг").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithContentDescription("Reject лісабон").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("suggestion.лісабон").assertDoesNotExist()
+        assertTrue("лісабон" in c.settings.rejectedPhrases)
+        rule.onNodeWithContentDescription("Accept серфінг").performClick()
+        rule.waitUntil(3000) { rule.onAllNodesWithText("Phrases saved", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("серфінг").assertExists()
     }
 
     @Test fun signingOutLeavesOnlyHome() {
@@ -155,14 +188,14 @@ class AppUiTest {
         rule.onNodeWithTag("owner.signin").assertExists()
     }
 
-    @Test fun highlightLinkOpensTheStoryViewer() {
+    @Test fun highlightLinkOpensItsFeed() {
         val links = Channel<DeepLink>(Channel.BUFFERED)
         launch(links = links)
         links.trySend(DeepLink.Highlight("hl_17900000000000001"))
         rule.waitForIdle()
-        rule.onNodeWithTag("story.viewer").assertExists()
-        rule.onNodeWithTag("story.close").performClick()
+        rule.onNodeWithTag("feed").assertExists()
+        rule.onNodeWithTag("feed.back").performClick()
         rule.waitForIdle()
-        rule.onNodeWithTag("story.viewer").assertDoesNotExist()
+        rule.onNodeWithTag("feed").assertDoesNotExist()
     }
 }

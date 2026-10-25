@@ -87,6 +87,10 @@ data class MonitorHit(
     val model: String? = null,
     @SerialName("found_at") val foundAt: String? = null,
     @SerialName("published_at") val publishedAt: String? = null,
+    // Home's part it was published to, and the monitor's suggestion (provisional; see Sections.kt).
+    val section: JsonElement? = null,
+    @SerialName("suggested_section") val suggestedSection: JsonElement? = null,
+    @SerialName("section_reason") val sectionReason: String? = null,
 ) {
     /** The contract's label (>= 0.7 likely, >= 0.4 possible, else low confidence). */
     val label: String get() = confidenceLabel ?: when { confidence >= 0.7 -> "likely"; confidence >= 0.4 -> "possible"; else -> "low confidence" }
@@ -218,7 +222,7 @@ interface MonitorApi {
     /** Queues [n] (max 50) more videos to scan, optionally of one platform or source kind. */
     suspend fun fetchMore(n: Int, platform: String? = null, sourceKind: String? = null): FetchResult
     /** Publishes a hit to Home and the site, or takes it back; owner-only. */
-    suspend fun publish(id: String, adminToken: String, publish: Boolean = true): MonitorHit
+    suspend fun publish(id: String, adminToken: String, publish: Boolean = true, section: Section? = null): MonitorHit
     /** The published hits, newest first. */
     suspend fun published(before: String?, limit: Int = 30): MonitorPage
     suspend fun status(): StatusReport
@@ -229,6 +233,9 @@ interface MonitorApi {
     suspend fun rescan(adminToken: String): RescanResult
     /** True when the backend accepts [adminToken] (`GET /v1/admin/me`). */
     suspend fun checkToken(adminToken: String): Boolean
+    /** Phrases suggested from the highlight names (provisional endpoint; NotFound until served). */
+    suspend fun phraseSuggestions(): List<PhraseSuggestion>
+    suspend fun rejectSuggestion(text: String)
     val isMock: Boolean
 }
 
@@ -276,8 +283,16 @@ class LiveMonitorApi(base: String, private val client: OkHttpClient, private val
         return decode(FetchResult.serializer(), call(send("POST", url("v1/monitor/fetch"), body)))
     }
 
-    override suspend fun publish(id: String, adminToken: String, publish: Boolean) =
-        decode(MonitorHit.serializer(), call(send("POST", url("v1/monitor/hits/$id/" + if (publish) "publish" else "unpublish"), "{}", adminToken)))
+    override suspend fun publish(id: String, adminToken: String, publish: Boolean, section: Section?) =
+        decode(MonitorHit.serializer(), call(send("POST", url("v1/monitor/hits/$id/" + if (publish) "publish" else "unpublish"),
+            if (publish && section != null) """{"section":"${section.wire}"}""" else "{}", adminToken)))
+
+    override suspend fun phraseSuggestions() =
+        decode(PhraseSuggestions.serializer(), call(get(url("v1/monitor/phrases/suggestions")))).suggestions
+
+    override suspend fun rejectSuggestion(text: String) {
+        call(send("POST", url("v1/monitor/phrases/suggestions/reject"), buildJsonObject { put("text", text) }.toString()))
+    }
 
     override suspend fun published(before: String?, limit: Int) =
         decode(MonitorPage.serializer(), call(get(url("v1/published", listOf("before" to before, "limit" to "$limit")))))
@@ -339,13 +354,25 @@ class MockMonitorApi(private val latencyMs: Long = 250, private val clock: () ->
         return FetchResult("mock", n, n, 0)
     }
 
-    override suspend fun publish(id: String, adminToken: String, publish: Boolean): MonitorHit {
+    override suspend fun publish(id: String, adminToken: String, publish: Boolean, section: Section?): MonitorHit {
         wait()
         if (adminToken.isBlank()) throw ApiException.Status(401, "v1/monitor/hits/$id/publish")
         val i = hits.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: throw ApiException.NotFound(id)
-        hits[i] = hits[i].copy(publishedAt = if (publish) java.time.Instant.ofEpochMilli(clock()).toString() else null)
+        hits[i] = hits[i].copy(
+            publishedAt = if (publish) java.time.Instant.ofEpochMilli(clock()).toString() else null,
+            section = if (publish) JsonPrimitive((section ?: hits[i].suggestion?.section ?: Section.Common).wire) else null,
+        )
         return hits[i]
     }
+
+    private val rejected = mutableSetOf<String>()
+    override suspend fun phraseSuggestions(): List<PhraseSuggestion> {
+        wait()
+        val have = phraseList.map { it.text }.toSet()
+        return listOf(PhraseSuggestion("серфінг", "from the highlight “Surf”", "Surf"), PhraseSuggestion("лісабон", "from the highlight “Travel”: most of its stories are in Lisbon", "Travel"))
+            .filter { it.text !in have && it.text !in rejected }
+    }
+    override suspend fun rejectSuggestion(text: String) { rejected += text }
 
     override suspend fun published(before: String?, limit: Int): MonitorPage {
         wait()
@@ -418,6 +445,8 @@ class MockMonitorApi(private val latencyMs: Long = 250, private val clock: () ->
         private val agency = HitSource("mock_agency", "Sample UN Agency (mock)", "organization", null, "official")
         private val city = HitSource("mock_city", "Sample City Hall (mock)", "city", "PL", "followed")
 
+        private fun sug(section: String, reason: String) = JsonObject(mapOf("section" to JsonPrimitive(section), "reason" to JsonPrimitive(reason)))
+
         private fun video(id: String, title: String, item: String, duration: Double, posted: String) =
             HitVideo(id, "${M}$item/0.mp4", title, posted, duration, "${M}$item/0.thumb.jpg")
 
@@ -427,21 +456,24 @@ class MockMonitorApi(private val latencyMs: Long = 250, private val clock: () ->
                 video = video("mock_v1", "Sample press briefing", "ig_3400000000000000012", 184.0, "2026-10-20T09:00:00Z"),
                 start = 102.0, end = 102.6, atUrl = "https://example.org/watch?v=1&t=100",
                 excerpt = Excerpt("Дякую, Тарасе, за питання.", 100.5, 104.0, "uk", "Thank you, Taras, for the question."),
-                frame = "${M}ig_3400000000000000012/0.cover.jpg", model = "sample", foundAt = "2026-10-24T10:00:00Z"),
+                frame = "${M}ig_3400000000000000012/0.cover.jpg", model = "sample", foundAt = "2026-10-24T10:00:00Z",
+                suggestedSection = sug("dedicated", "The first name, addressed directly, in a question about the owner's project.")),
             MonitorHit("mock_2", "language", null, "uk", 0.78, notes = listOf("16 s of speech identified as uk; this source normally speaks en"),
                 language = "uk", expectedLanguages = listOf("en"), platform = "x", sourceKind = "official", source = agency, account = "sample_un_agency",
                 video = video("mock_v2", "Sample conference panel", "ig_3400000000000000006", 3120.0, "2026-10-18T14:00:00Z"),
                 start = 1410.0, end = 1426.0, excerpt = Excerpt("Ми продовжимо роботу разом із партнерами.", 1410.0, 1416.0, "uk", "We will continue working together with our partners."),
-                foundAt = "2026-10-23T18:30:00Z"),
+                foundAt = "2026-10-23T18:30:00Z", suggestedSection = sug("common", "A language hit, not about the owner.")),
             MonitorHit("mock_3", "name", "тарас маслов", "Тараса Маслова", 0.64, notes = listOf("both words match"), language = "ru", expectedLanguages = listOf("ru"),
                 platform = "telegram", sourceKind = "followed", source = city, account = "sample_city_hall",
                 video = video("mock_v3", "Sample weekly address", "ig_3400000000000000012", 184.0, "2026-10-17T08:00:00Z"),
                 start = 61.0, end = 62.2, excerpt = Excerpt("…как сказал Тараса Маслова на прошлой неделе…", 58.0, 64.0, "ru", "…as Taras Maslov said last week…"),
-                foundAt = "2026-10-22T08:15:00Z", publishedAt = "2026-10-22T09:00:00Z"),
+                foundAt = "2026-10-22T08:15:00Z", publishedAt = "2026-10-22T09:00:00Z",
+                section = JsonPrimitive("dedicated"), suggestedSection = sug("dedicated", "The full name.")),
             MonitorHit("mock_4", "name", "маслов", "Maslov", 0.41, notes = listOf("may be a common surname"), language = "en", expectedLanguages = listOf("en"),
                 platform = "youtube", sourceKind = "recommended", via = "mock_1", hop = 1, source = agency, account = "sample_un_agency",
                 video = video("mock_v4", "Sample plenary session", "ig_3400000000000000006", 3120.0, "2026-10-16T12:00:00Z"),
-                start = 33.0, end = 33.5, excerpt = Excerpt("…the delegation of Mr Maslov…", 31.0, 36.0, "en", null), foundAt = "2026-10-21T12:00:00Z"),
+                start = 33.0, end = 33.5, excerpt = Excerpt("…the delegation of Mr Maslov…", 31.0, 36.0, "en", null), foundAt = "2026-10-21T12:00:00Z",
+                suggestedSection = sug("common", "Surname only, at a public event.")),
             MonitorHit("mock_5", "language", null, "ru", 0.33, notes = listOf("4 s only; may be a song"), language = "ru", expectedLanguages = listOf("pl"),
                 platform = "facebook", sourceKind = "followed", source = city, account = "sample_city_hall",
                 video = video("mock_v5", "Sample town hall", "ig_3400000000000000012", 184.0, "2026-10-15T16:00:00Z"),

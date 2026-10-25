@@ -205,6 +205,10 @@ data class Highlight(
     val cover: String? = null,
     @SerialName("item_ids") val itemIds: List<String> = emptyList(),
     @SerialName("updated_at") val updatedAt: String? = null,
+    // Which part of Home it belongs to (provisional; see Sections.kt).
+    val section: kotlinx.serialization.json.JsonElement? = null,
+    val kind: String? = null,
+    val dedicated: Boolean? = null,
 )
 
 @Serializable

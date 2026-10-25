@@ -5,6 +5,7 @@ import android.os.Looper
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.oeaio.earthempire.AppContainer
 import com.oeaio.earthempire.TestSupport
@@ -63,11 +64,22 @@ class ScreenshotTest {
 
     @Test fun homeVisitor() { app(token = ""); shot("home-visitor") }
     @Test fun homeDark() { app("dark"); shot("home-owner-dark") }
-    @Test fun homeTimeline() { app(link = DeepLink.Home(view = "timeline")); shot("home-timeline") }
+    @Test fun homeSections() {
+        app()
+        settle()
+        rule.onNode(androidx.compose.ui.test.hasTestTag("home.list")).performScrollToNode(androidx.compose.ui.test.hasTestTag("section.dedicated"))
+        shot("home-sections")
+    }
     @Test fun detectedLight() { app(tab = Tab.Monitor); shot("detected-light") }
     @Test fun detectedDark() { app("dark", tab = Tab.Monitor); shot("detected-dark") }
     @Test fun statusLight() { app(tab = Tab.Status); shot("status-light") }
     @Test fun settingsLight() { app(tab = Tab.Settings); shot("settings-light") }
-    @Test fun itemDetail() { app(link = DeepLink.Item("ig_3400000000000000012")); shot("item-reel") }
-    @Test fun itemRepost() { app("dark", link = DeepLink.Item("ig_3400000000000000005")); shot("item-repost-dark") }
+    @Test fun feedItem() { app(link = DeepLink.Item("ig_3400000000000000010")); shot("feed-item") }
+    @Test fun feedItemExpanded() {
+        app("dark", link = DeepLink.Item("ig_3400000000000000005"))
+        settle()
+        rule.onNode(androidx.compose.ui.test.hasTestTag("feed.more")).performClick()
+        shot("feed-item-analysis-dark")
+    }
+    @Test fun feedHit() { app(link = DeepLink.MonitorHit("mock_1")); shot("feed-hit") }
 }

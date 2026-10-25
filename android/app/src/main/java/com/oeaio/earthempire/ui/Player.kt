@@ -75,6 +75,8 @@ fun VideoPlayer(
     startAt: Double? = null,
     seek: SeekRequest? = null,
     loop: Boolean = false,
+    muted: Boolean = false,
+    controls: Boolean = true,
     description: String = "Video",
     onEnded: (() -> Unit)? = null,
 ) {
@@ -107,14 +109,24 @@ fun VideoPlayer(
         seek?.let { player.seekTo((it.seconds * 1000).toLong()); player.play() }
     }
     LaunchedEffect(autoPlay) { player.playWhenReady = autoPlay }
-    AndroidView(
-        factory = { ctx ->
-            PlayerView(ctx).apply {
-                this.player = player
-                setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-                contentDescription = description
-            }
-        },
-        modifier = modifier.background(Color.Black),
-    )
+    LaunchedEffect(muted) { player.volume = if (muted) 0f else 1f }
+    // The poster (the AI-chosen cover, or a hit's frame) shows through until the first frame, and
+    // stays for audio-only clips.
+    Box(modifier.background(Color.Black)) {
+        AsyncImage(MediaUrls.resolve(poster), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    this.player = player
+                    useController = controls
+                    setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
+                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+                    contentDescription = description
+                }
+            },
+            update = { it.useController = controls },
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
 }

@@ -24,6 +24,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Slideshow
@@ -75,6 +77,7 @@ import com.oeaio.earthempire.AppContainer
 import com.oeaio.earthempire.data.ApiException
 import com.oeaio.earthempire.data.Dates
 import com.oeaio.earthempire.data.Phrase
+import com.oeaio.earthempire.data.PhraseSuggestion
 import com.oeaio.earthempire.data.StatusReport
 import com.oeaio.earthempire.data.TAG
 import kotlinx.coroutines.Job
@@ -114,6 +117,7 @@ class SettingsViewModel(val container: AppContainer) : ViewModel() {
     /** The editable texts; saved with [savePhrases]. */
     var draft by mutableStateOf<List<String>>(emptyList())
     var phrasesError by mutableStateOf<Throwable?>(null); private set
+    var suggestions by mutableStateOf<List<PhraseSuggestion>>(emptyList()); private set
     var busy by mutableStateOf(false); private set
     val messages = SnackbarHostState()
     private var loaded = false
@@ -126,7 +130,36 @@ class SettingsViewModel(val container: AppContainer) : ViewModel() {
         viewModelScope.launch {
             try { phrases = container.monitor.value.phrases(); draft = phrases.map { it.text }; phrasesError = null }
             catch (e: Exception) { Log.w(TAG, "phrases failed: $e"); phrasesError = e }
+            loadSuggestions()
         }
+    }
+
+    /**
+     * Phrases suggested from the highlight names: the monitor's when it serves them, else the
+     * highlight titles that are not phrases yet; minus what the owner rejected.
+     */
+    private suspend fun loadSuggestions() {
+        val from = try { container.monitor.value.phraseSuggestions() } catch (e: Exception) {
+            if (e !is ApiException.NotFound) Log.w(TAG, "suggestions failed: $e")
+            runCatching { container.archive.value.highlights() }.getOrDefault(emptyList())
+                .map { PhraseSuggestion(it.title.trim().lowercase(), "a highlight name", it.title) }
+        }
+        val have = (phrases.map { it.text } + draft).map { it.trim().lowercase() }.toSet()
+        val rejected = container.settings.rejectedPhrases
+        suggestions = from.filter { it.text.isNotBlank() && it.text.lowercase() !in have && it.text.lowercase() !in rejected }.distinctBy { it.text.lowercase() }
+    }
+
+    /** Accepting adds the phrase and saves the list (which rescans). */
+    fun accept(s: PhraseSuggestion) {
+        suggestions = suggestions - s
+        draft = draft + s.text
+        savePhrases()
+    }
+
+    fun reject(s: PhraseSuggestion) {
+        suggestions = suggestions - s
+        container.settings.rejectedPhrases = container.settings.rejectedPhrases + s.text.lowercase()
+        viewModelScope.launch { runCatching { container.monitor.value.rejectSuggestion(s.text) } }
     }
 
     fun savePhrases() {
@@ -178,12 +211,8 @@ fun StatusScreen(vm: StatusViewModel) {
                 IconButton(onClick = {
                     scope.launch {
                         val ids = (r?.activity?.jobs?.mapNotNull { it.item } ?: emptyList()) + (r?.activity?.events?.mapNotNull { it.item } ?: emptyList())
-                        val entries = ids.distinct().mapNotNull { id ->
-                            runCatching { vm.container.archive.value.item(id) }.getOrNull()?.let { item ->
-                                item.allMedia.firstOrNull { it.isVideo }?.let { m -> FeedEntry(item.id, m.url, m.poster, item.summary ?: item.kind.label, detail = { nav.item(item.id) }) }
-                            }
-                        }
-                        if (entries.isNotEmpty()) nav.feed(entries, 0) else vm.messages.showSnackbar("No videos in the recent activity.")
+                        val entries = ids.distinct().mapNotNull { id -> runCatching { vm.container.archive.value.item(id) }.getOrNull()?.let { FeedItem.Post(it) } }
+                        if (entries.isNotEmpty()) nav.feed(FeedContext("Recent activity", entries)) else vm.messages.showSnackbar("No public items in the recent activity.")
                     }
                 }, modifier = Modifier.testTag("status.fullscreen")) { Icon(Icons.Filled.Slideshow, "Fullscreen videos from the activity") }
             },
@@ -230,7 +259,7 @@ fun StatusScreen(vm: StatusViewModel) {
                     itemsIndexed(r.activity.events, key = { i, _ -> "e:$i" }) { _, e ->
                         Row(
                             Modifier.fillMaxWidth().heightIn(min = 40.dp)
-                                .let { m -> e.item?.let { id -> m.clickable(onClickLabel = "Open item") { nav.item(id) } } ?: m }
+                                .let { m -> e.item?.let { id -> m.clickable(onClickLabel = "Open item") { scope.launch { runCatching { vm.container.archive.value.item(id) }.getOrNull()?.let { nav.feed(FeedContext("Recent activity", listOf(FeedItem.Post(it)))) } } } } ?: m }
                                 .semantics(mergeDescendants = true) {},
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
@@ -327,6 +356,19 @@ private fun PhrasesEditor(vm: SettingsViewModel) {
                     if (variants.size > 12) TextButton(onClick = { all = !all }) { Text(if (all) "Fewer" else "All ${variants.size} variants") }
                 } else if (text.isNotBlank() && vm.phrases.none { it.text == text }) {
                     Text("Variants appear after saving.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        if (vm.suggestions.isNotEmpty()) {
+            Text("Suggested from the highlight names", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+            vm.suggestions.forEach { sg ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = false) {}.testTag("suggestion.${sg.text}")) {
+                    Column(Modifier.weight(1f)) {
+                        Text(sg.text, style = MaterialTheme.typography.bodyLarge)
+                        sg.reason?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
+                    IconButton(onClick = { vm.accept(sg) }, modifier = Modifier.testTag("suggestion.accept")) { Icon(Icons.Filled.Check, "Accept ${sg.text}", tint = MaterialTheme.colorScheme.primary) }
+                    IconButton(onClick = { vm.reject(sg) }, modifier = Modifier.testTag("suggestion.reject")) { Icon(Icons.Filled.Close, "Reject ${sg.text}") }
                 }
             }
         }

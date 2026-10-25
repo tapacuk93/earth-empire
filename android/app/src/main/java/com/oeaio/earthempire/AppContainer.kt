@@ -33,6 +33,10 @@ class Settings(private val prefs: SharedPreferences) {
     var homeView: String
         get() = prefs.getString("home_view", "tags") ?: "tags"
         set(v) = prefs.edit().putString("home_view", v).apply()
+    /** Suggested phrases the owner rejected, lowercase. */
+    var rejectedPhrases: Set<String>
+        get() = prefs.getStringSet("rejected_phrases", emptySet()) ?: emptySet()
+        set(v) = prefs.edit().putStringSet("rejected_phrases", v).apply()
     /** "system", "light" or "dark". */
     var theme: String
         get() = prefs.getString("theme", "system") ?: "system"

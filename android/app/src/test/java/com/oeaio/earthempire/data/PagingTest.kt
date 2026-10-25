@@ -100,6 +100,6 @@ class PagingTest {
     @Test fun storiesFollowTheHighlightOrder() {
         val items = fixture.items.take(3)
         val ids = items.map { it.id }.reversed()
-        assertEquals(ids, com.oeaio.earthempire.ui.orderStories(items, ids).map { it.id })
+        assertEquals(ids, orderStories(items, ids).map { it.id })
     }
 }

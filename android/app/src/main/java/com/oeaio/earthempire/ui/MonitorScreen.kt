@@ -73,6 +73,9 @@ import com.oeaio.earthempire.data.MonitorApi
 import com.oeaio.earthempire.data.MonitorHit
 import com.oeaio.earthempire.data.Pager
 import com.oeaio.earthempire.data.TAG
+import com.oeaio.earthempire.data.Section
+import com.oeaio.earthempire.data.homeSection
+import com.oeaio.earthempire.data.suggestion
 import kotlinx.coroutines.launch
 
 /** Detected: the monitor's hits, highest confidence first. */
@@ -127,14 +130,14 @@ class MonitorViewModel(private val container: AppContainer) : ViewModel() {
     private fun sorted(list: List<MonitorHit>) = list.sortedByDescending { it.confidence }
 
     /** "+": publishes the hit to Home and the site (or takes it back). */
-    fun publish(hit: MonitorHit, publish: Boolean = true) {
+    fun publish(hit: MonitorHit, publish: Boolean = true, section: Section? = null) {
         val token = container.settings.adminToken
         busy = busy + hit.id
         viewModelScope.launch {
             try {
-                val updated = api.publish(hit.id, token, publish)
+                val updated = api.publish(hit.id, token, publish, section)
                 hits = hits.map { if (it.id == hit.id) updated else it }
-                messages.showSnackbar(if (publish) "Published to Home and the site." else "Removed from Home.")
+                messages.showSnackbar(if (publish) "Published to Home and the site, in ${(section ?: updated.homeSection).title}." else "Removed from Home.")
             } catch (e: Exception) {
                 messages.showSnackbar(if (e is ApiException.Status && (e.code == 401 || e.code == 403)) "The admin token was refused." else e.message ?: "Could not publish.")
             } finally { busy = busy - hit.id }
@@ -160,8 +163,7 @@ fun MonitorScreen(vm: MonitorViewModel) {
     val nearEnd by remember { derivedStateOf { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.let { it >= list.layoutInfo.totalItemsCount - 3 } ?: false } }
     LaunchedEffect(nearEnd, vm.hits.size) { if (nearEnd) vm.loadMore() }
     val feed = { start: MonitorHit? ->
-        val entries = vm.hits.mapNotNull { it.feedEntry(nav) }
-        if (entries.isNotEmpty()) nav.feed(entries, start?.let { s -> entries.indexOfFirst { it.id == s.id } }?.coerceAtLeast(0) ?: 0)
+        if (vm.hits.isNotEmpty()) nav.feed(FeedContext("Detected", vm.hits.map { FeedItem.Hit(it) }, start?.let { s -> vm.hits.indexOfFirst { it.id == s.id } }?.coerceAtLeast(0) ?: 0))
     }
     Column(Modifier.fillMaxSize()) {
         TopAppBar(
@@ -183,7 +185,7 @@ fun MonitorScreen(vm: MonitorViewModel) {
                 }
                 vm.error?.let { e -> item("error") { ErrorBanner(e) { vm.refresh() } } }
                 items(vm.hits, key = { it.id }) { hit ->
-                    HitCard(hit, busy = hit.id in vm.busy, onPlay = { feed(hit) }, onPublish = { vm.publish(hit, !hit.isPublished) }, onFetchMore = vm::fetchMore)
+                    HitCard(hit, busy = hit.id in vm.busy, onPlay = { feed(hit) }, onPublish = vm::publish, onFetchMore = vm::fetchMore)
                 }
                 item("footer") {
                     Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
@@ -215,7 +217,7 @@ fun FetchMoreButton(platform: String?, onFetch: (Int, String?) -> Unit, compact:
 }
 
 @Composable
-fun HitCard(hit: MonitorHit, busy: Boolean, onPlay: () -> Unit, onPublish: () -> Unit, onFetchMore: (Int, String?) -> Unit) {
+fun HitCard(hit: MonitorHit, busy: Boolean, onPlay: () -> Unit, onPublish: (MonitorHit, Boolean, Section?) -> Unit, onFetchMore: (Int, String?) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     ElevatedCard(Modifier.fillMaxWidth().testTag("hit.${hit.id}")) {
         Box(Modifier.clickable(onClickLabel = "Play from ${Dates.clock(hit.start)}", onClick = onPlay)) {
@@ -236,6 +238,10 @@ fun HitCard(hit: MonitorHit, busy: Boolean, onPlay: () -> Unit, onPublish: () ->
             Text("“${hit.excerpt.text}”", style = MaterialTheme.typography.bodyLarge, fontStyle = FontStyle.Italic, modifier = Modifier.testTag("hit.excerpt"))
             hit.excerpt.en?.let { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("hit.translation")) }
             if (hit.notes.isNotEmpty()) Text(hit.notes.joinToString("; "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            hit.suggestion?.let { sg ->
+                Text("Suggested: ${sg.section.title}" + (sg.reason?.let { " - $it" } ?: ""), style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.tertiary, modifier = Modifier.testTag("hit.suggestion"))
+            }
             hit.judge?.reason?.let { Text("Judge: $it", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Text(listOfNotNull(
                 "at ${Dates.clock(hit.start)}" + (hit.end?.let { "–${Dates.clock(it)}" } ?: ""),
@@ -243,15 +249,8 @@ fun HitCard(hit: MonitorHit, busy: Boolean, onPlay: () -> Unit, onPublish: () ->
                 Dates.parse(hit.foundAt)?.let { "found ${Dates.dateTime(it)}" },
             ).joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (hit.isPublished) {
-                    OutlinedButton(onClick = onPublish, enabled = !busy, modifier = Modifier.semantics { contentDescription = "Published on Home. Remove" }.testTag("hit.published")) {
-                        Icon(Icons.Filled.CheckCircle, null, Modifier.size(18.dp)); Text(" On Home")
-                    }
-                } else {
-                    Button(onClick = onPublish, enabled = !busy, modifier = Modifier.semantics { contentDescription = "Publish to Home" }.testTag("hit.add")) {
-                        if (busy) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp) else Icon(Icons.Filled.Add, null, Modifier.size(18.dp))
-                    }
-                }
+                PublishButton(hit, onPublish, busy = busy)
+                if (hit.isPublished) Text("In ${hit.homeSection.title}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 (hit.atUrl ?: hit.video.url)?.let { url ->
                     IconButton(onClick = { runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) } }) {
                         Icon(Icons.AutoMirrored.Filled.OpenInNew, "Open at the moment on ${hit.platform ?: "the platform"}")
@@ -298,7 +297,7 @@ fun HitScreen(id: String, api: MonitorApi, vm: MonitorViewModel) {
         when {
             h != null -> Column(Modifier.verticalScroll(rememberScrollState())) {
                 h.playable?.let { (url, at) -> VideoPlayer(url, h.poster, Modifier.fillMaxWidth().aspectRatio(16 / 9f), startAt = at, description = "Recording from ${h.sourceTitle}") }
-                Box(Modifier.padding(16.dp)) { HitCard(h, h.id in vm.busy, onPlay = { h.feedEntry(nav)?.let { nav.feed(listOf(it), 0) } }, onPublish = { vm.publish(h, !h.isPublished) }, onFetchMore = vm::fetchMore) }
+                Box(Modifier.padding(16.dp)) { HitCard(h, h.id in vm.busy, onPlay = { nav.feed(FeedContext("Detected", listOf(FeedItem.Hit(h)))) }, onPublish = vm::publish, onFetchMore = vm::fetchMore) }
             }
             error != null -> Box(Modifier.padding(16.dp)) { ErrorBanner(error!!) { scope.launch { load() } } }
             else -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }

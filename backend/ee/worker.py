@@ -61,6 +61,14 @@ def analyze_once(c) -> bool:
     try:
         analysis.analyze(c, item_id, job="analyze")
         stop.wait(random.uniform(5, 20))   # gentle on the proxy between items
+    except aicoin.ProviderOutOfCredit as e:
+        store.set_step(c, item_id, "analyze", "pending", note="the AI provider is out of credit, waiting")
+        store.record(c, "analyzer", "provider", "the AI provider behind the aicoin proxy is out of credit; "
+                     "analysis waits", ok=False)
+        event("aicoin.provider_out_of_credit", logging.ERROR, error=str(e)[:300])
+        metric("WorkerErrors")
+        stop.wait(1800)
+        return False
     except aicoin.OutOfCoins as e:
         store.set_step(c, item_id, "analyze", "pending", note="out of coins, waiting")
         from .db import set_setting
@@ -144,6 +152,9 @@ def rubric_once(c) -> bool:
     return True
 
 
+_score_failures: dict[str, int] = {}
+
+
 def importance_once(c) -> bool:
     """When the analyzer has nothing to do: score items analyzed before importance existed."""
     if setting(c, "analysis.enabled") != "1":
@@ -168,12 +179,19 @@ def importance_once(c) -> bool:
                     f"{len(importance.pending(c, 100000))} to score")
     try:
         importance.backfill_one(c, ids[0], job="importance")
+        _score_failures.pop(ids[0], None)
         stop.wait(random.uniform(3, 10))
-    except aicoin.OutOfCoins:
-        stop.wait(3600)
+    except aicoin.OutOfCoins as e:   # our wallet, or the provider behind the proxy: wait, do not burn items
+        event("importance.paused", logging.ERROR, error=str(e)[:300])
+        stop.wait(1800)
     except Exception as e:
-        event("importance.failed", logging.WARNING, item=ids[0], error=repr(e)[:300])
-        c.execute("UPDATE items SET importance=COALESCE(importance, 0.5), importance_method=2 WHERE id=?", (ids[0],))
+        n = _score_failures[ids[0]] = _score_failures.get(ids[0], 0) + 1
+        event("importance.failed", logging.WARNING, item=ids[0], error=repr(e)[:300], attempt=n)
+        if n >= 2:   # give this item up for this rubric version; the next version retries it
+            from . import rubric
+            c.execute("UPDATE items SET importance=COALESCE(importance, 0.5), importance_method=2, "
+                      "importance_version=? WHERE id=?", (rubric.current(c)["version"], ids[0]))
+        stop.wait(60 * n)
     finally:
         store.job_end(c, "importance")
     return True

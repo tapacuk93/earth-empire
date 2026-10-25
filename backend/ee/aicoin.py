@@ -37,6 +37,10 @@ class OutOfCoins(AicoinError):
     pass
 
 
+class ProviderOutOfCredit(OutOfCoins):
+    """The proxy's own provider account is out of credit: nothing can be done here but wait."""
+
+
 def _b64(b: bytes) -> str:
     return base64.urlsafe_b64encode(b).decode().rstrip("=")
 
@@ -93,7 +97,13 @@ def balance(address: str | None = None) -> dict:
     return r.json()
 
 
+PROVIDER_BILLING = ("credit balance is too low", "insufficient_quota", "billing", "exceeded your current quota")
+
+
 def _check(r, what: str):
+    if r.status_code in (400, 403, 429, 503) and any(p in (r.text or "").lower() for p in PROVIDER_BILLING):
+        raise ProviderOutOfCredit(f"{what}: the AI provider behind the aicoin proxy is out of credit: {r.text[:300]}",
+                                  r.status_code, r.text[:500])
     if r.status_code == 402:
         raise OutOfCoins(f"{what}: the server wallet is out of aicoin", 402, r.text[:500])
     if r.status_code >= 400:

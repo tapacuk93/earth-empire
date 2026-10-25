@@ -209,7 +209,7 @@ for (let i = 1; i <= 18; i++) {
 }
 
 const highlights = [
-  { id: 'hl_9001', title: 'Travel', cover: `${M}hl-travel.jpg`, item_ids: ['ig_3400000000000000003', 'ig_3400000000000000006'], updated_at: stamp.updated_at },
+  { id: 'hl_9001', title: 'Travel', section: 'dedicated', cover: `${M}hl-travel.jpg`, item_ids: ['ig_3400000000000000003', 'ig_3400000000000000006'], updated_at: stamp.updated_at },
   { id: 'hl_9002', title: 'Food', cover: `${M}hl-food.jpg`, item_ids: ['ig_3400000000000000006', 'ig_3400000000000000010'], updated_at: stamp.updated_at },
   { id: 'hl_9003', title: 'Ocean', cover: `${M}hl-ocean.jpg`, item_ids: ['ig_3400000000000000004'], updated_at: stamp.updated_at },
 ];

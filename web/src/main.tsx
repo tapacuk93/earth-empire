@@ -77,13 +77,13 @@ function App() {
             })}
           </nav>
         )}
+        {owner === false && <a class="icon-btn owner-key" href="/settings" aria-label="Owner sign-in" title="Owner sign-in"><Icon name="key" /></a>}
         <ThemeToggle />
       </header>
       <main id="main" ref={mainRef} tabIndex={-1}>{page}</main>
       <AppBanner route={route} />
       <footer class="site-foot">
         <p>An archive of an Instagram account. Every item is described by Claude; people are named only from what the post says.</p>
-        {!owner && <p><a class="owner-link" href="/settings">Owner</a></p>}
       </footer>
     </>
   );

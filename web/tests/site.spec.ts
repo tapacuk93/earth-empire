@@ -18,7 +18,7 @@ async function noHorizontalScroll(page: Page) {
   expect(over, 'page scrolls sideways').toBeLessThanOrEqual(1);
 }
 
-const tiles = (page: Page) => page.locator('.grid:not(.skeleton) .tile a');
+const tiles = (page: Page) => page.locator('.feed .grid:not(.skeleton) .tile a');
 
 test('home: profile, highlights, grid, no sideways scroll', async ({ page }) => {
   const errors = watchErrors(page);
@@ -357,7 +357,7 @@ test('visitors see only Home; the owner link signs in', async ({ page, request }
   expect(sitemap).not.toMatch(/detected|status|settings|monitor/);
   // A wrong token is refused.
   await page.goto('/');
-  await page.getByRole('link', { name: 'Owner' }).click();
+  await page.getByRole('link', { name: 'Owner sign-in' }).click();
   await page.locator('#admin-token').fill('nope');
   await page.getByRole('button', { name: 'Check and keep' }).click();
   await expect(page.getByText('That token was not accepted.')).toBeVisible();
@@ -408,7 +408,7 @@ test('detected: by confidence, labels, publish to Home, fetch more, fullscreen',
 
 test('home: published hits and the fullscreen mode', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Detected and published' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Detected and published' }).first()).toBeVisible();
   await page.getByRole('button', { name: /Fullscreen: City council/ }).click();
   const dlg = page.getByRole('dialog', { name: 'Watch' });
   await expect(dlg).toBeVisible();
@@ -421,13 +421,13 @@ test('home: published hits and the fullscreen mode', async ({ page }) => {
 test('status and settings for the owner: health, activity, stats, phrases', async ({ page }) => {
   await signIn(page);
   const phrases = page.getByRole('region', { name: 'Phrases the monitor listens for' });
-  await expect(phrases.locator('.phrase')).toHaveCount(3);
+  await expect(phrases.locator('.phrases').first().locator('.phrase')).toHaveCount(3);
   await expect(phrases.getByRole('list', { name: 'Variants of “тарас маслов”' })).toContainText('taras maslov');
   await phrases.getByLabel('New phrase').fill('t. maslov');
   await phrases.getByRole('button', { name: 'Add' }).click();
   await phrases.getByRole('button', { name: 'Save' }).click();
   await expect(phrases.getByText('Saved.', { exact: false })).toBeVisible();
-  await expect(phrases.locator('.phrase')).toHaveCount(4);
+  await expect(phrases.locator('.phrases').first().locator('.phrase')).toHaveCount(4);
   await phrases.getByRole('button', { name: 'Rescan stored transcripts' }).click();
   await expect(phrases.getByText('Rescan started.', { exact: false })).toBeVisible();
   await page.goto('/status');
@@ -435,4 +435,46 @@ test('status and settings for the owner: health, activity, stats, phrases', asyn
   await expect(page.getByText('Instagram asked to slow down; waiting 15 min')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Monitor stats' })).toContainText('cpu per audio');
+});
+
+test('home in two parts: the owner’s dedicated highlights first, then the common ones', async ({ page }) => {
+  await page.goto('/');
+  const ded = page.getByRole('region', { name: 'About the owner' });
+  const com = page.getByRole('region', { name: 'Everything else' });
+  await expect(ded).toBeVisible();
+  await expect(com).toBeVisible();
+  const a = (await ded.boundingBox())!, b = (await com.boundingBox())!;
+  expect(a.y).toBeLessThan(b.y);
+  // Travel is dedicated: its highlight and its two items are in the first part.
+  await expect(ded.getByRole('navigation', { name: 'Highlights' }).getByRole('link')).toHaveText(['Travel']);
+  await expect(ded.getByRole('list', { name: 'Items in these highlights' }).locator('.tile')).toHaveCount(2);
+  await expect(com.getByRole('navigation', { name: 'Highlights' }).getByRole('link')).toHaveText(['Food', 'Ocean']);
+  // Published hits go to the section chosen at publish.
+  await expect(ded.getByRole('button', { name: /Fullscreen: City council/ })).toBeVisible();
+  await expect(com.getByRole('button', { name: /Fullscreen: Regional news/ })).toBeVisible();
+});
+
+test('detected: the suggested section and reason; + publishes into the chosen section', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/detected');
+  const card = page.locator('.mon-card').nth(2);
+  await expect(card).toContainText('Suggested section: About the owner');
+  await expect(card).toContainText('cooking segment like the owner');
+  const pick = card.getByLabel('Section for this hit');
+  await expect(pick).toHaveValue('dedicated');
+  await pick.selectOption('common');
+  await card.getByRole('button', { name: /Publish to Home in Everything else/ }).click();
+  await expect(card).toContainText('On Home · Everything else');
+});
+
+test('settings: suggested phrases from highlight names, accept and reject', async ({ page }) => {
+  await signIn(page);
+  const sugs = page.getByRole('region', { name: 'Suggested phrases' });
+  await expect(sugs.locator('.phrase')).toHaveCount(3);
+  await sugs.getByRole('button', { name: 'Accept “travel”' }).click();
+  await expect(page.getByRole('region', { name: 'Phrases the monitor listens for' }).locator('.phrases').first().locator('.phrase')).toHaveCount(4);
+  await sugs.getByRole('button', { name: 'Reject “food”' }).click();
+  await expect(sugs.locator('.phrase')).toHaveCount(1);
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Suggested phrases' }).locator('.phrase')).toHaveText([/travel/, /ocean/]); // the mock forgets an accepted phrase on reload; the rejection stays
 });

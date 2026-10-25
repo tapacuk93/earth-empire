@@ -18,6 +18,7 @@
   {
    "id": "hl_9001",
    "title": "Travel",
+   "section": "dedicated",
    "cover": "/mock/media/hl-travel.jpg",
    "item_ids": [
     "ig_3400000000000000003",

@@ -81,14 +81,15 @@ export async function getPublished(): Promise<Hit[]> {
   catch (e) { if (e instanceof ApiError && e.status === 404) return []; throw e; }
 }
 
-export async function setPublished(id: string, on: boolean): Promise<Hit> {
+export async function setPublished(id: string, on: boolean, section?: string): Promise<Hit> {
   if (MOCK) {
     ownerOk();
-    const h = (await mockHits()).find((x) => x.id === id)!;
+    const h = (await mockHits()).find((x) => x.id === id)! as Hit & { section?: string | null };
     h.published_at = on ? new Date().toISOString() : null;
+    h.section = on ? section || 'common' : null;
     return { ...h };
   }
-  return req<Hit>('POST', `/v1/monitor/hits/${encodeURIComponent(id)}/${on ? 'publish' : 'unpublish'}`);
+  return req<Hit>('POST', `/v1/monitor/hits/${encodeURIComponent(id)}/${on ? 'publish' : 'unpublish'}`, on && section ? { section } : undefined);
 }
 
 /** Ask the monitor to scan at least n more videos. */

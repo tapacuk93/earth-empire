@@ -5,7 +5,10 @@ import { Icon } from '../components/icons';
 import { TagCloud } from '../components/TagCloud';
 import { hitSlide } from '../components/MonitorCard';
 import { VideoFeed, type FeedVideo } from '../components/VideoFeed';
-import { getItems } from '../api';
+import { getHighlightItems, getItems } from '../api';
+import { Tile } from '../components/Feed';
+import { highlightSection, hitSection, SECTION_TITLE } from '../sections';
+import type { Highlight } from '../types';
 import { getPublished, titleOf, whatOf, type Hit } from '../monitor';
 import { useData } from '../components/Profile';
 import { fmtShort, posterOf, KIND_LABEL } from '../util';
@@ -78,12 +81,17 @@ export function Home({ route }: { route: Route }) {
 
   const cat = categories.data?.find((c) => c.slug === category);
   const published = useData(getPublished);
+  const pubDedicated = (published.data || []).filter((h) => hitSection(h) === 'dedicated');
+  const pubCommon = (published.data || []).filter((h) => hitSection(h) !== 'dedicated');
+  const hlDedicated = highlights.data?.filter((h) => highlightSection(h) === 'dedicated') || [];
+  const hlCommon = highlights.data?.filter((h) => highlightSection(h) !== 'dedicated');
+  const twoParts = hlDedicated.length > 0 || pubDedicated.length > 0;
   const watch = route.query.get('watch') || undefined;
   const [archive, setArchive] = useState<Item[]>();
   useEffect(() => { if (watch && !archive) archiveVideos().then(setArchive, () => setArchive([])); }, [watch]);
   const openWatch = (id?: string) => navigate(withParam(route, 'watch', id), { replace: !!watch || !id, keepScroll: true });
   const feed: FeedVideo[] = [
-    ...(published.data || []).map(hitSlide),
+    ...pubDedicated.map(hitSlide), ...pubCommon.map(hitSlide),
     ...(archive || []).map((it) => {
       const m = (it.media[0]?.type === 'video' ? it.media[0] : it.repost_of?.media?.[0])!;
       return { id: it.id, url: m.url, cover: posterOf(m), label: it.summary || it.caption || KIND_LABEL[it.kind],
@@ -95,8 +103,17 @@ export function Home({ route }: { route: Route }) {
     <>
       <ProfileHeader profile={profile.data} />
       {profile.error && <p class="error" role="alert">Could not load the profile: {profile.error.message}</p>}
-      <HighlightsRow highlights={highlights.data} />
-      {!!published.data?.length && <PublishedRow videos={published.data} onWatch={openWatch} />}
+      {twoParts && (
+        <section class="home-part" aria-labelledby="part-dedicated">
+          <h2 id="part-dedicated" class="part-h">{SECTION_TITLE.dedicated}</h2>
+          {pubDedicated.length > 0 && <PublishedRow id="pub-dedicated" videos={pubDedicated} onWatch={openWatch} />}
+          {hlDedicated.length > 0 && <><HighlightsRow highlights={hlDedicated} /><SectionItems highlights={hlDedicated} /></>}
+        </section>
+      )}
+      <section class="home-part" aria-labelledby={twoParts ? 'part-common' : undefined}>
+      {twoParts && <h2 id="part-common" class="part-h">{SECTION_TITLE.common}</h2>}
+      {pubCommon.length > 0 && <PublishedRow id="pub-common" videos={pubCommon} onWatch={openWatch} />}
+      <HighlightsRow highlights={hlCommon} />
       <div class="view-switch" role="group" aria-label="View">
         <button aria-pressed={view === 'tags'} onClick={() => pickView('tags')}>Tag cloud</button>
         <button aria-pressed={view === 'timeline'} onClick={() => pickView('timeline')}>Everything, by date</button>
@@ -112,6 +129,7 @@ export function Home({ route }: { route: Route }) {
       {view === 'tags' && <TagCloud active={tag} onPick={(t) => navigate(withParam(route, 'tag', t), { replace: true, keepScroll: true })} />}
       <Feed query={{ kind, category, q, tag: view === 'tags' ? tag : undefined }} layout={view === 'timeline' ? 'timeline' : 'grid'}
         emptyText={q ? `Nothing matches “${q}”.` : 'Nothing here yet.'} />
+      </section>
       {watch && archive && feed.length > 0 && (
         <VideoFeed title="Watch" videos={feed} start={watch === 'first' ? feed[0].id : watch} onClose={() => openWatch(undefined)}
           onIndex={(id) => history.replaceState(history.state, '', withParam(route, 'watch', id))} />
@@ -120,10 +138,23 @@ export function Home({ route }: { route: Route }) {
   );
 }
 
-function PublishedRow({ videos, onWatch }: { videos: Hit[]; onWatch: (id: string) => void }) {
+/** Every item of the given highlights, newest first. */
+function SectionItems({ highlights }: { highlights: Highlight[] }) {
+  const key = highlights.map((h) => h.id).join(',');
+  const items = useData(async () => {
+    const lists = await Promise.all(highlights.map((h) => getHighlightItems(h).catch(() => [] as Item[])));
+    const seen = new Map<string, Item>();
+    lists.flat().forEach((it) => seen.set(it.id, it));
+    return [...seen.values()].sort((a, b) => b.taken_at.localeCompare(a.taken_at));
+  }, [key]);
+  if (!items.data?.length) return null;
+  return <ul class="grid part-grid" role="list" aria-label="Items in these highlights">{items.data.map((it, i) => <Tile key={it.id} item={it} eager={i < 3} />)}</ul>;
+}
+
+function PublishedRow({ id, videos, onWatch }: { id: string; videos: Hit[]; onWatch: (id: string) => void }) {
   return (
-    <section aria-labelledby="pub-h">
-      <div class="section-head"><h2 id="pub-h">Detected and published</h2></div>
+    <section aria-labelledby={id}>
+      <div class="section-head"><h3 id={id}>Detected and published</h3></div>
       <ul class="mon-row" role="list">
         {videos.map((h) => {
           const img = h.frame || h.video?.thumbnail;

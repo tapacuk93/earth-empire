@@ -403,7 +403,7 @@ progress { accent-color: var(--accent); height: 8px; }
 .vfeed-nav .up { rotate: 90deg; } .vfeed-nav .down { rotate: 90deg; }
 @media (hover: none) { .vfeed-nav { display: none; } }
 .watch-btn { margin-left: 8px; }
-.owner-link { color: var(--muted); font-size: .8rem; }
+.owner-key { color: var(--muted); opacity: .6; } .owner-key:hover, .owner-key:focus-visible { opacity: 1; }
 .mon-what { font-size: .92rem; }
 .mon-quote { margin: 0 0 6px; padding: 6px 10px; border-left: 3px solid var(--accent-2); background: var(--surface-2); border-radius: 0 8px 8px 0; font-size: .92rem; }
 .mon-en { font-size: .88rem; color: var(--muted); }
@@ -414,3 +414,9 @@ progress { accent-color: var(--accent); height: 8px; }
 .fetch label { font-weight: 600; font-size: .9rem; }
 .fetch input { width: 5.5em; min-height: 40px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 16px; }
 .vfeed-info .mon-quote { background: rgb(255 255 255 / .12); color: #fff; }
+.home-part { margin: 8px 0 24px; }
+.part-h { font-size: clamp(1.15rem, 2.4vw, 1.5rem); margin: 18px 0 6px; padding-top: 12px; border-top: 1px solid var(--line); }
+.section-head h3 { margin: 0; font-size: 1rem; }
+.part-grid { margin-bottom: 12px; }
+.suggest { font-size: .88rem; margin: 4px 0; }
+.sec-pick { min-height: 36px; padding: 4px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 16px; }

@@ -52,12 +52,27 @@ def to_video(m: dict, parse) -> dict | None:
 
 
 def session_exists() -> bool:
+    """A logged-in Instagram session, judged without touching Instagram: a `sessionid` cookie in the
+    collector's profile, or in earth-empire/instagram-session. A profile that merely exists is not
+    enough - opening Instagram logged out only spends the account's rate limit."""
+    import sqlite3
     prof = Path(os.environ.get("EE_BROWSER_PROFILE", "/var/lib/earth-empire/browser/instagram"))
-    if any(prof.glob("Default/Cookies")) or (prof / "Default" / "Cookies").exists():
-        return True
+    for db_path in (prof / "Default" / "Cookies", prof / "Default" / "Network" / "Cookies"):
+        if db_path.exists():
+            try:
+                con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+                ok = con.execute("SELECT 1 FROM cookies WHERE host_key LIKE '%instagram.com' AND name='sessionid' "
+                                 "AND (expires_utc = 0 OR expires_utc > (strftime('%s','now') + 11644473600) * 1000000)"
+                                 ).fetchone()
+                con.close()
+                if ok:
+                    return True
+            except sqlite3.Error:
+                pass
     try:
         from eecollector.config import Secrets, Settings
-        return bool(Secrets(Settings()).session_state())
+        st = Secrets(Settings()).session_state()
+        return bool(st) and any(ck.get("name") == "sessionid" for ck in st.get("cookies", []))
     except Exception:  # noqa: BLE001
         return False
 

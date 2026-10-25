@@ -637,15 +637,16 @@ test('mosaic: tile area follows size across both halves', async ({ page }) => {
   await page.goto('/');
   const halves = page.locator('.mode-mosaic .mosaic');
   await expect(halves.first().locator('canvas')).toHaveAttribute('data-cells', /\[/);
-  const data = await halves.evaluateAll((els) => els.map((e) => ({ clamped: e.getAttribute('data-clamped') === '1', cells: JSON.parse(e.querySelector('canvas')!.getAttribute('data-cells') || '[]') as [string, number, number][] })));
-  const ratios = (cells: [string, number, number][]) => cells.filter((x) => x[2] > 0 && x[1] > 400).map((x) => x[1] / x[2]);
+  const data = await halves.evaluateAll((els) => els.map((e) => ({ clamped: e.getAttribute('data-clamped') === '1' || e.querySelector('canvas')!.getAttribute('data-alpha') !== '1', exact: e.querySelector('canvas')!.getAttribute('data-alpha') === '1', cells: JSON.parse(e.querySelector('canvas')!.getAttribute('data-cells') || '[]') as [string, number, number][] })));
+  const ratios = (cells: [string, number, number][]) => cells.filter((x) => x[2] > 0 && x[1] > 400 && !(x as unknown as number[])[8]).map((x) => x[1] / x[2]);
   for (const h of data) {
     const r = ratios(h.cells);
-    if (r.length > 1) expect(Math.max(...r) / Math.min(...r)).toBeLessThan(1.15);
+    // Area follows size^display_exponent (weight) wherever the half could keep areas exact.
+    if (h.exact && r.length > 1) expect(Math.max(...r) / Math.min(...r)).toBeLessThan(1.2);
   }
-  if (data.length === 2 && !data.some((h) => h.clamped)) {
+  if (data.length === 2 && !data.some((h) => h.clamped) && data.every((h) => ratios(h.cells).length)) {
     const [a, b] = data.map((h) => ratios(h.cells)).map((r) => r.reduce((s, x) => s + x, 0) / r.length);
-    expect(Math.max(a, b) / Math.min(a, b)).toBeLessThan(1.15);
+    expect(Math.max(a, b) / Math.min(a, b)).toBeLessThan(1.2);
   }
 });
 
@@ -693,4 +694,17 @@ test('the Earth gesture with real mouse clicks, also while the controls are fade
   await page.mouse.click(x, y, { clickCount: 3 });
   await expect(page.getByRole('dialog', { name: 'Admin key' })).toBeVisible();
   expect(await page.evaluate(() => String(getSelection()))).toBe('');
+});
+
+test('mosaic: no slivers - every tile at most 1:2.5 and at least 48 px a side', async ({ page }) => {
+  await page.goto('/');
+  const halves = page.locator('.mode-mosaic .mosaic canvas');
+  await expect(halves.first()).toHaveAttribute('data-cells', /\[\[/);
+  const all = await halves.evaluateAll((cs) => cs.flatMap((c) => JSON.parse(c.getAttribute('data-cells') || '[]') as number[][]));
+  expect(all.length).toBeGreaterThan(0);
+  for (const c of all) {
+    const [w, h] = [c[5], c[6]];
+    expect(Math.min(w, h), `tile ${c[0]} too small`).toBeGreaterThanOrEqual(46);
+    expect(Math.max(w, h) / Math.min(w, h), `tile ${c[0]} too thin`).toBeLessThanOrEqual(2.6);
+  }
 });

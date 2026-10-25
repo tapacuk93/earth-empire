@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { pack, type Mosaic, type Packed, type Tile } from '../layout';
+import { lastAlpha, pack, type Mosaic, type Packed, type Tile } from '../layout';
 import { navigate } from '../router';
 import { fmtShort } from '../util';
 import { attachPanZoom, claimPlayback, fitCanvas, image, savedViews, zoomBy, type View } from './zoom';
@@ -21,6 +21,13 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, x: number, y: number,
   }
   if (line) ctx.fillText(line, x, y);
 }
+
+/** A "more" tile: its videos in a small grid that grows as you zoom in, with a count until each is big enough. */
+function moreGrid(n: number, iw: number, ih: number) {
+  const cols = Math.max(1, Math.round(Math.sqrt((n * iw) / ih))), rows = Math.ceil(n / cols);
+  return { cols, rows, cw: iw / cols, ch: ih / rows };
+}
+let drawMore: (ctx: CanvasRenderingContext2D, more: Tile[], ix: number, iy: number, iw: number, ih: number) => void = () => undefined;
 
 /**
  * A packed, gapless mosaic of one half on a canvas: tiles fill the whole box at every zoom level
@@ -45,7 +52,8 @@ export function MosaicView({ mosaic, title, id, hrefFor, share, clamped }: { mos
     cells.current = pack(mosaic, w, h);
     // For tests and debugging: each video's area and weight (attached images left out).
     const c = canvas.current;
-    if (c) c.dataset.cells = JSON.stringify(cells.current.filter((p) => !p.tile.attachedTo && !mosaic.tiles.some((t) => t.attachedTo === p.tile.id)).map((p) => [p.tile.id, Math.round(p.w * p.h), +(p.tile.r * p.tile.r).toFixed(4), Math.round(p.x), Math.round(p.y), Math.round(p.w), Math.round(p.h), p.tile.video ? 1 : 0]));
+    if (c) c.dataset.alpha = String(lastAlpha);
+    if (c) c.dataset.cells = JSON.stringify(cells.current.map((p) => [p.tile.id, Math.round(p.w * p.h), +(p.tile.r * p.tile.r).toFixed(4), Math.round(p.x), Math.round(p.y), Math.round(p.w), Math.round(p.h), p.tile.video ? 1 : 0, p.tile.more ? 1 : 0]));
   };
   const clamp = () => {
     const v = view.current, { w, h } = size.current;
@@ -77,6 +85,7 @@ export function MosaicView({ mosaic, title, id, hrefFor, share, clamped }: { mos
       ctx.fillStyle = tileBg;
       ctx.fillRect(ix, iy, iw, ih);
       const t = p.tile;
+      if (t.more) { drawMore(ctx, t.more, ix, iy, iw, ih); continue; }
       if (Math.min(iw, ih) >= 10 && t.cover) {
         const img = image(t.cover, schedule);
         if (img) {
@@ -114,11 +123,39 @@ export function MosaicView({ mosaic, title, id, hrefFor, share, clamped }: { mos
           if (lines && t.text) { ctx.font = `400 ${fs}px system-ui, sans-serif`; wrap(ctx, t.text, ix + 8, iy + ih - 8 - (lines - 1) * fs * 1.3, iw - 16, fs * 1.3, lines); }
         }
       }
+      // Attached images: small insets in the video's corner, never cells of their own.
+      if (t.kids?.length && big >= 110) {
+        const kz = Math.round(big * 0.26), n = Math.min(t.kids.length, Math.max(1, Math.floor((iw - 16) / (kz + 4))), 3);
+        for (let k = 0; k < n; k++) {
+          const kx = ix + iw - 8 - (k + 1) * kz - k * 4, ky = iy + ih - 8 - kz - (big >= 140 ? 26 : 0);
+          ctx.fillStyle = '#fff'; ctx.fillRect(kx - 2, ky - 2, kz + 4, kz + 4);
+          const ki = t.kids[k].cover ? image(t.kids[k].cover!, schedule) : null;
+          if (ki) { const m = Math.min(ki.naturalWidth, ki.naturalHeight); ctx.drawImage(ki, (ki.naturalWidth - m) / 2, (ki.naturalHeight - m) / 2, m, m, kx, ky, kz, kz); }
+        }
+      }
       if (hover.current === p) { ctx.strokeStyle = fg; ctx.lineWidth = 3; ctx.strokeRect(ix + 1.5, iy + 1.5, iw - 3, ih - 3); }
     }
     placeVideo();
   };
   const schedule = () => { if (!raf.current) raf.current = requestAnimationFrame(draw); };
+  drawMore = (ctx, more, ix, iy, iw, ih) => {
+    const g = moreGrid(more.length, iw, ih);
+    more.forEach((t, i) => {
+      const x = ix + (i % g.cols) * g.cw, y = iy + Math.floor(i / g.cols) * g.ch;
+      const img = t.cover && Math.min(g.cw, g.ch) >= 8 ? image(t.cover, schedule) : null;
+      if (img) {
+        const ir = img.naturalWidth / img.naturalHeight || 1, cr = g.cw / g.ch;
+        let sw = img.naturalWidth, sh = img.naturalHeight;
+        if (ir > cr) sw = sh * cr; else sh = sw / cr;
+        ctx.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, x + 0.5, y + 0.5, g.cw - 1, g.ch - 1);
+      }
+    });
+    if (Math.min(g.cw, g.ch) < 48) {
+      ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(ix, iy, iw, ih);
+      ctx.fillStyle = '#fff'; ctx.font = `700 ${Math.max(12, Math.min(22, Math.min(iw, ih) / 4))}px system-ui, sans-serif`; ctx.textAlign = 'center';
+      ctx.fillText(`+${more.length}`, ix + iw / 2, iy + ih / 2 + 6); ctx.textAlign = 'start';
+    }
+  };
 
   const cellAt = (sx: number, sy: number) => {
     const v = view.current, wx = (sx - v.x) / v.k, wy = (sy - v.y) / v.k;
@@ -159,7 +196,23 @@ export function MosaicView({ mosaic, title, id, hrefFor, share, clamped }: { mos
     const off = attachPanZoom(c, view.current, {
       min: 1, max: MAXZ,
       onChange: changed,
-      onTap: (sx, sy) => { const p = cellAt(sx, sy); if (p) navigate(hrefFor(p.tile)); },
+      onTap: (sx, sy) => {
+        const p = cellAt(sx, sy);
+        if (!p) return;
+        if (!p.tile.more) { navigate(hrefFor(p.tile)); return; }
+        // A "more" tile: open the video under the finger once they are big enough, else zoom in on it.
+        const v = view.current, g = moreGrid(p.tile.more.length, p.w * v.k, p.h * v.k);
+        if (Math.min(g.cw, g.ch) >= 48) {
+          const col = Math.floor((sx - (p.x * v.k + v.x)) / g.cw), row = Math.floor((sy - (p.y * v.k + v.y)) / g.ch);
+          const t = p.tile.more[row * g.cols + col];
+          if (t) navigate(hrefFor(t));
+          return;
+        }
+        const { w: W, h: H } = size.current;
+        const k = Math.min(MAXZ, Math.max(v.k * 1.5, (48 * Math.max(g.cols, g.rows) * 1.2) / Math.min(p.w, p.h)));
+        Object.assign(v, { k, x: W / 2 - (p.x + p.w / 2) * k, y: H / 2 - (p.y + p.h / 2) * k });
+        changed();
+      },
       onHover: (sx, sy) => { const p = cellAt(sx, sy); setHover(p, 150); c.style.cursor = p ? 'pointer' : 'grab'; },
       onLeave: () => setHover(null),
     });

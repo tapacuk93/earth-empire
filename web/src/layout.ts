@@ -18,6 +18,8 @@ export interface Tile {
   date?: string;
   text: string;                       // short description
   tags: Set<string>;
+  more?: Tile[];                      // a "more" cluster: tiles too small to show on their own
+  kids?: Tile[];                      // attached images, drawn as insets inside the video's tile
 }
 export interface Group { name: string; x: number; y: number; r: number }
 export interface Mosaic { tiles: Tile[]; groups: Group[]; width: number; height: number }
@@ -325,36 +327,67 @@ function squarifyOrdered<T>(data: { v: number; d: T }[], x0: number, y0: number,
   return out;
 }
 
+export const MAX_ASPECT = 2.5;
+/** 1 when the last pack kept areas exactly proportional; lower when it had to even them out to avoid slivers. */
+export let lastAlpha = 1;
+export const MIN_SIDE = 48;
+
 /**
- * Packs a half into W×H with no free space: videos ordered along a Hilbert curve through their
- * similarity positions, areas by size (recency × importance), attached images in a slice of their
- * video's tile.
+ * Packs a half into W×H with no free space and no slivers. Videos run along a Hilbert curve through
+ * their similarity positions; each run of six is sorted by area and laid out as a squarified
+ * treemap, area ∝ weight (size ^ display_exponent). Any tile that would be thinner than 1:2.5 or
+ * smaller than 48 px a side joins a "more" tile, which shows its videos as you zoom in. Attached
+ * images are insets inside their video's tile, not cells of their own.
  */
 export function pack(m: Mosaic, W: number, H: number): Packed[] {
   const kids = new Map<string, Tile[]>();
   m.tiles.forEach((t) => { if (t.attachedTo) kids.set(t.attachedTo, [...(kids.get(t.attachedTo) || []), t]); });
   const parents = m.tiles.filter((t) => !t.attachedTo);
-  if (!parents.length) return [];
+  if (!parents.length || W <= 0 || H <= 0) return [];
+  parents.forEach((t) => { t.kids = kids.get(t.id); });
   let [x0, x1, y0, y1] = [Infinity, -Infinity, Infinity, -Infinity];
   parents.forEach((t) => { x0 = Math.min(x0, t.x); x1 = Math.max(x1, t.x); y0 = Math.min(y0, t.y); y1 = Math.max(y1, t.y); });
   const N = 256, sx = (x1 - x0) || 1, sy = (y1 - y0) || 1;
   const order = parents.map((t) => ({ t, h: hilbert(N, Math.min(N - 1, Math.floor(((t.x - x0) / sx) * (N - 1))), Math.min(N - 1, Math.floor(((t.y - y0) / sy) * (N - 1)))) }))
     .sort((a, b) => a.h - b.h).map((e) => e.t);
-  const cells = squarifyOrdered(order.map((t) => ({ v: t.r * t.r * (1 + 0.3 * (kids.get(t.id)?.length || 0)), d: t })), 0, 0, W, H);
-  const out: Packed[] = [];
-  for (const c of cells) {
-    const ks = kids.get(c.d.id) || [];
-    if (!ks.length) { out.push({ tile: c.d, x: c.x, y: c.y, w: c.w, h: c.h }); continue; }
-    // The video keeps most of its cell; its images share a strip along the long side.
-    if (c.w >= c.h) {
-      const sw = c.w * 0.26;
-      out.push({ tile: c.d, x: c.x, y: c.y, w: c.w - sw, h: c.h });
-      ks.forEach((k, i) => out.push({ tile: k, x: c.x + c.w - sw, y: c.y + (i * c.h) / ks.length, w: sw, h: c.h / ks.length }));
-    } else {
-      const sh = c.h * 0.26;
-      out.push({ tile: c.d, x: c.x, y: c.y, w: c.w, h: c.h - sh });
-      ks.forEach((k, i) => out.push({ tile: k, x: c.x + (i * c.w) / ks.length, y: c.y + c.h - sh, w: c.w / ks.length, h: sh }));
+  const w = (t: Tile) => t.r * t.r;
+  const minSide = Math.min(MIN_SIDE, Math.min(W, H) / 1.2);
+  const total = order.reduce((s, t) => s + w(t), 0);
+  // Tiles whose share of the area could never make a 48 px square start in the "more" tile.
+  const tooSmall = new Set(order.filter((t) => (w(t) / total) * W * H < minSide * minSide * 1.15));
+  const bad = (c: { w: number; h: number }) => Math.min(c.w, c.h) < minSide - 0.5 || Math.max(c.w, c.h) / Math.min(c.w, c.h) > MAX_ASPECT + 0.01;
+  const layoutWith = (fold: Set<Tile>, alpha: number) => {
+    const shown = order.filter((t) => !fold.has(t));
+    const hidden = order.filter((t) => fold.has(t));
+    const list: Tile[] = [...shown];
+    if (hidden.length) {
+      const cw = Math.max(hidden.reduce((s, t) => s + w(t), 0), (minSide * minSide * 1.6 / (W * H)) * (total || 1));
+      const first = hidden[0];
+      list.push({ ...first, id: `more:${first.id}`, r: Math.sqrt(cw), more: hidden, kids: undefined, group: '', text: `${hidden.length} more`, hit: undefined, item: undefined, video: undefined });
     }
+    // Runs of six along the curve, largest first in each run.
+    const runs: Tile[] = [];
+    for (let i = 0; i < list.length; i += 6) runs.push(...list.slice(i, i + 6).sort((a, b) => w(b) - w(a)));
+    return squarifyOrdered(runs.map((t) => ({ v: Math.pow(w(t), alpha), d: t })), 0, 0, W, H);
+  };
+  // First keep areas true to size and fold the smallest offenders into "more"; if too few tiles are
+  // left for this box, even the areas out step by step until every tile is a reasonable shape.
+  let cells = layoutWith(tooSmall, 1);
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const wrong = cells.filter((c) => bad(c));
+    if (!wrong.length) break;
+    const victims = wrong.filter((c) => !c.d.more).sort((a, b) => w(a.d) - w(b.d));
+    const left = order.filter((t) => !tooSmall.has(t)).length;
+    if (!victims.length || left <= 3) break;
+    tooSmall.add(victims[0].d);
+    cells = layoutWith(tooSmall, 1);
   }
-  return out;
+  let used = 1;
+  for (const alpha of [0.7, 0.45, 0.25, 0]) {
+    if (!cells.some((c) => bad(c))) break;
+    cells = layoutWith(tooSmall, alpha);
+    used = alpha;
+  }
+  lastAlpha = used;
+  return cells.map((c) => ({ tile: c.d, x: c.x, y: c.y, w: c.w, h: c.h }));
 }

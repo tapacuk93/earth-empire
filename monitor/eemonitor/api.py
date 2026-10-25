@@ -13,7 +13,7 @@ import logging
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import db, detect, registry, worker
+from . import db, detect, media, registry, worker
 
 log = logging.getLogger("ee.monitor.api")
 app = FastAPI(title="Earth Empire monitor", docs_url="/v1/monitor/docs", openapi_url="/v1/monitor/openapi.json",
@@ -27,18 +27,27 @@ def conn():
 
 
 def admin(request: Request):
+    """The owner: earth-empire/admin-token, the same check as the backend's require_admin."""
+    if request.method == "OPTIONS":
+        return
     auth = request.headers.get("authorization", "")
     try:
         from ee import config
         token = config.secret("admin_token")
+        placeholder = config.is_placeholder(token)
     except Exception:  # noqa: BLE001
-        token = None
+        token, placeholder = None, True
     if isinstance(token, dict):
         token = token.get("token") or token.get("value")
-    if not token:
-        raise HTTPException(503, "admin token not configured (earth-empire/admin-token)")
-    if not auth.startswith("Bearer ") or not hmac.compare_digest(auth[7:].strip().encode(), str(token).encode()):
+    if not token or placeholder or not auth.startswith("Bearer ") or \
+            not hmac.compare_digest(auth[7:].strip().encode(), str(token).encode()):
         raise HTTPException(401, "bad or missing admin token")
+
+
+# Every /v1/monitor/* route is the owner's; only /v1/published is public.
+from fastapi import APIRouter  # noqa: E402
+
+owner = APIRouter(dependencies=[Depends(admin)])
 
 
 def _at_url(platform: str, url: str, t: float) -> str:
@@ -75,7 +84,7 @@ def render(c, row) -> dict:
         "at_url": _at_url(v["platform"], v["url"], h["start"]) if v else None,
         "excerpt": {"text": h.get("excerpt"), "start": h.get("excerpt_start"), "end": h.get("excerpt_end"),
                     "language": h.get("language"), "en": h.get("excerpt_en")},
-        "clip": h.get("clip"), "frame": h.get("frame"),
+        "clip": media.url(row, h, "clip"), "frame": media.url(row, h, "frame"),
         "model": h.get("model"), "found_at": row["found_at"], "published_at": row["published_at"],
     }
 
@@ -93,13 +102,15 @@ def _offset(cur: str | None) -> int:
         raise HTTPException(400, "bad cursor") from None
 
 
-@app.get("/v1/monitor/hits")
+@owner.get("/v1/monitor/hits")
 def hits(kind: str | None = None, platform: str | None = None, source_kind: str | None = None,
          phrase: str | None = None, min_confidence: float = 0.0, published: bool | None = None,
          sort: str = Query("confidence", pattern="^(confidence|recent|posted)$"),
          before: str | None = None, limit: int = Query(30, ge=1, le=100)):
     c = conn()
     where, args = ["h.confidence >= ?"], [min_confidence]
+    if not source_kind:
+        where.append("v.source_kind != 'mirror'")   # the owner's own posts: only when asked for
     for col, val in (("h.kind", kind), ("v.platform", platform), ("v.source_kind", source_kind)):
         if val:
             vals = val.split(",")
@@ -119,7 +130,7 @@ def hits(kind: str | None = None, platform: str | None = None, source_kind: str 
     return {"hits": [render(c, r) for r in rows[:limit]], "next": _cursor(off + limit) if more else None}
 
 
-@app.get("/v1/monitor/hits/{hit_id}")
+@owner.get("/v1/monitor/hits/{hit_id}")
 def hit(hit_id: str):
     c = conn()
     r = c.execute("SELECT * FROM hits WHERE id=?", (hit_id,)).fetchone()
@@ -128,21 +139,25 @@ def hit(hit_id: str):
     return render(c, r)
 
 
-@app.post("/v1/monitor/hits/{hit_id}/publish", dependencies=[Depends(admin)])
+@owner.post("/v1/monitor/hits/{hit_id}/publish")
 def publish(hit_id: str):
     c = conn()
     if not c.execute("SELECT 1 FROM hits WHERE id=?", (hit_id,)).fetchone():
         raise HTTPException(404, "no such hit")
+    row = c.execute("SELECT * FROM hits WHERE id=?", (hit_id,)).fetchone()
+    media.publish(row, json.loads(row["data"]))
     c.execute("UPDATE hits SET published_at=COALESCE(published_at, ?) WHERE id=?", (db.now(), hit_id))
     return render(c, c.execute("SELECT * FROM hits WHERE id=?", (hit_id,)).fetchone())
 
 
-@app.post("/v1/monitor/hits/{hit_id}/unpublish", dependencies=[Depends(admin)])
+@owner.post("/v1/monitor/hits/{hit_id}/unpublish")
 def unpublish(hit_id: str):
     c = conn()
     if not c.execute("SELECT 1 FROM hits WHERE id=?", (hit_id,)).fetchone():
         raise HTTPException(404, "no such hit")
+    row = c.execute("SELECT * FROM hits WHERE id=?", (hit_id,)).fetchone()
     c.execute("UPDATE hits SET published_at=NULL WHERE id=?", (hit_id,))
+    media.unpublish(row, json.loads(row["data"]))
     return render(c, c.execute("SELECT * FROM hits WHERE id=?", (hit_id,)).fetchone())
 
 
@@ -155,7 +170,7 @@ def published(before: str | None = None, limit: int = Query(30, ge=1, le=100)):
     return {"hits": [render(c, r) for r in rows[:limit]], "next": _cursor(off + limit) if len(rows) > limit else None}
 
 
-@app.post("/v1/monitor/fetch")
+@owner.post("/v1/monitor/fetch")
 async def fetch(request: Request):
     try:
         body = await request.json()
@@ -172,7 +187,7 @@ async def fetch(request: Request):
     return worker.fetch_request(c, n, {"platform": body.get("platform"), "source_kind": body.get("source_kind")})
 
 
-@app.get("/v1/monitor/sources")
+@owner.get("/v1/monitor/sources")
 def sources(platform: str | None = None, source_kind: str | None = None):
     c = conn()
     out = []
@@ -195,7 +210,7 @@ def sources(platform: str | None = None, source_kind: str | None = None):
     return {"sources": out}
 
 
-@app.post("/v1/monitor/sources", dependencies=[Depends(admin)])
+@owner.post("/v1/monitor/sources")
 async def add_source(request: Request):
     try:
         return registry.add_owner_source(conn(), await request.json())
@@ -203,12 +218,12 @@ async def add_source(request: Request):
         raise HTTPException(400, str(e)) from None
 
 
-@app.get("/v1/monitor/phrases")
+@owner.get("/v1/monitor/phrases")
 def get_phrases():
     return {"phrases": worker.list_phrases(conn())}
 
 
-@app.put("/v1/monitor/phrases", dependencies=[Depends(admin)])
+@owner.put("/v1/monitor/phrases")
 async def put_phrases(request: Request):
     body = await request.json()
     ps = body.get("phrases") if isinstance(body, dict) else None
@@ -221,7 +236,7 @@ async def put_phrases(request: Request):
     return {"phrases": out}
 
 
-@app.post("/v1/monitor/rescan", dependencies=[Depends(admin)])
+@owner.post("/v1/monitor/rescan")
 def rescan():
     c = conn()
     db.set_setting(c, "rescan.requested", db.now())
@@ -229,7 +244,14 @@ def rescan():
     return {"ok": True, "videos": n}
 
 
-@app.get("/v1/monitor/videos")
+@owner.get("/v1/monitor/learning")
+def learning():
+    """Misses and improvements: the mirror of tapacuk93's Instagram as ground truth."""
+    from . import learn
+    return learn.report(conn())
+
+
+@owner.get("/v1/monitor/videos")
 def videos(state: str | None = None, platform: str | None = None, limit: int = Query(50, ge=1, le=200)):
     c = conn()
     where, args = ["1=1"], []
@@ -252,7 +274,13 @@ def videos(state: str | None = None, platform: str | None = None, limit: int = Q
     return {"videos": out}
 
 
-@app.get("/v1/monitor/status")
+def _learning_summary(c) -> dict:
+    from . import learn
+    r = learn.report(c)
+    return {k: r[k] for k in ("checked", "matched", "found_first", "recall", "misses_by_cause")}
+
+
+@owner.get("/v1/monitor/status")
 def status():
     c = conn()
     states = {}
@@ -280,7 +308,11 @@ def status():
                                                "claude.daily_usd", "rec.daily_expansions", "whisper.model")},
         "requests": [dict(r) for r in c.execute("SELECT * FROM requests WHERE done_at IS NULL")],
         "stops": stops,
+        "learning": _learning_summary(c),
         "last_scans": [dict(r) for r in c.execute(
             "SELECT id, platform, scanned_at, audio_s, (SELECT COUNT(*) FROM hits h WHERE h.video_id=videos.id) hits "
             "FROM videos WHERE state='done' ORDER BY scanned_at DESC LIMIT 5")],
     }
+
+
+app.include_router(owner)

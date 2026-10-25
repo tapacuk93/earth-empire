@@ -66,6 +66,19 @@ CREATE TABLE IF NOT EXISTS stops (            -- a platform paused: checkpoint, 
   platform TEXT PRIMARY KEY, kind TEXT NOT NULL, message TEXT, at TEXT NOT NULL, until TEXT
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS mirror_checks (       -- every mirrored item (the owner's posts, reposts' originals) checked
+  video_id TEXT PRIMARY KEY, item_id TEXT, at TEXT NOT NULL, matched INTEGER NOT NULL,
+  found_first INTEGER NOT NULL DEFAULT 0, independent_video TEXT, detail TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS misses (
+  id INTEGER PRIMARY KEY, at TEXT NOT NULL, video_id TEXT, item_id TEXT, kind TEXT, phrase TEXT,
+  cause TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '{}'
+);
+CREATE TABLE IF NOT EXISTS improvements (
+  id INTEGER PRIMARY KEY, at TEXT NOT NULL, cause TEXT, change TEXT NOT NULL, reason TEXT NOT NULL,
+  applied INTEGER NOT NULL,          -- 1 made automatically (within bounds), 0 a suggestion for the owner
+  detail TEXT NOT NULL DEFAULT '{}'
+);
 CREATE TABLE IF NOT EXISTS phrases (            -- what to listen for; variants generated on save
   text TEXT PRIMARY KEY, position INTEGER NOT NULL DEFAULT 0, compiled TEXT NOT NULL,
   claude_variants TEXT NOT NULL DEFAULT '[]', updated_at TEXT NOT NULL
@@ -127,6 +140,9 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     c.executescript(SCHEMA)
     for k, v in DEFAULTS.items():
         c.execute("INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)", (k, v))
+    cols = {r["name"] for r in c.execute("PRAGMA table_info(accounts)")}
+    if "priority" not in cols:
+        c.execute("ALTER TABLE accounts ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
     return c
 
 

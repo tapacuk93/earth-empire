@@ -226,6 +226,22 @@ def find_name(transcript: dict, min_confidence: float = 0.03, phrases: list[dict
     return hits
 
 
+def _language_units(transcript: dict) -> list[dict]:
+    """Chunks, with a chunk split into its windows where the transcriber identified those too."""
+    out = []
+    for ch in transcript.get("chunks", []):
+        wins = ch.get("windows")
+        if not wins:
+            out.append(ch)
+            continue
+        for w in wins:
+            words = [x for x in ch.get("words") or [] if x[1] >= w["start"] - 0.2 and x[1] < w["end"]]
+            out.append({**ch, "start": w["start"], "end": w["end"], "speech_s": w["end"] - w["start"],
+                        "lang": w["lang"], "probs": w["probs"], "words": words,
+                        "text": "".join(x[0] for x in words).strip(), "windows": None})
+    return out
+
+
 def _script_evidence(text: str, target: str) -> tuple[float, str | None]:
     letters = set(text.lower())
     uk, ru = bool(letters & UK_ONLY), bool(letters & RU_ONLY)
@@ -253,7 +269,7 @@ def find_language(transcript: dict, expected: list[str], min_seconds: float = 3.
         if target in expected:
             continue
         runs, cur = [], None
-        for ch in transcript.get("chunks", []):
+        for ch in _language_units(transcript):
             probs = ch.get("probs") or {}
             p = probs.get(target, 0.0)
             east = sum(probs.get(l, 0.0) for l in EAST_SLAVIC)

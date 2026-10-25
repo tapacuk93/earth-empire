@@ -14,6 +14,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE.parents[1] / "collector"))
+sys.path.insert(0, str(HERE.parents[1] / "backend"))
+os.environ["EE_SECRET_ADMIN_TOKEN"] = "secret-admin"
 TMP = tempfile.mkdtemp()
 os.environ["EE_MONITOR_DB"] = str(Path(TMP) / "m.sqlite3")
 os.environ["EE_BACKEND_DB"] = str(Path(TMP) / "backend.sqlite3")
@@ -87,23 +89,32 @@ def test_language_mismatch_hit():
 
 def test_publish_flow():
     from fastapi.testclient import TestClient
-    os.environ["EE_SECRET_ADMIN_TOKEN"] = "secret-admin"
     cl = TestClient(api.app)
-    hid = cl.get("/v1/monitor/hits").json()["hits"][0]["id"]
-    assert cl.post(f"/v1/monitor/hits/{hid}/publish").status_code in (401, 503)
-    sys.modules.pop("ee", None)
-    r = cl.post(f"/v1/monitor/hits/{hid}/publish", headers={"Authorization": "Bearer secret-admin"})
-    if r.status_code == 503:   # the backend package is not installed here
-        c().execute("UPDATE hits SET published_at=? WHERE id=?", (db.now(), hid))
-    else:
-        assert r.status_code == 200 and r.json()["published_at"]
+    auth = {"Authorization": "Bearer secret-admin"}
+    for path in ("/v1/monitor/hits", "/v1/monitor/sources", "/v1/monitor/phrases", "/v1/monitor/status"):
+        assert cl.get(path).status_code == 401, path
+        assert cl.get(path, headers={"Authorization": "Bearer wrong"}).status_code == 401, path
+    assert cl.post("/v1/monitor/fetch", json={"n": 3}).status_code == 401
+    hid = cl.get("/v1/monitor/hits", headers=auth).json()["hits"][0]["id"]
+    assert cl.post(f"/v1/monitor/hits/{hid}/publish").status_code == 401
+    r = cl.post(f"/v1/monitor/hits/{hid}/publish", headers=auth)
+    assert r.status_code == 200 and r.json()["published_at"]
     pub = cl.get("/v1/published").json()["hits"]
     assert [p["id"] for p in pub] == [hid]
-    assert cl.get("/v1/monitor/phrases").json()["phrases"][0]["text"] == "тарас"
-    st = cl.get("/v1/monitor/status").json()
+    assert cl.get("/v1/monitor/phrases", headers=auth).json()["phrases"][0]["text"] == "тарас"
+    st = cl.get("/v1/monitor/status", headers=auth).json()
     assert st["scanned_total"] >= 1
-    r = cl.post("/v1/monitor/fetch", json={"n": 3})
+    r = cl.post("/v1/monitor/fetch", json={"n": 3}, headers=auth)
     assert r.status_code == 200 and r.json()["n"] == 3
+
+
+def test_media_urls():
+    from eemonitor import media
+    row = {"id": "h_x", "published_at": "2026-01-01T00:00:00Z"}
+    h = {"clip_key": "monitor/clips/h_x.mp3"}
+    assert media.url(row, h, "clip") == "https://media.empire.earth/monitor/public/h_x.mp3"
+    assert media.url(row, h, "frame") is None
+    assert media.private_key({"clip": "https://media.empire.earth/monitor/clips/h_y.mp3"}, "clip") == "monitor/clips/h_y.mp3"
 
 
 def test_instagram_media_to_video():
@@ -161,6 +172,7 @@ def test_expand_instagram_seed_with_fake_browser(monkeypatch):
         def account_videos(self, author, uid=None):
             return [], None
 
+    c().execute("UPDATE videos SET state='done' WHERE source_kind='reposted'")
     monkeypatch.setattr(instagram, "Instagram", FakeIG)
     monkeypatch.setattr(instagram, "session_exists", lambda: True)
     assert worker.expand_one(c()) == 1
@@ -169,3 +181,38 @@ def test_expand_instagram_seed_with_fake_browser(monkeypatch):
     hits = api.hits(kind=None, platform=None, source_kind="recommended", phrase=None, min_confidence=0,
                     published=None, sort="confidence", before=None, limit=10)
     assert hits["hits"] == []
+
+
+def test_learning_unknown_source_and_missing_variant():
+    from eemonitor import learn
+    # 1. a repost's original from an author the monitor never watched: a miss, the source is raised
+    mv = c().execute("SELECT * FROM videos WHERE source_kind='reposted'").fetchone()
+    tr = transcript("и отдельно спасибо Тарасу Маслову за помощь")
+    hits = worker.detect_all(c(), mv, tr)
+    res = learn.evaluate(c(), mv, hits, tr)
+    assert res["matched"] and not res["found_first"] and "source_not_in_registry" in res["misses"]
+    acc = c().execute("SELECT * FROM accounts WHERE handle='somejournalist'").fetchone()
+    assert acc["priority"] >= 1
+    imp = c().execute("SELECT * FROM improvements WHERE cause='source_not_in_registry'").fetchone()
+    assert imp and imp["applied"] == 1 and "somejournalist" in imp["change"]
+    # 2. the monitor had the same video (same Instagram pk) but only a fuzzy word: the variant is learned
+    worker.insert_video(c(), {"id": "ig:777", "platform": "instagram", "url": "https://www.instagram.com/reel/Qq/",
+                              "media_url": "https://cdn/q.mp4", "extra": {"code": "Qq"}},
+                        {"id": acc["id"], "source_id": acc["source_id"]}, "followed")
+    c().execute("UPDATE videos SET state='done', transcript=?, discovered_at='2026-01-01T00:00:00Z' WHERE id='ig:777'",
+                (worker.store_transcript(transcript("we thank Tharas for the help", "en")),))
+    worker.insert_video(c(), {"id": "mirror:ig:777", "platform": "instagram", "url": "https://www.instagram.com/reel/Qq/",
+                              "media_url": "https://media.empire.earth/x.mp4",
+                              "extra": {"pk": "777", "code": "Qq", "author": "somejournalist"}},
+                        None, "reposted", via="ig_story_2")
+    mv2 = c().execute("SELECT * FROM videos WHERE id='mirror:ig:777'").fetchone()
+    tr2 = transcript("we thank Tharas for the help", "en")
+    hits2 = worker.detect_all(c(), mv2, tr2)
+    assert hits2 and hits2[0]["matched"] == "Tharas"
+    res2 = learn.evaluate(c(), mv2, hits2, tr2)
+    assert res2["misses"] == ["variant_missing"]
+    assert "tharas" in worker.list_phrases(c())[0]["claude_variants"]
+    again = worker.detect_all(c(), mv2, tr2)
+    assert again[0]["scores"]["sound"] >= 0.6   # now a known spelling
+    rep = learn.report(c())
+    assert rep["matched"] == 2 and rep["found_first"] == 0 and rep["misses_by_cause"]["variant_missing"] == 1

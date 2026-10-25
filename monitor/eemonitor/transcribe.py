@@ -84,7 +84,20 @@ def transcribe(path: str, model_name: str = "small", beam_size: int = 1, max_chu
                 words.append([w.word, round(off + w.start, 2), round(off + w.end, 2), round(w.probability, 3)])
         probs = {k: round(v, 4) for k, v in (info.all_language_probs or [])[:6]}
         speech += sp
+        windows = None
+        other = {"ru": "uk", "uk": "ru"}.get(info.language)
+        if other and (e - s) / SR > 7 and probs.get(other, 0) >= 0.03:
+            # Russian and Ukrainian mixed in one chunk: identify the language of ~6 s windows too
+            windows = []
+            n = max(2, round((e - s) / SR / 6))
+            step = (e - s) // n
+            for k in range(n):
+                a, b = s + k * step, s + (k + 1) * step if k < n - 1 else e
+                lang, lp_, allp = m.detect_language(audio=audio[a:b])
+                windows.append({"start": round(a / SR, 2), "end": round(b / SR, 2), "lang": lang,
+                                "probs": {x: round(y, 4) for x, y in allp[:6]}})
         result["chunks"].append({
+            "windows": windows,
             "start": round(off, 2), "end": round(e / SR, 2), "speech_s": round(sp, 2),
             "lang": info.language, "lang_prob": round(info.language_probability, 3), "probs": probs,
             "text": " ".join(texts), "words": words,

@@ -128,3 +128,12 @@ def test_mishearing_is_low_but_kept():
 def test_dropped_vowel_in_full_phrase():
     hits = detect.find_name({"chunks": [tr("including Tars Maslov, who spoke")]}, phrases=phr())
     assert hits[0]["phrase"] == "тарас маслов" and hits[0]["matched"] == "Tars Maslov,"
+
+
+def test_language_windows_inside_a_chunk():
+    ch = tr("Добрый день начинаем Шановні колеги дякую за запрошення Україна готова до діалогу", "ru",
+            {"ru": 0.8, "uk": 0.1})
+    ch["windows"] = [{"start": 0.0, "end": 1.2, "lang": "ru", "probs": {"ru": 0.9}},
+                     {"start": 1.2, "end": 6.0, "lang": "uk", "probs": {"uk": 0.7, "ru": 0.25}}]
+    h = detect.find_language({"chunks": [ch]}, ["ru"])
+    assert h and h[0]["language"] == "uk" and h[0]["start"] == 1.2

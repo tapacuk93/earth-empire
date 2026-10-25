@@ -45,7 +45,13 @@ def heartbeat(c=None, event: str | None = None, kind: str | None = None, ok: boo
         tok = config.secret("ingest_token")
         tok = tok.get("token") or tok.get("value") if isinstance(tok, dict) else tok
         c = c or db.connect()
-        detail = {"scanned": c.execute("SELECT COUNT(*) n FROM videos WHERE state='done'").fetchone()["n"],
+        from . import learn
+        lr = learn.report(c)
+        detail = {"recall_mirror": lr["recall"] if lr["recall"] is not None else "n/a",
+                  "mirror_matched": lr["matched"], "mirror_found_first": lr["found_first"],
+                  "misses": sum(lr["misses_by_cause"].values()),
+                  "improvements": c.execute("SELECT COUNT(*) n FROM improvements WHERE applied=1").fetchone()["n"],
+                  "scanned": c.execute("SELECT COUNT(*) n FROM videos WHERE state='done'").fetchone()["n"],
                   "queued": c.execute("SELECT COUNT(*) n FROM videos WHERE state='queued'").fetchone()["n"],
                   "hits": c.execute("SELECT COUNT(*) n FROM hits").fetchone()["n"],
                   "audio_min_today": round(db.used(c, "audio_min.main") + db.used(c, "audio_min.recommended"), 1),
@@ -213,6 +219,7 @@ def poll_account(c, a, fb=None, ig=None) -> int:
     new = 0
     for i, v in enumerate(vids):
         auto = (i < latest_n) if first else (v.get("posted_at") or "") >= recent_cut
+        auto = auto or (a["priority"] or 0) > 0 and i < 4 * latest_n
         requested = not v.get("blocked") and not auto and backfill and _claim_requested(c, platform)
         if insert_video(c, v, a, sk, queue=auto and not v.get("blocked"), requested=requested):
             new += 1
@@ -437,11 +444,12 @@ def detect_all(c, v, tr: dict) -> list[dict]:
 
 
 def upload(path: Path, key: str, ctype: str) -> str | None:
+    """Private until published (CONTRACT.md "Monitor media"): returns the S3 key."""
     try:
         import boto3
         boto3.client("s3", region_name=os.environ.get("AWS_REGION", "us-east-1")).upload_file(
-            str(path), MEDIA_BUCKET, key, ExtraArgs={"ContentType": ctype, "CacheControl": "public, max-age=31536000"})
-        return f"{MEDIA_BASE}/{key}"
+            str(path), MEDIA_BUCKET, key, ExtraArgs={"ContentType": ctype, "CacheControl": "private, max-age=3600"})
+        return key
     except Exception as e:  # noqa: BLE001
         log.warning("upload %s failed: %s", key, e)
         return None
@@ -455,12 +463,12 @@ def make_clip(src: Path, hid: str, start: float, end: float, work: Path) -> dict
     mp3 = work / f"{hid}.mp3"
     if subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-ss", f"{s:.2f}", "-t", f"{d:.2f}", "-i", str(src),
                        "-vn", "-ac", "1", "-b:a", "64k", str(mp3)], timeout=120).returncode == 0 and mp3.exists():
-        out["clip"] = upload(mp3, f"monitor/clips/{hid}.mp3", "audio/mpeg")
+        out["clip_key"] = upload(mp3, f"monitor/clips/{hid}.mp3", "audio/mpeg")
     jpg = work / f"{hid}.jpg"
     if subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-ss", f"{start:.2f}", "-i", str(src),
                        "-frames:v", "1", "-vf", "scale='min(640,iw)':-2", str(jpg)],
                       timeout=120, capture_output=True).returncode == 0 and jpg.exists():
-        out["frame"] = upload(jpg, f"monitor/frames/{hid}.jpg", "image/jpeg")
+        out["frame_key"] = upload(jpg, f"monitor/frames/{hid}.jpg", "image/jpeg")
     return out
 
 
@@ -476,7 +484,7 @@ def save_hits(c, v, hits: list[dict], model: str, keep_media: bool = True) -> in
         h["model"] = model
         if hid in old:
             prev = json.loads(old[hid]["data"])
-            for k in ("clip", "frame", "excerpt_en", "judge"):
+            for k in ("clip_key", "frame_key", "clip", "frame", "excerpt_en", "judge"):
                 if prev.get(k) and not h.get(k):
                     h[k] = prev[k]
         c.execute("""INSERT INTO hits(id, video_id, kind, start, "end", confidence, data, found_at)
@@ -497,7 +505,9 @@ def scan(c, v) -> None:
     try:
         src = download(c, v, work)
         set_job(f"scanning a {v['platform']} video", "transcribing")
-        tr = transcribe.transcribe(str(src), db.setting(c, "whisper.model"), int(db.fsetting(c, "whisper.beam_size")))
+        model_name = (db.setting(c, f"whisper.model.source.{v['source_id']}") if v["source_id"] else "") \
+            or db.setting(c, "whisper.model")
+        tr = transcribe.transcribe(str(src), model_name, int(db.fsetting(c, "whisper.beam_size")))
         minutes = tr["duration"] / 60
         db.add_usage(c, "audio_min.recommended" if v["source_kind"] == "recommended" else "audio_min.main", minutes)
         hits = detect_all(c, v, tr)
@@ -511,6 +521,14 @@ def scan(c, v) -> None:
                 if h["confidence"] >= 0.03:
                     h.update(make_clip(src, hit_id(vid, h), h["start"], h["end"], work))
         save_hits(c, v, hits, tr["model"])
+        if v["source_kind"] in ("mirror", "reposted"):
+            from . import learn
+            try:
+                res = learn.evaluate(c, v, hits, tr)
+                if res["misses"]:
+                    heartbeat(c, f"missed a mirrored match ({', '.join(res['misses'])}); improved", "learn")
+            except Exception as e:  # noqa: BLE001
+                log.warning("learn.evaluate failed: %s", e)
         c.execute("""UPDATE videos SET state='done', scanned_at=?, transcript=?, languages=?, audio_s=?, cpu_s=?,
                      model=?, error=NULL, duration=COALESCE(duration, ?) WHERE id=?""",
                   (db.now(), store_transcript(tr), db.j(transcribe.languages(tr)), tr["duration"], tr["cpu_s"],
@@ -558,9 +576,17 @@ def rescan(c) -> dict:
 
 
 # ------------------------------------------------------------------ recommendations
+def _media_url(u: str) -> str:
+    key = u[4:] if u.startswith("key:") else u
+    return key if key.startswith("http") else f"{MEDIA_BASE}/{key.lstrip('/')}"
+
+
 def repost_seeds(c) -> int:
-    """The owner's reposts (backend items with `repost_of`): the original is scanned from its re-hosted
-    copy on media.empire.earth, its author becomes a source, and it seeds recommendations."""
+    """The mirror of tapacuk93's Instagram (backend items, read-only) as ground truth and seeds:
+    - a repost's original: scanned from its re-hosted copy (`reposted`), its author becomes a source,
+      and it seeds recommendations;
+    - the owner's own video posts: scanned as `mirror` (not shown among hits by default).
+    After each scan learn.evaluate() checks whether the monitor had found it first."""
     import sqlite3
     if not os.path.exists(BACKEND_DB):
         return 0
@@ -568,33 +594,46 @@ def repost_seeds(c) -> int:
     b.row_factory = sqlite3.Row
     n = 0
     try:
-        rows = b.execute("SELECT id, data FROM items WHERE json_extract(data, '$.repost_of') IS NOT NULL").fetchall()
+        rows = b.execute("SELECT id, data FROM items").fetchall()
     finally:
         b.close()
     for r in rows:
-        rep = json.loads(r["data"]).get("repost_of") or {}
-        ex = rep.get("extra") or {}
-        pk = ex.get("pk") or rep.get("shortcode")
-        author = rep.get("author")
-        for i, m in enumerate(rep.get("media") or []):
+        item = json.loads(r["data"])
+        rep = item.get("repost_of") or {}
+        if rep:
+            ex = rep.get("extra") or {}
+            pk = ex.get("pk") or rep.get("shortcode")
+            author = rep.get("author")
+            for i, m in enumerate(rep.get("media") or []):
+                if m.get("type") != "video" or not m.get("url"):
+                    continue
+                sid = None
+                if author:
+                    sid = "ig_" + registry.slug(author)
+                    registry.upsert_source(c, sid, rep.get("author_name") or author, "reposted_author", "repost")
+                    registry.upsert_account(c, sid, "instagram", author, ex.get("author_id"))
+                v = {"id": f"mirror:ig:{pk}" + (f"#{i}" if i else ""), "platform": "instagram",
+                     "url": rep.get("source_url") or f"https://www.instagram.com/p/{rep.get('shortcode')}/",
+                     "media_url": _media_url(m["url"]), "title": (rep.get("caption") or "")[:300] or None,
+                     "posted_at": rep.get("taken_at"), "duration": m.get("duration"), "thumbnail": m.get("thumbnail"),
+                     "extra": {"pk": ex.get("pk"), "code": rep.get("shortcode"), "author": author,
+                               "author_name": rep.get("author_name"), "author_id": ex.get("author_id"),
+                               "seed_item": r["id"]}}
+                if insert_video(c, v, None, "reposted", via=r["id"], hop=0, source_id=sid, queue=True):
+                    n += 1
+        for i, m in enumerate(item.get("media") or []):
             if m.get("type") != "video" or not m.get("url"):
                 continue
-            key = m["url"][4:] if m["url"].startswith("key:") else m["url"]
-            url = key if key.startswith("http") else f"{MEDIA_BASE}/{key.lstrip('/')}"
-            sid = None
-            if author:
-                sid = "ig_" + registry.slug(author)
-                registry.upsert_source(c, sid, rep.get("author_name") or author, "reposted_author", "repost")
-                registry.upsert_account(c, sid, "instagram", author, ex.get("author_id"))
-            v = {"id": f"ig:{pk}" + (f"#{i}" if i else ""), "platform": "instagram",
-                 "url": rep.get("source_url") or f"https://www.instagram.com/p/{rep.get('shortcode')}/",
-                 "media_url": url, "title": (rep.get("caption") or "")[:300] or None, "posted_at": rep.get("taken_at"),
-                 "duration": m.get("duration"), "thumbnail": m.get("thumbnail"),
-                 "extra": {"pk": ex.get("pk"), "code": rep.get("shortcode"), "author": author, "seed_item": r["id"]}}
-            if insert_video(c, v, None, "reposted", via=r["id"], hop=0, source_id=sid, queue=True):
+            v = {"id": f"mirror:{r['id']}#{i}", "platform": "instagram",
+                 "url": item.get("source_url") or f"https://empire.earth/items/{r['id']}",
+                 "media_url": _media_url(m["url"]), "title": (item.get("caption") or "")[:300] or None,
+                 "posted_at": item.get("taken_at"), "duration": m.get("duration"), "thumbnail": None,
+                 "extra": {"code": item.get("shortcode"), "item": r["id"], "author": "tapacuk93"}}
+            if insert_video(c, v, None, "mirror", via=r["id"], hop=0, queue=True):
+                c.execute("UPDATE videos SET priority=-1 WHERE id=?", (v["id"],))
                 n += 1
     if n:
-        ev("repost_seeds", added=n)
+        ev("mirror_seeds", added=n)
     return n
 
 
@@ -606,7 +645,7 @@ def expand_one(c) -> int:
     if db.used(c, "rec.expansions") >= db.fsetting(c, "rec.daily_expansions"):
         return 0
     max_hops = int(db.fsetting(c, "rec.max_hops"))
-    seed = c.execute("""SELECT v.*, NULL AS hit_id, NULL AS conf FROM videos v WHERE v.source_kind='reposted' AND v.expanded=0
+    seed = c.execute("""SELECT v.*, NULL AS hit_id, NULL AS conf FROM videos v WHERE v.source_kind='reposted' AND v.expanded=0 AND v.state='done'
                         AND v.platform IN ('instagram','facebook') ORDER BY v.discovered_at LIMIT 1""").fetchone()
     if not seed:
         seed = c.execute("""SELECT v.*, h.id AS hit_id, h.confidence AS conf FROM hits h JOIN videos v ON v.id=h.video_id

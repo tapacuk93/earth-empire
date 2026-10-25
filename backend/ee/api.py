@@ -376,6 +376,61 @@ async def heartbeat(request: Request):
     return {"ok": True}
 
 
+SIZE_KEYS = {"half_life_days": "size.half_life_days", "age_floor": "size.age_floor",
+             "importance_w": "size.importance_w"}
+PLACEMENT_KEYS = ("post", "dedicated", "shared", "repost", "story", "hit_top", "hit_bottom")
+
+
+def _settings_view(c) -> dict:
+    from . import rubric
+    cur = rubric.current(c)
+    return {
+        "size": {k: float(db.setting(c, v)) for k, v in SIZE_KEYS.items()},
+        "placement": {k: float(db.setting(c, f"placement.{k}")) for k in PLACEMENT_KEYS},
+        "rubric": {"version": cur["version"], "text": cur["text"], "reason": cur["reason"], "by": cur["by"],
+                   "history": rubric.history(c)},
+        "rubric_review": db.setting(c, "importance.rubric_review") == "1",
+        "formula": "size = placement × max(age_floor, 0.5 ** (age_days / half_life_days)) × (1 − w + w × importance)",
+    }
+
+
+@app.get("/v1/admin/settings", dependencies=[Depends(require_admin)])
+def admin_settings():
+    """The owner's Settings screen: the size formula's parameters and the importance rubric."""
+    return _settings_view(conn())
+
+
+@app.put("/v1/admin/settings", dependencies=[Depends(require_admin)])
+async def admin_settings_put(request: Request):
+    """Partial update: {"size": {...}, "placement": {...}, "rubric": {"text", "reason"?}, "rubric_review": bool}."""
+    body = await request.json()
+    c = conn()
+
+    def num(v, lo, hi, name):
+        if not isinstance(v, (int, float)) or not lo <= float(v) <= hi:
+            raise HTTPException(400, f"{name} must be a number from {lo} to {hi}")
+        return str(float(v))
+    for k, v in (body.get("size") or {}).items():
+        if k not in SIZE_KEYS:
+            raise HTTPException(400, f"unknown size setting {k}")
+        lim = {"half_life_days": (0.5, 3650), "age_floor": (0, 1), "importance_w": (0, 1)}[k]
+        db.set_setting(c, SIZE_KEYS[k], num(v, *lim, k))
+    for k, v in (body.get("placement") or {}).items():
+        if k not in PLACEMENT_KEYS:
+            raise HTTPException(400, f"unknown placement {k}")
+        db.set_setting(c, f"placement.{k}", num(v, 0, 1, k))
+    if "rubric_review" in body:
+        db.set_setting(c, "importance.rubric_review", "1" if body["rubric_review"] else "0")
+    r = body.get("rubric")
+    if isinstance(r, dict) and (r.get("text") or "").strip():
+        from . import rubric
+        if r["text"].strip() != rubric.current(c)["text"].strip():
+            v = rubric.add(c, r["text"], r.get("reason") or "edited by the owner", "owner", True)
+            store.record(c, "analyzer", "rubric", f"importance rubric v{v} set by the owner; items are re-scored")
+    event("settings.updated", keys=sorted(body.keys()))
+    return _settings_view(c)
+
+
 @app.get("/v1/admin/me", dependencies=[Depends(require_admin)])
 def admin_me():
     """For the apps: does the token the owner typed work?"""

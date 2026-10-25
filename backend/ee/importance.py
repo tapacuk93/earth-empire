@@ -24,12 +24,8 @@ SCHEMA = {
 }
 
 PROMPT = """This is the stored analysis of one item from the owner's Instagram, published by Earth Empire. Judge:
-- importance, 0 to 1: how significant the moment or content is in the owner's life and in
-  Earth Empire. About 0.1 something trivial, 0.3-0.5 an everyday moment, 0.7 a notable trip, event,
-  achievement, creation or idea, 0.9-1 a milestone (a wedding, a birth, a big move, a major launch).
-  Judge the content only: a story, a reel and a post count the same, and a repost of someone else's
-  video counts as much as the owner's own when its content matters as much. Never lower it for the
-  kind of item, for being a repost, or for the number of likes.
+- importance, 0 to 1, by this rubric (version {rv}):
+{rubric}
 - categories: 1 to 4 slugs. Reuse the existing ones whenever one fits; add one in new_categories
   (at most 2, broad topics, lowercase-ascii-with-hyphens) only when nothing fits.
 
@@ -48,8 +44,11 @@ def backfill_one(c, item_id: str) -> dict:
             "keywords": a.get("keywords"), "highlights": [h.get("title") for h in d.get("highlights") or []
                                                          if isinstance(h, dict)]}
     cats = [dict(r) for r in c.execute("SELECT slug, name, description FROM categories ORDER BY slug")]
+    from . import rubric
+    rub = rubric.current(c)
     body = {"max_tokens": 2000, "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
-            "messages": [{"role": "user", "content": PROMPT.format(cats=j(cats), item=j(item))}]}
+            "messages": [{"role": "user", "content": PROMPT.format(cats=j(cats), item=j(item), rv=rub["version"],
+                                                                   rubric=rub["text"])}]}
     resp, coins = aicoin.claude(body, timeout=120)
     usage = resp.get("usage") or {}
     model = resp.get("model") or ""
@@ -72,7 +71,8 @@ def backfill_one(c, item_id: str) -> dict:
         old = json.loads(row["categories"])
         new = [s for s in dict.fromkeys(slugify(x) for x in out.get("categories") or []) if s in existing]
         cats_final = old if old else new   # keep categories an item already has; fill empty ones
-        c.execute("UPDATE items SET importance=?, categories=? WHERE id=?", (imp, j(cats_final), item_id))
+        c.execute("UPDATE items SET importance=?, importance_version=?, categories=? WHERE id=?",
+                  (imp, rub["version"], j(cats_final), item_id))
         if cats_final != old:
             c.execute("DELETE FROM item_categories WHERE item_id=?", (item_id,))
             for s in cats_final:
@@ -86,8 +86,13 @@ def backfill_one(c, item_id: str) -> dict:
 
 
 def pending(c, limit: int = 1000) -> list[str]:
-    return [r["id"] for r in c.execute("SELECT id FROM items WHERE analysis IS NOT NULL AND importance IS NULL "
-                                       "ORDER BY taken_at LIMIT ?", (limit,))]
+    """Analyzed items without a score, or scored by an older rubric (re-scored in the background)."""
+    from . import rubric
+    v = rubric.current(c)["version"]
+    return [r["id"] for r in c.execute(
+        """SELECT id FROM items WHERE analysis IS NOT NULL AND (importance IS NULL OR importance_version IS NULL
+           OR importance_version < ?) ORDER BY importance IS NOT NULL, published_at IS NULL, taken_at DESC LIMIT ?""",
+        (v, limit))]
 
 
 def run(c, limit: int = 1000) -> list[dict]:

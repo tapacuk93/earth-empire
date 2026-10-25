@@ -168,28 +168,39 @@ def vectors(c, ids=None):
     return out
 
 
-# ------------------------------------------------------------------ curation (CONTRACT.md "Home layout")
-OWN_DEFAULT = 0.5
+# ------------------------------------------------------------------ placement (CONTRACT.md "Home layout")
+OWN_DEFAULT = 1.0   # a post of the owner's own
 
 
-def curation(d: dict, kind: str, hls: list[str], dedicated: set[str]) -> tuple[float, str]:
-    """How the owner curated an item; the highest rule that applies wins."""
+def weights(c) -> dict:
+    keys = ("post", "dedicated", "shared", "repost", "story", "hit_top", "hit_bottom")
+    return {k: float(setting(c, f"placement.{k}") or 0) for k in keys}
+
+
+def placement(d: dict, kind: str, hls: list[str], dedicated: set[str], w: dict | None = None) -> tuple[float, str]:
+    """Where the item lives: the highest that applies."""
+    w = w or {"post": 1, "dedicated": 1, "shared": 0.5, "repost": 0.25, "story": 0.125}
     repost = bool(d.get("repost_of"))
     tab = (d.get("extra") or {}).get("repost_source") == "reposts tab" or str(d.get("id", "")).startswith("ig_repost_")
-    in_ded = [h for h in hls if h in dedicated]
-    in_large = [h for h in hls if h not in dedicated]
     rules = []
-    if repost and in_ded:
-        rules.append((1.0, "reposted and saved to a dedicated highlight"))
-    if kind == "story" and in_large:
-        rules.append((0.5, "story saved to a large highlight"))
-    if not repost:
-        rules.append((OWN_DEFAULT, "the owner's own post (default)"))
-    if repost and tab:
-        rules.append((0.25, "reposted with Instagram's Repost feature only"))
-    if repost and not rules:
-        rules.append((0.25, "reposted to a story, not saved to a highlight"))
+    if [h for h in hls if h in dedicated]:
+        rules.append((w["dedicated"], "in a dedicated highlight"))
+    if [h for h in hls if h not in dedicated]:
+        rules.append((w["shared"], "in a shared highlight"))
+    if tab:
+        rules.append((w["repost"], "reposted with Instagram's Repost feature"))
+    elif kind != "story" and not repost:
+        rules.append((w["post"], "a post"))
+    elif kind != "story":
+        rules.append((w["repost"], "a repost"))
+    if kind == "story" and not hls:
+        rules.append((w["story"], "a story in no highlight"))
+    if not rules:
+        rules.append((w["story"], "a story"))
     return max(rules, key=lambda r: r[0])
+
+
+curation = placement   # the earlier name
 
 
 # ------------------------------------------------------------------ members of each half
@@ -202,6 +213,7 @@ def members(c) -> dict[str, dict]:
         item_hls.setdefault(r["item_id"], []).append(r["highlight_id"])
     out = {}
     from .store import has_video
+    W = weights(c)
     for r in c.execute("SELECT id, kind, taken_at, importance, data FROM items WHERE published_at IS NOT NULL"):
         hls = item_hls.get(r["id"], [])
         d = json.loads(r["data"])
@@ -212,10 +224,12 @@ def members(c) -> dict[str, dict]:
                 hl_titles.setdefault(h["id"], h.get("title"))
         top = [h for h in hls if h in ded]
         half = "top" if top else "bottom"
-        cur, why = curation(d, r["kind"], hls, ded)
+        cur, why = placement(d, r["kind"], hls, ded, W)
+        orig = (d.get("repost_of") or {}).get("taken_at") if isinstance(d.get("repost_of"), dict) else None
         label_hl = (top or hls or [None])[0]
         label = hl_titles.get(label_hl) if label_hl else None
         out[r["id"]] = {"half": half, "kind": "item", "taken_at": r["taken_at"], "video": video,
+                        "original_at": orig or r["taken_at"],
                         "curation": cur, "curation_reason": why,
                         "importance": r["importance"], "label": label or {"reel": "Reels", "story": "Stories"}.get(
                             r["kind"], "Posts")}
@@ -223,7 +237,8 @@ def members(c) -> dict[str, dict]:
         d = h["data"]
         top_hit = h["section"] == "dedicated"
         out["hit:" + h["id"]] = {"half": "top" if top_hit else "bottom", "kind": "hit", "video": True,
-                                 "curation": 1.0 if top_hit else 0.5,
+                                 "curation": W["hit_top"] if top_hit else W["hit_bottom"],
+                                 "original_at": (d.get("video") or {}).get("posted_at") or h["published_at"],
                                  "curation_reason": "detected, published in the top section" if top_hit
                                  else "detected, published in the bottom section",
                                  "taken_at": (d.get("video") or {}).get("posted_at") or h["published_at"],
@@ -345,22 +360,33 @@ def attachments(c, mem=None, vec=None) -> dict[str, str]:
     return out
 
 
-def size_of(taken_at: str | None, importance: float | None, curation: float | None = None) -> float:
-    """recency × importance × curation, 0.1-1.0; recency leads (a year-long half-life)."""
+def size_params(c) -> dict:
+    return {"half_life_days": float(setting(c, "size.half_life_days") or 30),
+            "age_floor": float(setting(c, "size.age_floor") or 0.05),
+            "importance_w": float(setting(c, "size.importance_w") or 0.15)}
+
+
+def size_parts(original_at: str | None, importance: float | None, placement_w: float | None, p: dict) -> dict:
+    """size = placement × age_factor × importance_factor (CONTRACT.md "Home layout")."""
     try:
-        age = (datetime.now(timezone.utc) - datetime.strptime(taken_at[:19], "%Y-%m-%dT%H:%M:%S")
+        age = (datetime.now(timezone.utc) - datetime.strptime(original_at[:19], "%Y-%m-%dT%H:%M:%S")
                .replace(tzinfo=timezone.utc)).total_seconds() / 86400
     except (TypeError, ValueError):
-        age = 3650
-    recency = 0.5 ** (max(age, 0) / RECENCY_HALF_LIFE_DAYS)
+        age = 3650.0
+    age = max(age, 0.0)
+    age_factor = max(p["age_floor"], 0.5 ** (age / p["half_life_days"]))
     imp = 0.5 if importance is None else importance
-    cur = OWN_DEFAULT if curation is None else curation
-    return round(0.1 + 0.9 * (recency ** 0.7) * (0.55 + 0.45 * imp) * cur, 3)
+    imp_factor = 1 - p["importance_w"] + p["importance_w"] * imp
+    pl = 1.0 if placement_w is None else placement_w
+    return {"placement": pl, "age_days": round(age, 1), "age_factor": round(age_factor, 4),
+            "importance": importance, "importance_factor": round(imp_factor, 4),
+            "size": round(pl * age_factor * imp_factor, 4)}
 
 
 def layout(c) -> dict:
     mem = members(c)
     vec = vectors(c, set(mem))
+    params = size_params(c)
     halves = {"top": [], "bottom": []}
     tiles = {}
     for r in c.execute("SELECT * FROM layout"):
@@ -370,7 +396,9 @@ def layout(c) -> dict:
         hid = r["id"]
         t = {"id": hid[4:] if hid.startswith("hit:") else hid, "kind": m["kind"],
              "x": round(r["x"], 4), "y": round(r["y"], 4),
-             "size": size_of(m["taken_at"], m["importance"], m["curation"]), "curation": m["curation"],
+             **{k: v for k, v in size_parts(m["original_at"], m["importance"], m["curation"], params).items()
+                if k != "importance"},
+             "placement_reason": m["curation_reason"], "curation": m["curation"],
              "label": m["label"], "taken_at": m["taken_at"]}
         tiles[hid] = t
         halves[m["half"]].append(t)
@@ -390,7 +418,7 @@ def layout(c) -> dict:
                 "id": img, "kind": "item", "attached_to": v["id"],
                 "x": round(min(max(v["x"] + rad * math.cos(ang), 0), 1), 4),
                 "y": round(min(max(v["y"] + rad * math.sin(ang), 0), 1), 4),
-                "size": round(max(0.1, v["size"] * 0.45), 3), "curation": mem[img]["curation"],
+                "size": round(v["size"] * 0.45, 4), "curation": mem[img]["curation"],
                 "label": v["label"], "taken_at": mem[img]["taken_at"]})
     for h in halves.values():
         h.sort(key=lambda t: (t["taken_at"] or "", t["id"]), reverse=True)   # newest first

@@ -72,6 +72,11 @@ CREATE TABLE IF NOT EXISTS costs (           -- every paid call
   input_tokens INTEGER, output_tokens INTEGER, coins REAL, usd REAL, ok INTEGER, note TEXT
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- The importance rubric, every version: applied ones and proposals Claude made that were not applied.
+CREATE TABLE IF NOT EXISTS rubrics (
+  version INTEGER PRIMARY KEY, text TEXT NOT NULL, reason TEXT NOT NULL, by TEXT NOT NULL,
+  applied INTEGER NOT NULL, created_at TEXT NOT NULL
+);
 -- Home layout: one embedding per published item or hit ("hit:<id>"), and its place in its half.
 CREATE TABLE IF NOT EXISTS embeddings (
   id TEXT PRIMARY KEY, kind TEXT NOT NULL, text_hash TEXT NOT NULL, vec BLOB NOT NULL, updated_at TEXT NOT NULL
@@ -120,7 +125,20 @@ DEFAULT_SETTINGS = {
     "site.auto_build": "1",     # rebuild and publish the site when items go public
     "site.built_at": "",
     "site.force": "",
-    "facets.daily_cap": "12",   # Claude facet runs a day (the cost guard for facets)           # set when items leave the site: rebuild even with nothing new
+    "facets.daily_cap": "12",
+    # Home tile size = placement × age_factor × importance_factor (CONTRACT.md "Home layout")
+    "size.half_life_days": "30",
+    "size.age_floor": "0.05",
+    "size.importance_w": "0.15",
+    "placement.post": "1",
+    "placement.dedicated": "1",
+    "placement.shared": "0.5",
+    "placement.repost": "0.25",
+    "placement.story": "0.125",
+    "placement.hit_top": "1",
+    "placement.hit_bottom": "0.5",
+    "importance.rescore_daily_cap": "300",
+    "importance.rubric_review": "1",   # Claude facet runs a day (the cost guard for facets)           # set when items leave the site: rebuild even with nothing new
 }
 
 STEPS = ("analyze", "site", "x", "facebook")
@@ -149,11 +167,17 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
         conn.execute("ALTER TABLE items ADD COLUMN importance REAL")
     if "detection" not in cols:    # added 2026-10-25: the monitor's scan of the item (the public gate)
         conn.execute("ALTER TABLE items ADD COLUMN detection TEXT")
+    if "importance_version" not in cols:   # which rubric version scored it
+        conn.execute("ALTER TABLE items ADD COLUMN importance_version INTEGER")
     if "curation" not in cols:     # added 2026-10-25: 0-1, how the owner curated it (home.curation)
         conn.execute("ALTER TABLE items ADD COLUMN curation REAL")
         conn.execute("ALTER TABLE items ADD COLUMN curation_reason TEXT")
     for k, v in DEFAULT_SETTINGS.items():
         conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)", (k, v))
+    if not conn.execute("SELECT 1 FROM rubrics LIMIT 1").fetchone():
+        from .rubric import FIRST
+        conn.execute("INSERT INTO rubrics(version, text, reason, by, applied, created_at) VALUES (1,?,?,?,1,?)",
+                     (FIRST, "the first rubric", "backend", now()))
     return conn
 
 

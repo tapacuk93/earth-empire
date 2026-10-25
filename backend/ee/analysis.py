@@ -139,12 +139,7 @@ caption is not English, otherwise English. The date, the highlight names and the
 are always shown next to it, so do not repeat them or quote the caption. For a repost, describe \
 the original and credit its author. Never invent names, never speculate about private matters. \
 Proofread it: no fragments, no stray punctuation.
-- importance: 0 to 1, how significant this moment or content is in the owner's life and in \
-Earth Empire: about 0.1 for something trivial, 0.3-0.5 for an everyday moment, 0.7 for a notable trip, \
-event, achievement, creation or idea, 0.9-1 for a milestone (a wedding, a birth, a big move, a major \
-launch). Judge the content only: a story, a reel and a post count the same, and a repost of someone \
-else's video counts as much as the owner's own when its content matters as much. Never lower it for \
-the kind of item, for being a repost, or for the number of likes.
+- importance: 0 to 1, scored by the importance rubric at the end of these instructions.
 Answer with the JSON object the response format asks for."""
 
 APPEARS = {"type": "array", "items": {"type": "object", "properties": {
@@ -313,7 +308,10 @@ def build_request(c, item_id: str, work: Path, job: str | None = None) -> tuple[
     content.append({"type": "text", "text": "Analyze this item now."})
     # Structured outputs: the answer is JSON matching the schema (forced tool use is gone on
     # Sonnet 5.5). Effort medium: this is perception and description, not deep reasoning.
-    body = {"max_tokens": 16000, "system": SYSTEM,
+    from . import rubric
+    rub = rubric.current(c)
+    info["rubric_version"] = rub["version"]
+    body = {"max_tokens": 16000, "system": SYSTEM + "\n\nImportance rubric (version %d):\n%s" % (rub["version"], rub["text"]),
             "output_config": {"effort": "medium",
                               "format": {"type": "json_schema", "schema": strict_schema(TOOL["input_schema"])}},
             "messages": [{"role": "user", "content": content}]}
@@ -502,6 +500,7 @@ def analyze(c, item_id: str, *, dry_run: bool = False, job: str | None = None) -
         _progress(c, job, "saving the analysis and covers")
         covers = save_covers(c, item_id, out.get("covers"), info["videos"])
         cats = apply_result(c, item_id, out, resp.get("model") or model)
+        c.execute("UPDATE items SET importance_version=? WHERE id=?", (info.get("rubric_version"), item_id))
         result = {"item": item_id, "categories": cats, "summary": out.get("summary"),
                   "input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),
                   "coins": coins + info["coins"], "usd": round(usd, 4), "seconds": round(time.time() - t0, 1),

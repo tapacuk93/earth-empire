@@ -228,6 +228,11 @@ Status, **owner only** (`Authorization: Bearer <earth-empire/admin-token>`; 401 
 Owner-only (`Authorization: Bearer <earth-empire/admin-token>`):
 
 - `GET /v1/admin/me` → `{"ok": true, "role": "owner"}`, or 401: checks a token the owner entered.
+- `GET /v1/admin/settings` → `{"size": {"half_life_days", "age_floor", "importance_w"}, "placement": {"post",
+  "dedicated", "shared", "repost", "story", "hit_top", "hit_bottom"}, "rubric": {"version", "text", "reason",
+  "by", "history": [{"version", "text", "reason", "by": "backend|claude|owner", "applied", "created_at"}]},
+  "rubric_review": bool, "formula"}`; `PUT` the same shape, any part (rubric: `{"text", "reason"?}`),
+  → the new settings. A new rubric text becomes the next version and items are re-scored.
 - `DELETE /v1/admin/items/{id}` → `{"ok", "id", "media_objects_removed"}`: removes an archive item for
   good (its data, pipeline state, and every version of its media under `items/<id>/`), and the site
   is rebuilt without it.
@@ -291,26 +296,40 @@ items and published monitor hits only.
   hit's excerpt) with an open-source multilingual sentence model on the box. It places each half
   with a seeded t-SNE, and puts a new tile next to its nearest neighbours without moving the others.
   When a half has doubled, the whole half is placed again, aligned to the old picture.
-- **Curation:** how the owner curated each item, from 0 to 1. The highest rule that applies wins:
+- **Size** of a tile (owner-tunable in Settings):
 
-  | Weight | When |
-  |---|---|
-  | **1.0** | reposted (in a story or with the Repost feature) **and** saved to a **dedicated** highlight |
-  | **0.5** | a story saved to a **large** (non-dedicated) highlight, the mass story-repost bucket |
-  | **0.5** | the owner's own post, by default (until the owner says otherwise) |
-  | **0.25** | reposted with Instagram's **Repost feature** only (the Reposts tab, `extra.repost_source`), or reposted to a story and never saved |
-  | **1.0 / 0.5** | a published monitor hit in the top / bottom section |
+  **size = placement × age_factor × importance_factor**
 
-  Items carry it as `curation` and `curation_reason`. It is recomputed as highlight membership
-  and the dedicated set change.
-- **Size** = recency × importance × curation (0.1-1). Recency leads, with a one-year half-life;
-  importance scales it from 0.55 to 1; curation multiplies it. The kind of item never changes it.
-  Time orders (newest first, ties) stay purely by `taken_at`.
+  - **placement**, from where the item lives; the highest that applies:
+
+    | Weight | When |
+    |---|---|
+    | **1** | a post (the owner's own), or an item in a **dedicated** highlight |
+    | **0.5** | an item in a **shared** (large) highlight |
+    | **0.25** | a repost made with Instagram's Repost feature (the Reposts tab) |
+    | **0.125** | a story in no highlight |
+    | **1 / 0.5** | a published monitor hit in the top / bottom section |
+
+  - **age_factor** = max(`age_floor`, 0.5 ^ (age_days / `half_life_days`)), counted from the
+    **original** publication (for a repost, the original's date). Defaults: half-life 30 days,
+    floor 0.05.
+  - **importance_factor** = 1 − w + w × importance, where `importance` (0-1) is scored by Claude
+    by the **importance rubric** and `w` defaults to 0.15.
+
+  Items carry `placement` and `placement_reason` (`curation` and `curation_reason` are the same
+  values, under their earlier names). Tiles carry `size` and its parts: `placement`, `age_days`,
+  `age_factor` and `importance_factor`. Time orders (newest first, ties) stay purely by `taken_at`.
+- **The importance rubric** is plain text in settings, with every version kept. Once a day, Claude
+  reviews it against the content and proposes a better one. A refinement (same intent, clearer or
+  more accurate) is applied as a new version, and any other proposal is recorded but not applied.
+  The owner can also replace it. A new version re-scores every item in the background, within
+  `importance.rescore_daily_cap` (300) a day.
 
 Public:
 
 - `GET /v1/layout` → `{"halves": {"top": [Tile], "bottom": [Tile]}, "updated_at"}`, newest first, where
-  `Tile = {"id", "kind": "item" | "hit", "x": 0-1, "y": 0-1, "size": 0.1-1, "curation": 0-1, "label": "<highlight
+  `Tile = {"id", "kind": "item" | "hit", "x": 0-1, "y": 0-1, "size": 0-1, "placement", "age_days",
+  "age_factor", "importance_factor", "placement_reason", "curation", "label": "<highlight
   name, source name for a hit, else Reels/Posts/Stories>", "taken_at", "attached_to"?: "<video id>"}`.
   A hit's `id` is its hit id (details in `/v1/published`). **Images are never tiles of their own:**
   an item without video carries `attached_to`, its most similar video (the same half first), sits

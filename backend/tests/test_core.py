@@ -99,17 +99,28 @@ class PublishRuleTest(unittest.TestCase):
         self.assertTrue(store.publishable({"media": [vid]})[0])
 
 
-class CurationTest(unittest.TestCase):
+class PlacementTest(unittest.TestCase):
     def test_rules(self):
-        from ee.home import curation
+        from ee.home import placement
         rep = {"repost_of": {"author": "a"}}
         ded, large = {"hl_small"}, "hl_big"
-        self.assertEqual(curation(rep, "story", ["hl_small", large], ded)[0], 1.0)
-        self.assertEqual(curation(rep, "story", [large], ded)[0], 0.5)
-        self.assertEqual(curation({**rep, "extra": {"repost_source": "reposts tab"}}, "reel", [], ded)[0], 0.25)
-        self.assertEqual(curation({}, "reel", [], ded)[0], 0.5)            # own post, the default
-        self.assertEqual(curation({}, "story", [large], ded)[0], 0.5)
-        self.assertEqual(curation(rep, "story", [], ded)[0], 0.25)
+        self.assertEqual(placement(rep, "story", ["hl_small", large], ded)[0], 1.0)   # dedicated
+        self.assertEqual(placement(rep, "story", [large], ded)[0], 0.5)               # shared highlight
+        self.assertEqual(placement({**rep, "extra": {"repost_source": "reposts tab"}}, "reel", [], ded)[0], 0.25)
+        self.assertEqual(placement({}, "reel", [], ded)[0], 1.0)                       # a post
+        self.assertEqual(placement({}, "story", [large], ded)[0], 0.5)
+        self.assertEqual(placement(rep, "story", [], ded)[0], 0.125)                   # story in no highlight
+        self.assertEqual(placement({}, "story", [], ded)[0], 0.125)
+
+    def test_size_formula(self):
+        from ee.home import size_parts
+        p = {"half_life_days": 30, "age_floor": 0.05, "importance_w": 0.15}
+        from datetime import datetime, timedelta, timezone
+        t = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        r = size_parts(t, 1.0, 0.5, p)
+        self.assertAlmostEqual(r["age_factor"], 0.5, places=2)
+        self.assertAlmostEqual(r["size"], 0.5 * 0.5 * 1.0, places=2)
+        self.assertAlmostEqual(size_parts("2000-01-01T00:00:00Z", 0.0, 1.0, p)["size"], 0.05 * 0.85, places=4)
 
 
 class StatusTest(unittest.TestCase):
@@ -196,6 +207,6 @@ class WorkerTest(unittest.TestCase):
         except ImportError:   # the box has it; a bare local python may not
             sys.modules["httpx"] = types.ModuleType("httpx")
         w = importlib.import_module("ee.worker")
-        for fn in ("analyze_once", "thumbs_once", "home_once", "importance_once", "facets_once", "x_once", "facebook_once",
+        for fn in ("analyze_once", "thumbs_once", "home_once", "importance_once", "facets_once", "rubric_once", "x_once", "facebook_once",
                    "house_once", "site_once", "main"):
             self.assertTrue(callable(getattr(w, fn, None)), fn)

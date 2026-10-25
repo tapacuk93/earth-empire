@@ -120,6 +120,23 @@ def facets_once(c) -> bool:
     return True
 
 
+def rubric_once(c) -> bool:
+    """Once a day: Claude reviews the importance rubric and may refine it (a new version re-scores)."""
+    if setting(c, "importance.rubric_review") != "1" or setting(c, "analysis.enabled") != "1":
+        return False
+    day = utcnow()[:10]
+    if (setting(c, "importance.rubric_reviewed") or "") >= day:
+        return False
+    from .db import set_setting
+    set_setting(c, "importance.rubric_reviewed", day)
+    try:
+        from . import rubric
+        rubric.review(c)
+    except Exception as e:
+        event("rubric.review_failed", logging.WARNING, error=repr(e)[:300])
+    return True
+
+
 def importance_once(c) -> bool:
     """When the analyzer has nothing to do: score items analyzed before importance existed."""
     if setting(c, "analysis.enabled") != "1":
@@ -127,6 +144,10 @@ def importance_once(c) -> bool:
     if c.execute("SELECT 1 FROM steps WHERE step='analyze' AND state IN ('pending','running') LIMIT 1").fetchone():
         return False
     from . import importance
+    day = utcnow()[:10]
+    done = c.execute("SELECT COUNT(*) n FROM costs WHERE purpose='importance' AND at >= ?", (day,)).fetchone()["n"]
+    if done >= int(setting(c, "importance.rescore_daily_cap") or 300):
+        return False   # the cost guard for scoring; the rest continues tomorrow
     ids = importance.pending(c, 1)
     if not ids:
         return False
@@ -357,7 +378,7 @@ def main():
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     threads = [lane("analyze", analyze_once), lane("thumbs", thumbs_once, idle=20),
                lane("home", home_once, idle=20), lane("importance", importance_once, idle=60),
-               lane("facets", facets_once, idle=60), lane("x", x_once, idle=60),
+               lane("facets", facets_once, idle=60), lane("rubric", rubric_once, idle=600), lane("x", x_once, idle=60),
                lane("facebook", facebook_once, idle=120), lane("house", house_once, idle=15)]
     while not stop.is_set():
         stop.wait(5)

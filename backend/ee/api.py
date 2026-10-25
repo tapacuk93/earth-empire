@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from . import config, db, store
+from . import config, db, status as status_mod, store
 from .logs import event, metric, setup
 
 setup("api")
@@ -281,8 +281,7 @@ async def ingest_run(request: Request):
 # ------------------------------------------------------------------ admin
 @app.get("/v1/status")
 def status():
-    from . import status as st
-    resp = JSONResponse(st.build(conn()))
+    resp = JSONResponse(status_mod.build(conn()))
     resp.headers["Cache-Control"] = "public, max-age=5"
     return resp
 

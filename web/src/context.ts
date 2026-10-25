@@ -24,6 +24,7 @@ export function ctxItems(ctx: string, items: Item[], highlights: Highlight[]): I
       // rel:<section>:<id> - that half, most related to the opened video first, then the other half's most related.
       const [sec, ...rest] = v.split(':');
       const anchor = items.find((it) => it.id === rest.join(':'));
+      if (sec === 'all') return anchor ? relatedOrder(anchor, items, []) : items;
       if (!anchor) return sectionItems(sec as SectionId, items, highlights);
       const other: SectionId = sec === 'dedicated' ? 'common' : 'dedicated';
       return relatedOrder(anchor, sectionItems(sec as SectionId, items, highlights), sectionItems(other, items, highlights));
@@ -52,7 +53,7 @@ export function ctxLabel(ctx: string, cats: Category[] = [], highlights: Highlig
   const [k, v] = split(ctx || 'all');
   switch (k) {
     case 'section': return SECTION_TITLE[v as SectionId] || v;
-    case 'rel': return `Related · ${SECTION_TITLE[v.split(':')[0] as SectionId] || ''}`;
+    case 'rel': return 'Related';
     case 'tag': return `Tag: ${v}`;
     case 'facet': return facetIndex.get(v)?.name || v;
     case 'month': return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(v + '-01T00:00:00Z'));

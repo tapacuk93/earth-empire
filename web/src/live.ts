@@ -178,7 +178,7 @@ let mockSettings: AdminSettings = {
       { version: 2, text: 'Important: moments that show the owner taking part, speaking, or being named; events with lasting meaning. Less important: reshared news without the owner, filler.', reason: 'Clearer wording', by: 'claude', applied: true, created_at: '2026-10-25T10:00:00Z' },
     ] },
   rubric_review: true,
-  formula: 'size = placement × age_factor × (1 − w + w × importance); age_factor = max(floor, 0.5^(age_days / half_life_days)); tile area ∝ size^display_exponent',
+  formula: 'size = level (1 / 0.5 / 0.25 / 0.125); tile area ∝ size^display_exponent',
 };
 export async function getAdminSettings(): Promise<AdminSettings> {
   if (MOCK) { if (adminToken() !== 'owner') throw new ApiError(401, '401 Unauthorized'); return JSON.parse(JSON.stringify(mockSettings)); }

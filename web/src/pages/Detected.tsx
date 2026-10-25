@@ -3,29 +3,35 @@ import { Icon } from '../components/icons';
 import { HitMeta } from '../components/MonitorCard';
 import { fetchMore, getHits, labelOf, setPublished, titleOf, type Hit } from '../monitor';
 import { navigate, type Route } from '../router';
-import { hitSection, SECTION_SHORT, SECTION_TITLE, type SectionId } from '../sections';
+import { aiLevel, LEVEL_NAME } from '../sections';
 import { prefersReducedMotion, setMeta } from '../util';
 import { withParam } from './Home';
 
 const KINDS: [string | undefined, string][] = [[undefined, 'All'], ['name', 'Names'], ['language', 'Language']];
 
-/** The add-twice button: none → lower section, lower → upper. */
-function AddTwice({ h, onSet }: { h: Hit; onSet: (section: SectionId | null) => void }) {
-  const at = hitSection(h);
-  const next: SectionId | null = at === null ? 'common' : at === 'common' ? 'dedicated' : null;
-  const sug = (h as { suggested_section?: string | null }).suggested_section;
-  const why = (h as { section_reason?: string | null }).section_reason;
+/** "+" approves a hit for Home at the AI's level, which the owner may change first. */
+function Approve({ h, onSet }: { h: Hit; onSet: (level: number | null) => void }) {
+  const ai = aiLevel(h);
+  const [lv, setLv] = useState(ai.level);
+  const on = !!h.published_at;
+  const cur = (h as Hit & { level?: number | null }).level;
   return (
     <div class="addtwice">
-      <span class={`state-chip s-${at || 'none'}`}>{at ? `On Home: ${SECTION_SHORT[at]}` : 'Not on Home'}</span>
-      {next ? (
-        <button class="btn plus" onClick={() => onSet(next)}
-          aria-label={`${at ? 'Move' : 'Add'} to the ${SECTION_SHORT[next]} section of Home (${SECTION_TITLE[next]}); now ${at ? SECTION_SHORT[at] : 'not on Home'}`}>
-          <b aria-hidden="true">+</b> {at ? 'Move to upper' : 'Add to Home'}
-        </button>
-      ) : <button class="btn" disabled aria-label="In the upper section of Home">Upper ✓</button>}
-      {at && <button class="btn small ghost" onClick={() => onSet(null)}>Remove</button>}
-      {sug && <p class="suggest">Claude suggests <b>{SECTION_SHORT[sug as SectionId] || sug}</b>{why && <span> — {why}</span>}</p>}
+      <p class="suggest">AI level <b>{ai.level}</b>{ai.reason && <span> — {ai.reason}</span>}</p>
+      {on ? (
+        <>
+          <span class="state-chip s-dedicated">On Home{cur ? ` · level ${cur}` : ''}</span>
+          <button class="btn small ghost" onClick={() => onSet(null)}>Remove</button>
+        </>
+      ) : (
+        <>
+          <label class="sr-only" for={`lv-${h.id}`}>Level for this video</label>
+          <select id={`lv-${h.id}`} class="sec-pick" value={lv} onChange={(e) => setLv(Number((e.target as HTMLSelectElement).value))}>
+            {LEVEL_NAME.map((n, i) => <option key={i} value={i + 1}>{n}{i + 1 === ai.level ? ' (AI)' : ''}</option>)}
+          </select>
+          <button class="btn plus" onClick={() => onSet(lv)} aria-label={`Approve for Home at level ${lv}`}><b aria-hidden="true">+</b> Approve</button>
+        </>
+      )}
     </div>
   );
 }
@@ -79,11 +85,12 @@ export function DetectedPage({ route }: { route: Route }) {
     const i = Math.round(el.scrollTop / el.clientHeight);
     if (i !== cur) setCur(i);
   };
-  const place = async (h: Hit, section: SectionId | null) => {
+  const place = async (h: Hit, level: number | null) => {
     try {
-      const r = await setPublished(h.id, section !== null, section || undefined);
-      setHits((hs) => hs?.map((x) => (x.id === h.id ? { ...x, ...r, published_at: section ? r.published_at || new Date().toISOString() : null, section } as Hit : x)));
-      setMsg(section ? `In the ${SECTION_SHORT[section]} section of Home.` : 'Removed from Home.');
+      const section = level === null ? undefined : level <= 1 ? 'dedicated' : 'common'; // for an API that still takes sections
+      const r = await setPublished(h.id, level !== null, section, level ?? undefined);
+      setHits((hs) => hs?.map((x) => (x.id === h.id ? { ...x, ...r, published_at: level ? r.published_at || new Date().toISOString() : null, section: section ?? null, level } as Hit : x)));
+      setMsg(level ? `Approved for Home at level ${level}.` : 'Removed from Home.');
     } catch (e) { setMsg(`Could not change it: ${(e as Error).message}`); }
   };
   const fetchN = async (e: Event) => {
@@ -131,7 +138,7 @@ export function DetectedPage({ route }: { route: Route }) {
                         aria-label={`Clip around the moment: ${titleOf(h)}`} onClick={() => setMuted(!muted)} />
                       <div class="wover">
                         <HitMeta h={h} full />
-                        <AddTwice h={h} onSet={(s) => place(h, s)} />
+                        <Approve h={h} onSet={(lv) => place(h, lv)} />
                       </div>
                     </>
                   )}

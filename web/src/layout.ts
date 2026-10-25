@@ -185,7 +185,7 @@ function layoutGraph(top: Tag[], edges: GEdge[]): { nodes: GNode[]; edges: GEdge
 const FEEDISH = new Set(['reels', 'posts', 'stories', 'feed', '']);
 
 /** The API's layout for one half (x, y in 0..1, size 0.15..1) as a mosaic. */
-export function mosaicFromLayout(lt: { id: string; kind: string; x: number; y: number; size: number; label?: string; taken_at?: string }[], items: Map<string, Item>, hits: Map<string, Hit>, exponent = 2): Mosaic {
+export function mosaicFromLayout(lt: { id: string; kind: string; x: number; y: number; size: number; level?: number; label?: string; taken_at?: string }[], items: Map<string, Item>, hits: Map<string, Hit>, exponent = 2): Mosaic {
   const span = Math.max(6, Math.sqrt(lt.length) * 4.5);
   const tiles: Tile[] = [];
   for (const t of lt) {
@@ -196,7 +196,7 @@ export function mosaicFromLayout(lt: { id: string; kind: string; x: number; y: n
     const group = h ? (label || 'Detected') : FEEDISH.has(label.toLowerCase()) ? '' : label;
     const m = it ? it.media[0] || it.repost_of?.media?.[0] : undefined;
     tiles.push({
-      id: t.id, item: it, hit: h, x: (t.x - 0.5) * span, y: (t.y - 0.5) * span, r: 1.6 * Math.pow(Math.max(0.005, Math.min(1, t.size)), exponent / 2), // area ∝ size ^ display_exponent
+      id: t.id, item: it, hit: h, x: (t.x - 0.5) * span, y: (t.y - 0.5) * span, r: 1.6 * Math.pow(Math.max(0.005, Math.min(1, t.level ? [1, 0.5, 0.25, 0.125][t.level - 1] ?? t.size : t.size)), exponent / 2), // area ∝ size ^ display_exponent; size from the level (1-4) when given
       cover: it ? cover(it) : h!.frame || h!.video?.thumbnail || undefined, video: it ? (m?.type === 'video' ? m.url : undefined) : h!.clip || undefined,
       group, date: it?.taken_at || t.taken_at || h?.video?.posted_at || undefined, text: it ? it.summary || it.caption || '' : `${whatOf(h!)} · ${titleOf(h!)}`,
       tags: it ? tagSet(it) : hitTags(h!),

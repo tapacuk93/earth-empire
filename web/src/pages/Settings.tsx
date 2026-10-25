@@ -153,14 +153,15 @@ function Importance() {
   return (
     <section class="panel importance" aria-labelledby="imp-h">
       <h2 id="imp-h">Importance</h2>
-      <p class="formula"><code>{st.formula || 'size = placement × age_factor × (1 − w + w × importance)'}</code></p>
+      <p class="formula"><code>{st.formula || 'size = level (1 / 0.5 / 0.25 / 0.125), area ∝ size ^ display_exponent'}</code></p>
+      <p class="muted small">Tile size comes from the <b>level</b> only: profile items from where they live (post or dedicated highlight 1, shared highlight 2, repost 3, loose story 4), videos the AI found from its judgement, approved with "+". Age and importance are still kept and shown, but do not change the size.</p>
       <div class="imp-grid">
-        <label>w (weight of importance)<input type="number" step="0.01" min="0" max="1" value={draft.size.importance_w ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, importance_w: num((e.target as HTMLInputElement).value) } })} /></label>
-        <label>Age half-life (days)<input type="number" step="1" min="1" value={draft.size.half_life_days ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, half_life_days: num((e.target as HTMLInputElement).value) } })} /></label>
+        <label>w (weight of importance) · not used for size<input type="number" step="0.01" min="0" max="1" value={draft.size.importance_w ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, importance_w: num((e.target as HTMLInputElement).value) } })} /></label>
+        <label>Age half-life (days) · not used for size<input type="number" step="1" min="1" value={draft.size.half_life_days ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, half_life_days: num((e.target as HTMLInputElement).value) } })} /></label>
         <label>Display exponent (area ∝ size^e)<input type="number" step="0.1" min="0.5" max="4" value={draft.size.display_exponent ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, display_exponent: num((e.target as HTMLInputElement).value) } })} /></label>
-        <label>Age floor<input type="number" step="0.01" min="0" max="1" value={draft.size.age_floor ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, age_floor: num((e.target as HTMLInputElement).value) } })} /></label>
+        <label>Age floor · not used for size<input type="number" step="0.01" min="0" max="1" value={draft.size.age_floor ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, age_floor: num((e.target as HTMLInputElement).value) } })} /></label>
       </div>
-      <h3>Placement weights</h3>
+      <h3>Level sizes by placement</h3>
       <div class="imp-grid">
         {Object.entries(draft.placement).map(([k, v]) => (
           <label key={k}>{PLACEMENT_LABEL[k] || k}<input type="number" step="0.005" min="0" max="1" value={v} onInput={(e) => setDraft({ ...draft, placement: { ...draft.placement, [k]: Number((e.target as HTMLInputElement).value) } })} /></label>

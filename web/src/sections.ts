@@ -39,3 +39,15 @@ export function sectionItems(id: SectionId, items: Item[], all: Highlight[]): It
 const norm = (v: unknown): SectionId | undefined => (v === 'dedicated' ? 'dedicated' : v === 'common' ? 'common' : undefined);
 /** Where a published hit sits; null when it is not published. */
 export const hitSection = (h: Hit): SectionId | null => (h.published_at ? norm((h as { section?: unknown }).section) || 'common' : null);
+
+// ---- the four levels of importance (one tile size each) ----
+export const LEVEL_SIZE = [1, 0.5, 0.25, 0.125];
+export const LEVEL_NAME = ['Level 1 · largest', 'Level 2', 'Level 3', 'Level 4 · smallest'];
+/** A hit's level as the AI judged it: `level` (1-4), else from its confidence. */
+export function aiLevel(h: Hit): { level: number; reason?: string } {
+  const r = h as unknown as { level?: number; ai_level?: number; level_reason?: string; section_reason?: string };
+  const lv = r.level ?? r.ai_level;
+  if (typeof lv === 'number' && lv >= 1 && lv <= 4) return { level: lv, reason: r.level_reason || r.section_reason };
+  const c = h.confidence ?? 0.5;
+  return { level: c >= 0.85 ? 1 : c >= 0.6 ? 2 : c >= 0.35 ? 3 : 4, reason: r.level_reason || r.section_reason };
+}

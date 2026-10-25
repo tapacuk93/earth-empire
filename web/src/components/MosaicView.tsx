@@ -102,7 +102,10 @@ export function MosaicView({ mosaic, title, id, hrefFor, share, clamped }: { mos
         ctx.fillStyle = '#e9a35a'; ctx.beginPath(); ctx.arc(ix + iw - r - 5, iy + r + 5, r, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#111'; ctx.font = `700 ${r * 1.1}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(String(nh), ix + iw - r - 5, iy + r + 5 + r * 0.4); ctx.textAlign = 'start';
       }
-      if (t.hit && iw > 12) { ctx.strokeStyle = '#e9a35a'; ctx.lineWidth = 3; ctx.strokeRect(ix + 1.5, iy + 1.5, iw - 3, ih - 3); }
+      if (t.hit && Math.min(iw, ih) >= 40) {
+        ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(ix + 5, iy + ih - 22, 26, 17);
+        ctx.fillStyle = '#e9a35a'; ctx.font = '700 10px system-ui, sans-serif'; ctx.fillText('AI', ix + 11, iy + ih - 9);
+      }
       const big = Math.min(iw, ih);
       if (big >= 90 && !t.attachedTo) {
         const fs = Math.min(15, Math.max(10, big / 14));

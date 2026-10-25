@@ -38,7 +38,7 @@ test('home: three full-screen modes - mosaic, tag graph, timeline - with a mode 
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Earth Empire');
   for (const name of ['Mosaic mode', 'Tag graph mode', 'Timeline mode']) await expect(page.getByRole('region', { name, exact: true })).toHaveCount(1);
-  await expect(page.locator('canvas.mosaic-canvas')).toHaveCount(4);
+  await expect(page.locator('canvas.mosaic-canvas')).toHaveCount(3); // one mosaic, the tag graph, the timeline
   // No profile, follower counts, kind labels or photo grid.
   await expect(page.getByText(/\d+\s+followers/)).toHaveCount(0);
   await expect(page.locator('.grid .tile, .profile, .hl-row')).toHaveCount(0);
@@ -53,20 +53,22 @@ test('home: three full-screen modes - mosaic, tag graph, timeline - with a mode 
   expect(errors).toEqual([]);
 });
 
-test('mosaic: two halves split by highlight size, with detected videos placed in them', async ({ page }) => {
+test('mosaic: one packed mosaic over the whole screen holds every video, detected ones too', async ({ page }) => {
   await page.goto('/');
-  const up = page.getByRole('region', { name: /^Short highlights: / });
-  const low = page.getByRole('region', { name: 'Long highlights' });
-  expect((await up.boundingBox())!.y).toBeLessThan((await low.boundingBox())!.y);
-  await expect(list(page, 'Short highlights: videos').getByRole('link')).not.toHaveCount(0);
-  await expect(list(page, 'Long highlights: videos').getByRole('link')).not.toHaveCount(0);
-  await expect(list(page, 'Long highlights: videos').getByRole('link').first()).toHaveText(/^Travel, /);
-  await expect(list(page, 'Short highlights: videos').getByRole('link', { name: /^Detected, / })).toHaveAttribute('href', /watch=h_mock1/);
+  await expect(page.locator('.mode-mosaic .mosaic')).toHaveCount(1);
+  const box = (await page.locator('.mode-mosaic canvas').boundingBox())!;
+  const vp = page.viewportSize()!;
+  expect(box.width).toBeGreaterThan(vp.width - 2);
+  expect(box.height).toBeGreaterThan(vp.height * 0.9);
+  const links = list(page, 'Every video: videos').getByRole('link');
+  await expect(links.filter({ hasText: /^Travel, / })).not.toHaveCount(0);
+  await expect(list(page, 'Every video: videos').getByRole('link', { name: /^Detected, / }).first()).toHaveAttribute('href', /watch=h_mock/);
+  await expect(page.getByText(/Short highlights|Long highlights/)).toHaveCount(0);
 });
 
 test('mosaic: packed edge to edge; zoom stays covered; floating controls', async ({ page, browserName }) => {
   await page.goto('/');
-  const up = page.getByRole('region', { name: /^Short highlights: / });
+  const up = page.getByRole('region', { name: /^Every video: / });
   const canvas = up.locator('canvas');
   const vw = page.viewportSize()!;
   const box = (await canvas.boundingBox())!;
@@ -125,11 +127,11 @@ test('floating controls fade after a few seconds and come back on input', async 
 
 test('mosaic: opening a video starts the wheel through that half, most related first', async ({ page }) => {
   await page.goto('/');
-  await openFromList(page, 'Short highlights: videos');
+  await openFromList(page, 'Every video: videos');
   const f = feed(page);
   await expect(f).toBeVisible();
-  await expect(page).toHaveURL(/\/item\/.+\?ctx=rel%3Adedicated%3A/);
-  await expect(f).toHaveAccessibleName(/^Related · Short highlights: item 1 of 2[78]$/);
+  await expect(page).toHaveURL(/\/item\/.+\?ctx=rel%3Aall%3A/);
+  await expect(f).toHaveAccessibleName(/^Related: item 1 of \d+$/);
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(f).toHaveCount(0);
 });
@@ -459,19 +461,18 @@ test('status and settings for the owner: health, activity, stats, phrases', asyn
   await expect(page.getByRole('region', { name: 'Monitor stats' })).toContainText('cpu per audio');
 });
 
-test('detected: add twice - lower, then upper - and the state on the button', async ({ page }) => {
+test('detected: "+" approves at the AI level, which can be changed; Remove takes it off', async ({ page }) => {
   await signIn(page);
   await page.goto('/detected?h=h_mock3');
   const slide = page.locator('.wslide[data-i="2"]');
-  await expect(slide.locator('.state-chip')).toHaveText('Not on Home');
-  await expect(slide).toContainText('Claude suggests upper');
-  await slide.getByRole('button', { name: /^Add to the lower section of Home/ }).click();
-  await expect(slide.locator('.state-chip')).toHaveText('On Home: lower');
-  await slide.getByRole('button', { name: /^Move to the upper section of Home/ }).click();
-  await expect(slide.locator('.state-chip')).toHaveText('On Home: upper');
-  await expect(slide.getByRole('button', { name: 'In the upper section of Home' })).toBeDisabled();
+  await expect(slide).toContainText('AI level 3');
+  const pick = slide.getByLabel('Level for this video');
+  await expect(pick).toHaveValue('3');
+  await pick.selectOption('2');
+  await slide.getByRole('button', { name: 'Approve for Home at level 2' }).click();
+  await expect(slide.locator('.state-chip')).toHaveText('On Home · level 2');
   await slide.getByRole('button', { name: 'Remove' }).click();
-  await expect(slide.locator('.state-chip')).toHaveText('Not on Home');
+  await expect(slide.getByRole('button', { name: /^Approve for Home/ })).toBeVisible();
 });
 
 test('settings: suggested phrases from highlight names, accept and reject', async ({ page }) => {
@@ -633,7 +634,7 @@ test('mosaic: a hovered tile previews without flicker', async ({ page, hasTouch 
   expect(await page.locator('.mode-mosaic .mosaic-video').first().evaluate((v) => getComputedStyle(v).pointerEvents)).toBe('none');
 });
 
-test('mosaic: tile area follows size across both halves', async ({ page }) => {
+test('mosaic: tile area follows size^exponent', async ({ page }) => {
   await page.goto('/');
   const halves = page.locator('.mode-mosaic .mosaic');
   await expect(halves.first().locator('canvas')).toHaveAttribute('data-cells', /\[/);
@@ -653,8 +654,9 @@ test('mosaic: tile area follows size across both halves', async ({ page }) => {
 test('settings: importance - formula, w, age, placement weights and a versioned rubric', async ({ page }) => {
   await signIn(page);
   const imp = page.getByRole('region', { name: 'Importance' });
-  await expect(imp.locator('.formula')).toContainText('size = placement × age_factor');
-  await expect(imp.getByLabel('w (weight of importance)')).toHaveValue('0.4');
+  await expect(imp.locator('.formula')).toContainText('size = level');
+  await expect(imp.getByLabel(/^w \(weight of importance\)/)).toHaveValue('0.4');
+  await expect(imp).toContainText('Tile size comes from the level only');
   await expect(imp.getByLabel('Display exponent (area ∝ size^e)')).toHaveValue('2');
   await expect(imp.getByLabel('Story')).toHaveValue('0.125');
   await imp.getByLabel('Importance rubric').fill('Important: the owner speaking.');

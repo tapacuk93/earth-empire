@@ -70,18 +70,16 @@ export function Home({ route }: { route: Route }) {
   const ready = !!all.data && !!highlights.data;
   const lay = useData(getLayout);
   const tg = useData(getTagGraph);
-  const halves = useMemo(() => {
+  // One packed mosaic over the whole screen, every video in it; similarity decides the neighbours
+  // and size ^ display_exponent the area. The API's combined list when it has one, else both halves.
+  const mosaic = useMemo(() => {
     if (!ready || lay.loading) return null;
     const L = lay.data;
-    const attach = attachMap(items, L ? [...L.top, ...L.bottom] : undefined);
+    const all = L ? (L.tiles || [...L.top, ...L.bottom]) : undefined;
+    const attach = attachMap(items, all);
     const byId = new Map(items.map((it) => [it.id, it]));
     const hitById = new Map(hits.map((h) => [h.id, h]));
-    return (['dedicated', 'common'] as SectionId[]).map((id) => ({
-      id,
-      mosaic: placeAttached(L
-        ? mosaicFromLayout(id === 'dedicated' ? L.top : L.bottom, byId, hitById, L.exponent)
-        : buildMosaic(sectionItems(id, items, hl), sectionHighlights(id, hl), hits.filter((h) => hitSection(h) === id)), attach),
-    }));
+    return placeAttached(all ? mosaicFromLayout(all, byId, hitById, L!.exponent) : buildMosaic(items, hl, hits), attach);
   }, [ready, lay.loading, items, hl, hits]);
   const graph = useMemo(() => (tg.loading || !ready ? null : tg.data ? graphFromApi(tg.data.nodes, tg.data.edges) : buildTagGraph(items, tagsOf(items))), [ready, tg.loading, items]);
   const fc = useData(getFacets);
@@ -98,7 +96,7 @@ export function Home({ route }: { route: Route }) {
     if (list.length) navigate(itemHref(list[0].id, `tag:${tag}`));
   };
   const tagLabel = (n: { tag: string; kind: string }) => n.kind === 'category' ? categories.data?.find((c) => c.slug === n.tag)?.name || n.tag : n.kind === 'hashtag' ? '#' + n.tag : n.tag;
-  const hrefFor = (id: SectionId) => (t: Tile) => (t.hit ? withParam(route, 'watch', t.id) : itemHref(t.id, `rel:${id}:${t.id}`));
+  const hrefFor = (t: Tile) => (t.hit ? withParam(route, 'watch', t.id) : itemHref(t.id, `rel:all:${t.id}`));
   const first = items[items.length - 1], last = items[0];
   const modes = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState(0);
@@ -131,29 +129,12 @@ export function Home({ route }: { route: Route }) {
     <>
       <div class="modes" ref={modes} onScroll={onModesScroll}>
         <section class="mode mode-mosaic" id="mode-mosaic" aria-label="Mosaic mode">
-          {halves && !halves.some((h) => h.mosaic.tiles.length) && (
-            <div class="empty-full"><p>Nothing is public yet.</p><p class="muted">Videos appear here as the monitor finds the moments they are about.</p></div>
+          {mosaic && !mosaic.tiles.length && (
+            <div class="empty-full"><p>Nothing is public yet.</p><p class="muted">Videos appear here as they arrive.</p></div>
           )}
-          {!halves ? <div class="skeleton-cloud" aria-hidden="true" /> : (() => {
-            // The halves share the screen by their total tile weight, so a tile's area follows its size
-            // across the whole screen; each non-empty half keeps at least 12%.
-            const live = halves.filter((h) => h.mosaic.tiles.length > 0);
-            const weight = (h: typeof live[number]) => h.mosaic.tiles.filter((t) => !t.attachedTo).reduce((s, t) => s + t.r * t.r, 0); // as pack() weighs them
-            const total = live.reduce((s, h) => s + weight(h), 0) || 1;
-            // Each half at least 12%, and tall enough that its tiles can sit no wider than 1:2.5 in one row.
-            const vw = innerWidth, vh = innerHeight || 1;
-            const mins = live.map((h) => Math.max(0.12, Math.min(0.5, vw / (2.5 * Math.max(1, h.mosaic.tiles.filter((t) => !t.attachedTo).length)) / vh)));
-            let shares = live.map((h) => weight(h) / total);
-            const low = shares.map((x, i) => live.length > 1 && x < mins[i]);
-            if (low.some(Boolean)) {
-              const fixed = mins.reduce((s, m, i) => s + (low[i] ? m : 0), 0);
-              const rest = shares.reduce((s, x, i) => s + (low[i] ? 0 : x), 0) || 1;
-              shares = shares.map((x, i) => (low[i] ? mins[i] : (x / rest) * (1 - fixed)));
-            }
-            return live.map((h, i) => (
-              <MosaicView key={h.id} id={`m-${h.id}`} title={SECTION_TITLE[h.id]} mosaic={h.mosaic} hrefFor={hrefFor(h.id)} share={shares[i]} clamped={low[i]} />
-            ));
-          })()}
+          {!mosaic ? <div class="skeleton-cloud" aria-hidden="true" /> : mosaic.tiles.length > 0 && (
+            <MosaicView id="m-all" title="Every video" mosaic={mosaic} hrefFor={hrefFor} />
+          )}
         </section>
         <section class="mode" id="mode-tags" aria-label="Tag graph mode">
           {graph && graph.nodes.length > 0 && (

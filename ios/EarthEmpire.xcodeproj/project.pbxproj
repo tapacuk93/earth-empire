@@ -1,0 +1,602 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		068852F6B20A2558E2736548 /* API.swift in Sources */ = {isa = PBXBuildFile; fileRef = 478845545024E3757F39A26A /* API.swift */; };
+		06CDA6BDE77CCB66978CC4CA /* CategoryViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4FA353B432052E22F08A40 /* CategoryViews.swift */; };
+		1B8EC9783435515D1CB9319E /* Model.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E38F69360C4800163B97DD3 /* Model.swift */; };
+		36E234C2EA26EDFEB6245DD4 /* Fixture in Resources */ = {isa = PBXBuildFile; fileRef = EDF06D3E4982A518386C6517 /* Fixture */; };
+		3ADAE626F43F7910304226FA /* StoryViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C505D9BF87C98B829AE07BC0 /* StoryViewer.swift */; };
+		4982A6C2285DE4D5C881A404 /* MediaCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9EAE27E5A95D89972B55E1F /* MediaCache.swift */; };
+		52F4AA4869C9D9D2415DCB9C /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29B8B5979B4044094AE44731 /* Config.swift */; };
+		7AD19C6DC4326F14296450F4 /* AnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842E0D479792BE82F10F7001 /* AnalysisView.swift */; };
+		8897711542937B38CB0ED147 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51BA1FF3A41311C8BCB05351 /* ProfileView.swift */; };
+		89A6978CD50C6D1631D1786A /* MainFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C857445BC4945DE465350B /* MainFlowUITests.swift */; };
+		8EF8715A739D3A879B3619AD /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F93E7FD863363E45B648534 /* App.swift */; };
+		A44280FB88AC8BFF7203A52B /* PagingAndLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30BC7EA3F99B32558B035B60 /* PagingAndLinkTests.swift */; };
+		AA86805E40DD0C9BF2E44297 /* Pager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92A6F122D559E8EB258138C1 /* Pager.swift */; };
+		AE6F10BBF7C6C5481903BFC6 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFC998C2913B39A37B9BB8C /* AppModel.swift */; };
+		BD754880BC9FFE2A03900EA5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E2F7ED21E54C3B4BC8E4411F /* Assets.xcassets */; };
+		E13840891F84C60FDC4AABA6 /* ItemDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CEDD5C2F1C8B4D6CEFFF34 /* ItemDetailView.swift */; };
+		E6B9BF479517FDF94E5A7270 /* DeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071B953E5F5584208DC57671 /* DeepLink.swift */; };
+		F6C0DAA935D37221EE155747 /* ContractDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF616F3C49172A3C68CAEA3E /* ContractDecodingTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		61C05FC6A8D629EEBE67776D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 823152D74B946866796A5707 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FA7605F3ED21B857237DA994;
+			remoteInfo = EarthEmpire;
+		};
+		FAE21BB184113812F89DA7E9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 823152D74B946866796A5707 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = FA7605F3ED21B857237DA994;
+			remoteInfo = EarthEmpire;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		071B953E5F5584208DC57671 /* DeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLink.swift; sourceTree = "<group>"; };
+		0E38F69360C4800163B97DD3 /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
+		0F93E7FD863363E45B648534 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		13F53B07E8240F8020388C22 /* EarthEmpireTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = EarthEmpireTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		14C857445BC4945DE465350B /* MainFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainFlowUITests.swift; sourceTree = "<group>"; };
+		1DFC998C2913B39A37B9BB8C /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		29B8B5979B4044094AE44731 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		30BC7EA3F99B32558B035B60 /* PagingAndLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagingAndLinkTests.swift; sourceTree = "<group>"; };
+		478845545024E3757F39A26A /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
+		51BA1FF3A41311C8BCB05351 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		5D4FA353B432052E22F08A40 /* CategoryViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryViews.swift; sourceTree = "<group>"; };
+		74CEDD5C2F1C8B4D6CEFFF34 /* ItemDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemDetailView.swift; sourceTree = "<group>"; };
+		842E0D479792BE82F10F7001 /* AnalysisView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalysisView.swift; sourceTree = "<group>"; };
+		92A6F122D559E8EB258138C1 /* Pager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Pager.swift; sourceTree = "<group>"; };
+		BF616F3C49172A3C68CAEA3E /* ContractDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContractDecodingTests.swift; sourceTree = "<group>"; };
+		C505D9BF87C98B829AE07BC0 /* StoryViewer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryViewer.swift; sourceTree = "<group>"; };
+		E2F7ED21E54C3B4BC8E4411F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E4253A28B9342AD308006660 /* EarthEmpireUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = EarthEmpireUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		EDF06D3E4982A518386C6517 /* Fixture */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fixture; sourceTree = SOURCE_ROOT; };
+		F3E9115E2889E4FD9B038326 /* EarthEmpire.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = EarthEmpire.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F9EAE27E5A95D89972B55E1F /* MediaCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCache.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		20C1E1CE16428396639AAD27 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				842E0D479792BE82F10F7001 /* AnalysisView.swift */,
+				478845545024E3757F39A26A /* API.swift */,
+				0F93E7FD863363E45B648534 /* App.swift */,
+				1DFC998C2913B39A37B9BB8C /* AppModel.swift */,
+				5D4FA353B432052E22F08A40 /* CategoryViews.swift */,
+				29B8B5979B4044094AE44731 /* Config.swift */,
+				071B953E5F5584208DC57671 /* DeepLink.swift */,
+				74CEDD5C2F1C8B4D6CEFFF34 /* ItemDetailView.swift */,
+				F9EAE27E5A95D89972B55E1F /* MediaCache.swift */,
+				0E38F69360C4800163B97DD3 /* Model.swift */,
+				92A6F122D559E8EB258138C1 /* Pager.swift */,
+				51BA1FF3A41311C8BCB05351 /* ProfileView.swift */,
+				C505D9BF87C98B829AE07BC0 /* StoryViewer.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		5FF7361E83B0D819F365F82A /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				E2F7ED21E54C3B4BC8E4411F /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		70E38B08122A80D313690925 = {
+			isa = PBXGroup;
+			children = (
+				EDF06D3E4982A518386C6517 /* Fixture */,
+				AA4E35470CBF314562CD85CC /* EarthEmpire */,
+				A771D5CC97CACC16C85D6BEE /* Tests */,
+				9567C47FCAE43586EF286DCE /* UITests */,
+				C3579EC9DCC2BD291D442474 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		9567C47FCAE43586EF286DCE /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				14C857445BC4945DE465350B /* MainFlowUITests.swift */,
+			);
+			path = UITests;
+			sourceTree = "<group>";
+		};
+		A771D5CC97CACC16C85D6BEE /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				BF616F3C49172A3C68CAEA3E /* ContractDecodingTests.swift */,
+				30BC7EA3F99B32558B035B60 /* PagingAndLinkTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		AA4E35470CBF314562CD85CC /* EarthEmpire */ = {
+			isa = PBXGroup;
+			children = (
+				5FF7361E83B0D819F365F82A /* Resources */,
+				20C1E1CE16428396639AAD27 /* Sources */,
+			);
+			path = EarthEmpire;
+			sourceTree = "<group>";
+		};
+		C3579EC9DCC2BD291D442474 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F3E9115E2889E4FD9B038326 /* EarthEmpire.app */,
+				13F53B07E8240F8020388C22 /* EarthEmpireTests.xctest */,
+				E4253A28B9342AD308006660 /* EarthEmpireUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		20ADACD7965E1BD98596BE74 /* EarthEmpireUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E6EFC46823B1BE6F3DAF14D5 /* Build configuration list for PBXNativeTarget "EarthEmpireUITests" */;
+			buildPhases = (
+				AD961FDCE6D958E04CCBA0A5 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C1B465D40AE3CC18017D8144 /* PBXTargetDependency */,
+			);
+			name = EarthEmpireUITests;
+			packageProductDependencies = (
+			);
+			productName = EarthEmpireUITests;
+			productReference = E4253A28B9342AD308006660 /* EarthEmpireUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		8FD6DF725372016484DC2DCE /* EarthEmpireTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 258419DDFEB376B21266E73C /* Build configuration list for PBXNativeTarget "EarthEmpireTests" */;
+			buildPhases = (
+				A28CABF7EBCD1DEB4EE0A10C /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				92BDDC2D52756BDED5E5D816 /* PBXTargetDependency */,
+			);
+			name = EarthEmpireTests;
+			packageProductDependencies = (
+			);
+			productName = EarthEmpireTests;
+			productReference = 13F53B07E8240F8020388C22 /* EarthEmpireTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		FA7605F3ED21B857237DA994 /* EarthEmpire */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B5EC30EC760190CD97575567 /* Build configuration list for PBXNativeTarget "EarthEmpire" */;
+			buildPhases = (
+				81F70FAAE60EC415375463C7 /* Sources */,
+				392130FA536EFA22CBC3F2DE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = EarthEmpire;
+			packageProductDependencies = (
+			);
+			productName = EarthEmpire;
+			productReference = F3E9115E2889E4FD9B038326 /* EarthEmpire.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		823152D74B946866796A5707 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					20ADACD7965E1BD98596BE74 = {
+						DevelopmentTeam = HTS38ZPRVH;
+						ProvisioningStyle = Automatic;
+						TestTargetID = FA7605F3ED21B857237DA994;
+					};
+					8FD6DF725372016484DC2DCE = {
+						DevelopmentTeam = HTS38ZPRVH;
+						ProvisioningStyle = Automatic;
+					};
+					FA7605F3ED21B857237DA994 = {
+						DevelopmentTeam = HTS38ZPRVH;
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = F0043867DC6B25ABADCD4F13 /* Build configuration list for PBXProject "EarthEmpire" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 70E38B08122A80D313690925;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = C3579EC9DCC2BD291D442474 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				FA7605F3ED21B857237DA994 /* EarthEmpire */,
+				8FD6DF725372016484DC2DCE /* EarthEmpireTests */,
+				20ADACD7965E1BD98596BE74 /* EarthEmpireUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		392130FA536EFA22CBC3F2DE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BD754880BC9FFE2A03900EA5 /* Assets.xcassets in Resources */,
+				36E234C2EA26EDFEB6245DD4 /* Fixture in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		81F70FAAE60EC415375463C7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				068852F6B20A2558E2736548 /* API.swift in Sources */,
+				7AD19C6DC4326F14296450F4 /* AnalysisView.swift in Sources */,
+				8EF8715A739D3A879B3619AD /* App.swift in Sources */,
+				AE6F10BBF7C6C5481903BFC6 /* AppModel.swift in Sources */,
+				06CDA6BDE77CCB66978CC4CA /* CategoryViews.swift in Sources */,
+				52F4AA4869C9D9D2415DCB9C /* Config.swift in Sources */,
+				E6B9BF479517FDF94E5A7270 /* DeepLink.swift in Sources */,
+				E13840891F84C60FDC4AABA6 /* ItemDetailView.swift in Sources */,
+				4982A6C2285DE4D5C881A404 /* MediaCache.swift in Sources */,
+				1B8EC9783435515D1CB9319E /* Model.swift in Sources */,
+				AA86805E40DD0C9BF2E44297 /* Pager.swift in Sources */,
+				8897711542937B38CB0ED147 /* ProfileView.swift in Sources */,
+				3ADAE626F43F7910304226FA /* StoryViewer.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A28CABF7EBCD1DEB4EE0A10C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F6C0DAA935D37221EE155747 /* ContractDecodingTests.swift in Sources */,
+				A44280FB88AC8BFF7203A52B /* PagingAndLinkTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		AD961FDCE6D958E04CCBA0A5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				89A6978CD50C6D1631D1786A /* MainFlowUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		92BDDC2D52756BDED5E5D816 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FA7605F3ED21B857237DA994 /* EarthEmpire */;
+			targetProxy = 61C05FC6A8D629EEBE67776D /* PBXContainerItemProxy */;
+		};
+		C1B465D40AE3CC18017D8144 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = FA7605F3ED21B857237DA994 /* EarthEmpire */;
+			targetProxy = FAE21BB184113812F89DA7E9 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0D1183B2FF0561C9717DE5B2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = HTS38ZPRVH;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		6B011DC2CE12BDA33016E83D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oeaio.earthempire.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Earth Empire.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Earth Empire";
+			};
+			name = Debug;
+		};
+		705D8649CA001B892B635287 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = HTS38ZPRVH;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		7FFBD9CD4B623859759ECE2E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = EarthEmpire/EarthEmpire.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = EarthEmpire/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oeaio.earthempire;
+				PRODUCT_NAME = "Earth Empire";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		930F03F575B0856BB55B035A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = EarthEmpire/EarthEmpire.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				INFOPLIST_FILE = EarthEmpire/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oeaio.earthempire;
+				PRODUCT_NAME = "Earth Empire";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		99147F592F77B7BD9B789805 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oeaio.earthempire.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = EarthEmpire;
+			};
+			name = Debug;
+		};
+		9ED6F99085523C6AB5AE14BA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oeaio.earthempire.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Earth Empire.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Earth Empire";
+			};
+			name = Release;
+		};
+		FC54D85B214FDE5E0196EDC1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.oeaio.earthempire.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = EarthEmpire;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		258419DDFEB376B21266E73C /* Build configuration list for PBXNativeTarget "EarthEmpireTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6B011DC2CE12BDA33016E83D /* Debug */,
+				9ED6F99085523C6AB5AE14BA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B5EC30EC760190CD97575567 /* Build configuration list for PBXNativeTarget "EarthEmpire" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				930F03F575B0856BB55B035A /* Debug */,
+				7FFBD9CD4B623859759ECE2E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E6EFC46823B1BE6F3DAF14D5 /* Build configuration list for PBXNativeTarget "EarthEmpireUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				99147F592F77B7BD9B789805 /* Debug */,
+				FC54D85B214FDE5E0196EDC1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F0043867DC6B25ABADCD4F13 /* Build configuration list for PBXProject "EarthEmpire" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				705D8649CA001B892B635287 /* Debug */,
+				0D1183B2FF0561C9717DE5B2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 823152D74B946866796A5707 /* Project object */;
+}

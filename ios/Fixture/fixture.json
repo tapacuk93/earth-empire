@@ -1,0 +1,1467 @@
+{
+ "profile": {
+  "username": "earthempire",
+  "full_name": "Earth Empire",
+  "bio": "Surf, food, family and cities.\nThe whole archive, analyzed: empire.earth",
+  "avatar": "https://media.empire.earth/profile/avatar.jpg",
+  "links": [
+   "https://empire.earth"
+  ],
+  "counts": {
+   "posts": 11,
+   "followers": 4821,
+   "following": 512
+  },
+  "updated_at": "2026-10-20T08:00:00Z"
+ },
+ "highlights": [
+  {
+   "id": "hl_17900000000000001",
+   "title": "Travel",
+   "cover": "https://media.empire.earth/highlights/hl_17900000000000001/cover.jpg",
+   "item_ids": [
+    "ig_3300000000000000002",
+    "ig_3400000000000000009",
+    "ig_3400000000000000008"
+   ],
+   "updated_at": "2026-10-18T00:00:00Z"
+  },
+  {
+   "id": "hl_17900000000000002",
+   "title": "Food",
+   "cover": "https://media.empire.earth/highlights/hl_17900000000000002/cover.jpg",
+   "item_ids": [
+    "ig_3400000000000000009"
+   ],
+   "updated_at": "2026-10-18T00:00:00Z"
+  },
+  {
+   "id": "hl_17900000000000003",
+   "title": "Surf",
+   "cover": "https://media.empire.earth/highlights/hl_17900000000000003/cover.jpg",
+   "item_ids": [
+    "ig_3300000000000000004",
+    "ig_3400000000000000011"
+   ],
+   "updated_at": "2026-10-18T00:00:00Z"
+  }
+ ],
+ "categories": [
+  {
+   "slug": "travel",
+   "name": "Travel",
+   "description": "Trips, places and the road between them.",
+   "count": 7
+  },
+  {
+   "slug": "city",
+   "name": "City",
+   "description": "Streets of Lisbon and Kyiv.",
+   "count": 5
+  },
+  {
+   "slug": "food",
+   "name": "Food",
+   "description": "Cooking, cafés and family recipes.",
+   "count": 4
+  },
+  {
+   "slug": "surf",
+   "name": "Surf",
+   "description": "Sessions, boards and big-wave season.",
+   "count": 3
+  },
+  {
+   "slug": "family",
+   "name": "Family",
+   "description": "Home, grandparents and the garden.",
+   "count": 3
+  },
+  {
+   "slug": "sport",
+   "name": "Sport",
+   "description": "Running, swimming and training.",
+   "count": 2
+  },
+  {
+   "slug": "reposts",
+   "name": "Reposts",
+   "description": "Reels and posts shared from other accounts, credited to their authors.",
+   "count": 2
+  },
+  {
+   "slug": "friends",
+   "name": "Friends",
+   "description": "People the owner spends time with.",
+   "count": 1
+  }
+ ],
+ "items": [
+  {
+   "id": "ig_3400000000000000012",
+   "kind": "reel",
+   "shortcode": "DQs1rFa",
+   "source_url": "https://www.instagram.com/reel/DQs1rFa/",
+   "taken_at": "2026-10-18T07:42:00Z",
+   "caption": "First light at Ribeira d'Ilhas with @marta.waves. Cold water, warm hearts #surf #ericeira",
+   "hashtags": [
+    "surf",
+    "ericeira"
+   ],
+   "mentions": [
+    "marta.waves"
+   ],
+   "tagged_users": [
+    {
+     "username": "marta.waves",
+     "x": null,
+     "y": null
+    }
+   ],
+   "location": {
+    "name": "Ericeira",
+    "id": "213475620",
+    "lat": 38.9627,
+    "lng": -9.4157
+   },
+   "music": {
+    "title": "Sunrise Drive",
+    "artist": "Coastline"
+   },
+   "alt_text": null,
+   "stickers": [],
+   "counts": {
+    "likes": 812,
+    "comments": 34,
+    "plays": 15400
+   },
+   "media": [
+    {
+     "type": "video",
+     "url": "https://media.empire.earth/items/ig_3400000000000000012/0.mp4",
+     "thumbnail": "https://media.empire.earth/items/ig_3400000000000000012/0.thumb.jpg",
+     "width": 1080,
+     "height": 1920,
+     "duration": 8.0
+    }
+   ],
+   "highlights": [],
+   "repost_of": null,
+   "categories": [
+    "surf",
+    "travel",
+    "friends"
+   ],
+   "summary": "A dawn surf session at Ribeira d'Ilhas with Marta, from paddle-out to the last wave.",
+   "analysis": {
+    "people": [
+     {
+      "who": "@earthempire",
+      "description": "the account owner, in a black wetsuit",
+      "basis": "caption",
+      "role": "surfer, filming",
+      "appears": [
+       {
+        "media": 0,
+        "from": 0.0,
+        "to": 3.0
+       }
+      ]
+     },
+     {
+      "who": "@marta.waves",
+      "description": "surfer with a yellow longboard",
+      "basis": "tag",
+      "role": "surfer",
+      "appears": [
+       {
+        "media": 0,
+        "from": 2.0,
+        "to": 8.0
+       }
+      ]
+     },
+     {
+      "who": null,
+      "description": "a lifeguard on the tower in a red jacket",
+      "basis": "description only",
+      "role": "bystander",
+      "appears": [
+       {
+        "media": 0,
+        "from": 6.5,
+        "to": 7.5
+       }
+      ]
+     }
+    ],
+    "what": "Two surfers paddle out at sunrise, catch a few waves on a small clean swell and walk back up the beach laughing.",
+    "events": [
+     {
+      "media": 0,
+      "at": 0.0,
+      "text": "Sunrise over the bay, boards under arm"
+     },
+     {
+      "media": 0,
+      "at": 2.4,
+      "text": "Paddle-out through the whitewater"
+     },
+     {
+      "media": 0,
+      "at": 4.8,
+      "text": "Marta takes the first wave of the set"
+     },
+     {
+      "media": 0,
+      "at": 6.9,
+      "text": "Walking back up the beach"
+     }
+    ],
+    "when": {
+     "date": "2026-10-18",
+     "time_of_day": "dawn",
+     "season": "autumn",
+     "occasion": null,
+     "basis": "taken_at and low sun"
+    },
+    "where": {
+     "place": "Ribeira d'Ilhas, Ericeira",
+     "kind": "beach",
+     "country": "Portugal",
+     "basis": "location"
+    },
+    "objects": [
+     "surfboard",
+     "longboard",
+     "wetsuit",
+     "lifeguard tower"
+    ],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [
+     "Ribeira d'Ilhas"
+    ],
+    "speech": {
+     "language": "en",
+     "transcript": "Okay, it's freezing. [laughs] Marta, go, go, go! That was the one. Best wave of the week."
+    },
+    "music": "Sunrise Drive by Coastline",
+    "mood": "joyful, energetic",
+    "language": "en",
+    "context": "Part of a recurring series of dawn sessions in Ericeira; Marta appears in several earlier surf posts.",
+    "keywords": [
+     "surf",
+     "sunrise",
+     "Ericeira",
+     "World Surfing Reserve"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3400000000000000011",
+   "kind": "story",
+   "shortcode": null,
+   "source_url": null,
+   "taken_at": "2026-10-17T19:05:00Z",
+   "caption": null,
+   "hashtags": [],
+   "mentions": [],
+   "tagged_users": [],
+   "location": null,
+   "music": null,
+   "alt_text": null,
+   "stickers": [
+    {
+     "type": "mention",
+     "text": "@nazare.daily",
+     "extra": {}
+    }
+   ],
+   "counts": {},
+   "media": [
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3400000000000000011/0.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3400000000000000011/0.thumb.jpg",
+     "width": 1080,
+     "height": 1920,
+     "duration": null
+    }
+   ],
+   "highlights": [
+    {
+     "id": "hl_17900000000000003",
+     "title": "Surf"
+    }
+   ],
+   "repost_of": {
+    "author": "nazare.daily",
+    "author_name": "Nazaré Daily",
+    "shortcode": "DQq9xYz",
+    "source_url": "https://www.instagram.com/reel/DQq9xYz/",
+    "taken_at": "2026-10-17T15:30:00Z",
+    "caption": "The North Canyon woke up today. 20 m faces at Praia do Norte #nazare #bigwave",
+    "media": [
+     {
+      "type": "video",
+      "url": "https://media.empire.earth/items/ig_3400000000000000011/orig.0.mp4",
+      "thumbnail": "https://media.empire.earth/items/ig_3400000000000000011/orig.0.thumb.jpg",
+      "width": 1080,
+      "height": 1920,
+      "duration": 6.0
+     }
+    ]
+   },
+   "categories": [
+    "surf",
+    "reposts"
+   ],
+   "summary": "A shared reel by @nazare.daily of a big-wave set at Nazaré.",
+   "analysis": {
+    "people": [
+     {
+      "who": null,
+      "description": "a tow-in surfer on a jet-ski rope",
+      "basis": "description only",
+      "role": "surfer",
+      "appears": [
+       {
+        "media": 0,
+        "from": 0.0,
+        "to": 6.0
+       }
+      ]
+     }
+    ],
+    "what": "The owner shares a reel of tow-in surfers riding huge waves at Praia do Norte, Nazaré.",
+    "events": [],
+    "when": {
+     "date": null,
+     "time_of_day": null,
+     "season": null,
+     "occasion": null,
+     "basis": "taken_at"
+    },
+    "where": {
+     "place": "Praia do Norte, Nazaré",
+     "kind": "beach",
+     "country": "Portugal",
+     "basis": "caption"
+    },
+    "objects": [
+     "jet ski",
+     "surfboard",
+     "lighthouse"
+    ],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [
+     "Nazaré Daily"
+    ],
+    "speech": null,
+    "music": null,
+    "mood": "awe",
+    "language": "en",
+    "context": "Shared from @nazare.daily; the owner follows big-wave season every autumn.",
+    "keywords": [
+     "Nazaré",
+     "big wave",
+     "repost"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3400000000000000010",
+   "kind": "carousel",
+   "shortcode": "DQb7kLm",
+   "source_url": "https://www.instagram.com/p/DQb7kLm/",
+   "taken_at": "2026-10-12T13:20:00Z",
+   "caption": "Three days of pastéis, azulejos and hills in Lisbon. Swipe for the best one #lisbon #food",
+   "hashtags": [
+    "lisbon",
+    "food"
+   ],
+   "mentions": [],
+   "tagged_users": [],
+   "location": {
+    "name": "Lisbon, Portugal",
+    "id": "106339232736050",
+    "lat": 38.7223,
+    "lng": -9.1393
+   },
+   "music": null,
+   "alt_text": "Blue and white azulejo tiles on a building in Alfama",
+   "stickers": [],
+   "counts": {
+    "likes": 1290,
+    "comments": 51
+   },
+   "media": [
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3400000000000000010/0.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3400000000000000010/0.thumb.jpg",
+     "width": 1080,
+     "height": 1350,
+     "duration": null
+    },
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3400000000000000010/1.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3400000000000000010/1.thumb.jpg",
+     "width": 1080,
+     "height": 1350,
+     "duration": null
+    },
+    {
+     "type": "video",
+     "url": "https://media.empire.earth/items/ig_3400000000000000010/2.mp4",
+     "thumbnail": "https://media.empire.earth/items/ig_3400000000000000010/2.thumb.jpg",
+     "width": 1080,
+     "height": 1350,
+     "duration": 5.0
+    },
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3400000000000000010/3.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3400000000000000010/3.thumb.jpg",
+     "width": 1080,
+     "height": 1080,
+     "duration": null
+    }
+   ],
+   "highlights": [],
+   "repost_of": null,
+   "categories": [
+    "travel",
+    "food",
+    "city"
+   ],
+   "summary": "A Lisbon weekend in four frames: tiles, a tram, a pastry counter and the view from a miradouro.",
+   "analysis": {
+    "people": [
+     {
+      "who": null,
+      "description": "a baker in a white cap",
+      "basis": "description only",
+      "role": "baker",
+      "appears": [
+       {
+        "media": 2,
+        "from": 0.0,
+        "to": 5.0
+       }
+      ]
+     }
+    ],
+    "what": "A carousel from a weekend in Lisbon: a tiled façade, a yellow tram climbing a hill, a short clip of pastéis de nata coming out of the oven, and the city at sunset.",
+    "events": [
+     {
+      "media": 2,
+      "at": 1.0,
+      "text": "Tray of pastéis de nata comes out of the oven"
+     },
+     {
+      "media": 2,
+      "at": 3.5,
+      "text": "Cinnamon dusted over the tarts"
+     }
+    ],
+    "when": {
+     "date": "2026-10-10 to 2026-10-12",
+     "time_of_day": "afternoon",
+     "season": "autumn",
+     "occasion": "weekend trip",
+     "basis": "caption"
+    },
+    "where": {
+     "place": "Alfama and Belém, Lisbon",
+     "kind": "city",
+     "country": "Portugal",
+     "basis": "location, landmark"
+    },
+    "objects": [
+     "azulejo tiles",
+     "tram 28",
+     "pastéis de nata",
+     "oven"
+    ],
+    "animals": [],
+    "brands": [
+     "Pastéis de Belém"
+    ],
+    "on_screen_text": [
+     "Pastéis de Belém",
+     "28 Prazeres"
+    ],
+    "speech": null,
+    "music": null,
+    "mood": "warm, relaxed",
+    "language": "en",
+    "context": "Third trip to Lisbon in the archive; follows the Ericeira surf series.",
+    "keywords": [
+     "Lisbon",
+     "azulejos",
+     "tram 28",
+     "pastel de nata"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3400000000000000008",
+   "kind": "story",
+   "shortcode": null,
+   "source_url": null,
+   "taken_at": "2026-10-11T18:40:00Z",
+   "caption": null,
+   "hashtags": [],
+   "mentions": [],
+   "tagged_users": [],
+   "location": {
+    "name": "Lisbon, Portugal",
+    "id": "106339232736050",
+    "lat": 38.7223,
+    "lng": -9.1393
+   },
+   "music": null,
+   "alt_text": null,
+   "stickers": [],
+   "counts": {},
+   "media": [
+    {
+     "type": "video",
+     "url": "https://media.empire.earth/items/ig_3400000000000000008/0.mp4",
+     "thumbnail": "https://media.empire.earth/items/ig_3400000000000000008/0.thumb.jpg",
+     "width": 1080,
+     "height": 1920,
+     "duration": 5.0
+    }
+   ],
+   "highlights": [
+    {
+     "id": "hl_17900000000000001",
+     "title": "Travel"
+    }
+   ],
+   "repost_of": null,
+   "categories": [
+    "travel",
+    "city"
+   ],
+   "summary": "Tram 28 rattling up a hill in Alfama at golden hour.",
+   "analysis": {
+    "people": [],
+    "what": "A yellow tram climbs a narrow street in Alfama as the sun sets.",
+    "events": [
+     {
+      "media": 0,
+      "at": 1.5,
+      "text": "Tram rounds the corner"
+     }
+    ],
+    "when": {
+     "date": null,
+     "time_of_day": null,
+     "season": null,
+     "occasion": null,
+     "basis": "taken_at"
+    },
+    "where": {
+     "place": "Alfama, Lisbon",
+     "kind": "city",
+     "country": "Portugal",
+     "basis": "landmark"
+    },
+    "objects": [
+     "tram"
+    ],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [],
+    "speech": null,
+    "music": null,
+    "mood": "nostalgic",
+    "language": "en",
+    "context": "",
+    "keywords": [
+     "tram 28",
+     "golden hour"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3400000000000000009",
+   "kind": "story",
+   "shortcode": null,
+   "source_url": null,
+   "taken_at": "2026-10-11T10:15:00Z",
+   "caption": null,
+   "hashtags": [],
+   "mentions": [],
+   "tagged_users": [],
+   "location": {
+    "name": "Lisbon, Portugal",
+    "id": "106339232736050",
+    "lat": 38.7223,
+    "lng": -9.1393
+   },
+   "music": null,
+   "alt_text": null,
+   "stickers": [
+    {
+     "type": "location",
+     "text": "Lisbon, Portugal",
+     "extra": {}
+    },
+    {
+     "type": "poll",
+     "text": "Cinnamon on top?",
+     "extra": {
+      "options": [
+       "Yes",
+       "Always"
+      ]
+     }
+    }
+   ],
+   "counts": {},
+   "media": [
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3400000000000000009/0.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3400000000000000009/0.thumb.jpg",
+     "width": 1080,
+     "height": 1920,
+     "duration": null
+    }
+   ],
+   "highlights": [
+    {
+     "id": "hl_17900000000000002",
+     "title": "Food"
+    },
+    {
+     "id": "hl_17900000000000001",
+     "title": "Travel"
+    }
+   ],
+   "repost_of": null,
+   "categories": [
+    "food",
+    "travel"
+   ],
+   "summary": "Breakfast at a Lisbon café: a bica and two pastéis de nata.",
+   "analysis": {
+    "people": [],
+    "what": "A close-up of a café table with an espresso and two custard tarts, with a poll asking about cinnamon.",
+    "events": [],
+    "when": {
+     "date": null,
+     "time_of_day": null,
+     "season": null,
+     "occasion": null,
+     "basis": "taken_at"
+    },
+    "where": {
+     "place": "a café in Lisbon",
+     "kind": "café",
+     "country": "Portugal",
+     "basis": "location sticker"
+    },
+    "objects": [
+     "espresso",
+     "pastéis de nata",
+     "marble table"
+    ],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [
+     "Cinnamon on top?"
+    ],
+    "speech": null,
+    "music": null,
+    "mood": "cosy",
+    "language": "en",
+    "context": "",
+    "keywords": [
+     "breakfast",
+     "bica",
+     "pastel de nata"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3400000000000000007",
+   "kind": "post",
+   "shortcode": "DPz3aQw",
+   "source_url": "https://www.instagram.com/p/DPz3aQw/",
+   "taken_at": "2026-09-28T16:00:00Z",
+   "caption": "Home for the weekend. The chestnuts are out on Khreshchatyk again #kyiv #autumn",
+   "hashtags": [
+    "kyiv",
+    "autumn"
+   ],
+   "mentions": [],
+   "tagged_users": [],
+   "location": {
+    "name": "Kyiv, Ukraine",
+    "id": "111227078906045",
+    "lat": 50.4501,
+    "lng": 30.5234
+   },
+   "music": null,
+   "alt_text": null,
+   "stickers": [],
+   "counts": {
+    "likes": 2034,
+    "comments": 88
+   },
+   "media": [
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3400000000000000007/0.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3400000000000000007/0.thumb.jpg",
+     "width": 1080,
+     "height": 1350,
+     "duration": null
+    }
+   ],
+   "highlights": [],
+   "repost_of": null,
+   "categories": [
+    "city",
+    "family"
+   ],
+   "summary": "An autumn afternoon in Kyiv, chestnut trees turning on Khreshchatyk.",
+   "analysis": {
+    "people": [],
+    "what": "A wide street lined with chestnut trees in autumn colours, people walking on a closed-off avenue.",
+    "events": [],
+    "when": {
+     "date": "2026-09-28",
+     "time_of_day": "afternoon",
+     "season": "autumn",
+     "occasion": "weekend at home",
+     "basis": "caption and foliage"
+    },
+    "where": {
+     "place": "Khreshchatyk, Kyiv",
+     "kind": "city",
+     "country": "Ukraine",
+     "basis": "caption, location"
+    },
+    "objects": [
+     "chestnut trees",
+     "street lamps"
+    ],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [],
+    "speech": null,
+    "music": null,
+    "mood": "calm, homesick",
+    "language": "en",
+    "context": "The owner visits Kyiv most autumns; earlier posts show the same street.",
+    "keywords": [
+     "Kyiv",
+     "Khreshchatyk",
+     "chestnuts"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3400000000000000006",
+   "kind": "reel",
+   "shortcode": "DPl2bNv",
+   "source_url": "https://www.instagram.com/reel/DPl2bNv/",
+   "taken_at": "2026-09-14T12:00:00Z",
+   "caption": "How we make varenyky at my grandmother's, step by step (and why she never measures anything)",
+   "hashtags": [],
+   "mentions": [],
+   "tagged_users": [],
+   "location": null,
+   "music": null,
+   "alt_text": null,
+   "stickers": [],
+   "counts": {
+    "likes": 5630,
+    "comments": 240,
+    "plays": 88200
+   },
+   "media": [
+    {
+     "type": "video",
+     "url": "https://media.empire.earth/items/ig_3400000000000000006/0.mp4",
+     "thumbnail": "https://media.empire.earth/items/ig_3400000000000000006/0.thumb.jpg",
+     "width": 1080,
+     "height": 1920,
+     "duration": 7.0
+    }
+   ],
+   "highlights": [],
+   "repost_of": null,
+   "categories": [
+    "food",
+    "family"
+   ],
+   "summary": "Grandmother shows how she makes varenyky by hand, from dough to boiling.",
+   "analysis": {
+    "people": [
+     {
+      "who": "Grandmother Halyna",
+      "description": "older woman in a floral apron",
+      "basis": "caption",
+      "role": "cook",
+      "appears": [
+       {
+        "media": 0,
+        "from": 0.0,
+        "to": 7.0
+       }
+      ]
+     }
+    ],
+    "what": "An older woman rolls dough, cuts circles with a glass, fills them with potato and folds varenyky, then drops them into boiling water.",
+    "events": [
+     {
+      "media": 0,
+      "at": 0.5,
+      "text": "Rolling out the dough"
+     },
+     {
+      "media": 0,
+      "at": 2.5,
+      "text": "Cutting circles with a glass"
+     },
+     {
+      "media": 0,
+      "at": 4.0,
+      "text": "Filling and pinching the edges"
+     },
+     {
+      "media": 0,
+      "at": 6.0,
+      "text": "Into the boiling water"
+     }
+    ],
+    "when": {
+     "date": null,
+     "time_of_day": "midday",
+     "season": null,
+     "occasion": "family lunch",
+     "basis": "light"
+    },
+    "where": {
+     "place": "grandmother's kitchen",
+     "kind": "home",
+     "country": "Ukraine",
+     "basis": "speech"
+    },
+    "objects": [
+     "rolling pin",
+     "glass",
+     "flour",
+     "pot"
+    ],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [],
+    "speech": {
+     "language": "uk",
+     "transcript": "Не міряю нічого, все на око. Тісто має бути як вушко. [She never measures anything; the dough should feel like an earlobe.]"
+    },
+    "music": null,
+    "mood": "warm, homely",
+    "language": "uk",
+    "context": "Named in the caption of an earlier post as the owner's grandmother Halyna.",
+    "keywords": [
+     "varenyky",
+     "recipe",
+     "Ukrainian food",
+     "grandmother"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3400000000000000005",
+   "kind": "post",
+   "shortcode": "DPa1cOp",
+   "source_url": "https://www.instagram.com/p/DPa1cOp/",
+   "taken_at": "2026-08-30T08:10:00Z",
+   "caption": "Reel of the summer, by the one and only @alex.films. Watch till the end",
+   "hashtags": [],
+   "mentions": [
+    "alex.films"
+   ],
+   "tagged_users": [],
+   "location": null,
+   "music": null,
+   "alt_text": null,
+   "stickers": [],
+   "counts": {},
+   "media": [
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3400000000000000005/0.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3400000000000000005/0.thumb.jpg",
+     "width": 1080,
+     "height": 1350,
+     "duration": null
+    }
+   ],
+   "highlights": [],
+   "repost_of": {
+    "author": "alex.films",
+    "author_name": "Alex Moreno",
+    "shortcode": "DOx8pQr",
+    "source_url": "https://www.instagram.com/reel/DOx8pQr/",
+    "taken_at": "2026-08-29T20:00:00Z",
+    "caption": "Ten countries, one van, zero plans. Summer 2026.",
+    "media": [
+     {
+      "type": "image",
+      "url": "https://media.empire.earth/items/ig_3400000000000000005/0.jpg",
+      "thumbnail": "https://media.empire.earth/items/ig_3400000000000000005/0.thumb.jpg",
+      "width": 1080,
+      "height": 1350,
+      "duration": null
+     }
+    ]
+   },
+   "categories": [
+    "reposts",
+    "travel"
+   ],
+   "summary": "A post sharing @alex.films' summer road-trip reel.",
+   "analysis": {
+    "people": [
+     {
+      "who": "@alex.films",
+      "description": "filmmaker behind the van trip",
+      "basis": "mention",
+      "role": "author of the original",
+      "appears": []
+     }
+    ],
+    "what": "A shared reel from Alex Moreno's van trip across Europe.",
+    "events": [],
+    "when": {
+     "date": null,
+     "time_of_day": null,
+     "season": null,
+     "occasion": null,
+     "basis": "taken_at"
+    },
+    "where": {
+     "place": null,
+     "kind": null,
+     "country": null,
+     "basis": null
+    },
+    "objects": [],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [],
+    "speech": null,
+    "music": null,
+    "mood": "adventurous",
+    "language": "en",
+    "context": "Repost; the original is by @alex.films.",
+    "keywords": [
+     "road trip",
+     "van life",
+     "repost"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3300000000000000000",
+   "kind": "post",
+   "shortcode": "DO0aaa0",
+   "source_url": "https://www.instagram.com/p/DO0aaa0/",
+   "taken_at": "2026-08-12T09:00:00Z",
+   "caption": "Morning run along the Tagus #running",
+   "hashtags": [
+    "running"
+   ],
+   "mentions": [],
+   "tagged_users": [],
+   "location": null,
+   "music": null,
+   "alt_text": null,
+   "stickers": [],
+   "counts": {
+    "likes": 300,
+    "comments": 5
+   },
+   "media": [
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3300000000000000000/0.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3300000000000000000/0.thumb.jpg",
+     "width": 1080,
+     "height": 1080,
+     "duration": null
+    }
+   ],
+   "highlights": [],
+   "repost_of": null,
+   "categories": [
+    "sport",
+    "city"
+   ],
+   "summary": "A sunrise run along the river in Lisbon.",
+   "analysis": {
+    "people": [],
+    "what": "A sunrise run along the river in Lisbon.",
+    "events": [],
+    "when": {
+     "date": null,
+     "time_of_day": null,
+     "season": null,
+     "occasion": null,
+     "basis": "taken_at"
+    },
+    "where": {
+     "place": null,
+     "kind": null,
+     "country": null,
+     "basis": null
+    },
+    "objects": [],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [],
+    "speech": null,
+    "music": null,
+    "mood": "bright",
+    "language": "en",
+    "context": "",
+    "keywords": [
+     "sport",
+     "city"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3300000000000000001",
+   "kind": "post",
+   "shortcode": "DO1aaa1",
+   "source_url": "https://www.instagram.com/p/DO1aaa1/",
+   "taken_at": "2026-07-30T18:30:00Z",
+   "caption": "Garden harvest: more tomatoes than we can eat #garden",
+   "hashtags": [
+    "garden"
+   ],
+   "mentions": [],
+   "tagged_users": [],
+   "location": null,
+   "music": null,
+   "alt_text": null,
+   "stickers": [],
+   "counts": {
+    "likes": 337,
+    "comments": 6
+   },
+   "media": [
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3300000000000000001/0.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3300000000000000001/0.thumb.jpg",
+     "width": 1080,
+     "height": 1080,
+     "duration": null
+    }
+   ],
+   "highlights": [],
+   "repost_of": null,
+   "categories": [
+    "family",
+    "food"
+   ],
+   "summary": "A basket of tomatoes from the family garden.",
+   "analysis": {
+    "people": [],
+    "what": "A basket of tomatoes from the family garden.",
+    "events": [],
+    "when": {
+     "date": null,
+     "time_of_day": null,
+     "season": null,
+     "occasion": null,
+     "basis": "taken_at"
+    },
+    "where": {
+     "place": null,
+     "kind": null,
+     "country": null,
+     "basis": null
+    },
+    "objects": [],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [],
+    "speech": null,
+    "music": null,
+    "mood": "bright",
+    "language": "en",
+    "context": "",
+    "keywords": [
+     "family",
+     "food"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3300000000000000002",
+   "kind": "post",
+   "shortcode": "DO2aaa2",
+   "source_url": "https://www.instagram.com/p/DO2aaa2/",
+   "taken_at": "2026-07-02T11:00:00Z",
+   "caption": "Packing light this time #travel",
+   "hashtags": [
+    "travel"
+   ],
+   "mentions": [],
+   "tagged_users": [],
+   "location": null,
+   "music": null,
+   "alt_text": null,
+   "stickers": [],
+   "counts": {
+    "likes": 374,
+    "comments": 7
+   },
+   "media": [
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3300000000000000002/0.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3300000000000000002/0.thumb.jpg",
+     "width": 1080,
+     "height": 1080,
+     "duration": null
+    }
+   ],
+   "highlights": [
+    {
+     "id": "hl_17900000000000001",
+     "title": "Travel"
+    }
+   ],
+   "repost_of": null,
+   "categories": [
+    "travel"
+   ],
+   "summary": "A flat-lay of a small backpack's contents before a trip.",
+   "analysis": {
+    "people": [],
+    "what": "A flat-lay of a small backpack's contents before a trip.",
+    "events": [],
+    "when": {
+     "date": null,
+     "time_of_day": null,
+     "season": null,
+     "occasion": null,
+     "basis": "taken_at"
+    },
+    "where": {
+     "place": null,
+     "kind": null,
+     "country": null,
+     "basis": null
+    },
+    "objects": [],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [],
+    "speech": null,
+    "music": null,
+    "mood": "bright",
+    "language": "en",
+    "context": "",
+    "keywords": [
+     "travel"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3300000000000000003",
+   "kind": "post",
+   "shortcode": "DO3aaa3",
+   "source_url": "https://www.instagram.com/p/DO3aaa3/",
+   "taken_at": "2026-06-15T20:45:00Z",
+   "caption": "Longest day, longest swim #summer",
+   "hashtags": [
+    "summer"
+   ],
+   "mentions": [],
+   "tagged_users": [],
+   "location": null,
+   "music": null,
+   "alt_text": null,
+   "stickers": [],
+   "counts": {
+    "likes": 411,
+    "comments": 8
+   },
+   "media": [
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3300000000000000003/0.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3300000000000000003/0.thumb.jpg",
+     "width": 1080,
+     "height": 1080,
+     "duration": null
+    }
+   ],
+   "highlights": [],
+   "repost_of": null,
+   "categories": [
+    "sport",
+    "travel"
+   ],
+   "summary": "Swimming at sunset on the longest day of the year.",
+   "analysis": {
+    "people": [],
+    "what": "Swimming at sunset on the longest day of the year.",
+    "events": [],
+    "when": {
+     "date": null,
+     "time_of_day": null,
+     "season": null,
+     "occasion": null,
+     "basis": "taken_at"
+    },
+    "where": {
+     "place": null,
+     "kind": null,
+     "country": null,
+     "basis": null
+    },
+    "objects": [],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [],
+    "speech": null,
+    "music": null,
+    "mood": "bright",
+    "language": "en",
+    "context": "",
+    "keywords": [
+     "sport",
+     "travel"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3300000000000000004",
+   "kind": "post",
+   "shortcode": "DO4aaa4",
+   "source_url": "https://www.instagram.com/p/DO4aaa4/",
+   "taken_at": "2026-05-20T14:00:00Z",
+   "caption": "New board day #surf",
+   "hashtags": [
+    "surf"
+   ],
+   "mentions": [],
+   "tagged_users": [],
+   "location": null,
+   "music": null,
+   "alt_text": null,
+   "stickers": [],
+   "counts": {
+    "likes": 448,
+    "comments": 9
+   },
+   "media": [
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3300000000000000004/0.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3300000000000000004/0.thumb.jpg",
+     "width": 1080,
+     "height": 1080,
+     "duration": null
+    }
+   ],
+   "highlights": [
+    {
+     "id": "hl_17900000000000003",
+     "title": "Surf"
+    }
+   ],
+   "repost_of": null,
+   "categories": [
+    "surf"
+   ],
+   "summary": "Unwrapping a new surfboard.",
+   "analysis": {
+    "people": [],
+    "what": "Unwrapping a new surfboard.",
+    "events": [],
+    "when": {
+     "date": null,
+     "time_of_day": null,
+     "season": null,
+     "occasion": null,
+     "basis": "taken_at"
+    },
+    "where": {
+     "place": null,
+     "kind": null,
+     "country": null,
+     "basis": null
+    },
+    "objects": [],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [],
+    "speech": null,
+    "music": null,
+    "mood": "bright",
+    "language": "en",
+    "context": "",
+    "keywords": [
+     "surf"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  },
+  {
+   "id": "ig_3300000000000000005",
+   "kind": "post",
+   "shortcode": "DO5aaa5",
+   "source_url": "https://www.instagram.com/p/DO5aaa5/",
+   "taken_at": "2026-04-02T10:00:00Z",
+   "caption": "Spring in the city #kyiv",
+   "hashtags": [
+    "kyiv"
+   ],
+   "mentions": [],
+   "tagged_users": [],
+   "location": null,
+   "music": null,
+   "alt_text": null,
+   "stickers": [],
+   "counts": {
+    "likes": 485,
+    "comments": 10
+   },
+   "media": [
+    {
+     "type": "image",
+     "url": "https://media.empire.earth/items/ig_3300000000000000005/0.jpg",
+     "thumbnail": "https://media.empire.earth/items/ig_3300000000000000005/0.thumb.jpg",
+     "width": 1080,
+     "height": 1080,
+     "duration": null
+    }
+   ],
+   "highlights": [],
+   "repost_of": null,
+   "categories": [
+    "city"
+   ],
+   "summary": "Magnolias in bloom by the botanical garden.",
+   "analysis": {
+    "people": [],
+    "what": "Magnolias in bloom by the botanical garden.",
+    "events": [],
+    "when": {
+     "date": null,
+     "time_of_day": null,
+     "season": null,
+     "occasion": null,
+     "basis": "taken_at"
+    },
+    "where": {
+     "place": null,
+     "kind": null,
+     "country": null,
+     "basis": null
+    },
+    "objects": [],
+    "animals": [],
+    "brands": [],
+    "on_screen_text": [],
+    "speech": null,
+    "music": null,
+    "mood": "bright",
+    "language": "en",
+    "context": "",
+    "keywords": [
+     "city"
+    ],
+    "model": "claude-opus-5-5",
+    "analyzed_at": "2026-10-20T09:00:00Z"
+   },
+   "extra": {},
+   "collected_at": "2026-10-20T08:00:00Z",
+   "updated_at": "2026-10-20T09:00:00Z"
+  }
+ ]
+}

@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["HTS38ZPRVH.com.oeaio.earthempire"],
+        "components": [
+          { "/": "/item/*", "comment": "an item" },
+          { "/": "/category/*", "comment": "a category" },
+          { "/": "/highlight/*", "comment": "a highlight; ?item= picks the story" },
+          { "/": "/", "comment": "the profile; ?q= ?kind= ?category= filter its grid" }
+        ]
+      }
+    ]
+  }
+}

@@ -33,20 +33,25 @@ export function EarthButton({ class: cls, onSingle, label }: { class?: string; o
   const timer = useRef(0);
   const [open, setOpen] = useState(false);
   const owner = useOwner();
-  const tap = (e: Event) => {
-    e.preventDefault();
-    const now = Date.now();
-    const t = [...taps.current, now].filter((x) => now - x < 3500).slice(-4);
+  // Counted on pointerdown (touch and mouse alike), so a Mac's double-click handling never eats a tap.
+  const down = (e: PointerEvent) => {
+    if (e.button !== 0) return;
+    e.preventDefault(); // no text selection, no focus jump
+    const now = performance.now();
+    const t = [...taps.current, now].filter((x) => now - x < 4000).slice(-4);
     taps.current = t;
     clearTimeout(timer.current);
-    const ok = t.length === 4 && t[1] - t[0] >= 450 && t[1] - t[0] <= 1600 && t[2] - t[1] < 320 && t[3] - t[2] < 320;
+    const ok = t.length === 4 && t[1] - t[0] >= 400 && t[1] - t[0] <= 2000 && t[2] - t[1] < 450 && t[3] - t[2] < 450;
     if (ok) { taps.current = []; if (!owner) setOpen(true); return; }
-    // A lone tap acts once it is clear no pattern follows.
-    timer.current = window.setTimeout(() => { if (taps.current.length === 1) onSingle?.(); taps.current = []; }, 1700);
+    // A lone tap acts once it is clear no pattern follows (after the longest pause).
+    timer.current = window.setTimeout(() => { if (taps.current.length === 1) onSingle?.(); taps.current = []; }, 2100);
   };
   return (
     <>
-      <button type="button" class={`earth-btn ${cls || ''}`} onClick={tap} aria-label={label}><span class="logo" aria-hidden="true" /></button>
+      <button type="button" class={`earth-btn ${cls || ''}`} onPointerDown={down} onClick={(e) => e.preventDefault()} onDblClick={(e) => e.preventDefault()}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSingle?.(); } }} aria-label={label}>
+        <span class="logo" aria-hidden="true" />
+      </button>
       {open && <OwnerPrompt onClose={() => setOpen(false)} />}
     </>
   );

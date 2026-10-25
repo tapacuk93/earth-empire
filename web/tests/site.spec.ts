@@ -671,7 +671,26 @@ test('the Earth icon on other screens: a single tap goes Home, the pattern opens
   await earthGesture(page, icon);
   await expect(page.getByRole('dialog', { name: 'Admin key' })).toBeVisible();
   await page.getByRole('button', { name: 'Cancel' }).click();
-  await page.waitForTimeout(1800);
+  await page.waitForTimeout(2300);
   await icon.click();
-  await expect(page).toHaveURL(/\/$/, { timeout: 4000 });
+  await expect(page).toHaveURL(/\/$/, { timeout: 5000 });
+});
+
+test('the Earth gesture with real mouse clicks, also while the controls are faded', async ({ page, hasTouch }) => {
+  test.skip(hasTouch, 'mouse');
+  await page.addInitScript(() => { (window as unknown as { __EE_NO_IDLE__: boolean }).__EE_NO_IDLE__ = false; });
+  await page.goto('/');
+  const icon = page.locator('.home-pill .earth-btn');
+  await expect(icon).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('ui-idle')), { timeout: 8000 }).toBe(true);
+  const box = (await icon.boundingBox())!;
+  const x = box.x + box.width / 2, y = box.y + box.height / 2;
+  // One click (it also brings the controls back), a pause, three quick clicks - a double-click and a single.
+  await page.mouse.click(x, y);
+  await page.waitForTimeout(700);
+  await page.mouse.click(x, y, { clickCount: 1 });
+  await page.mouse.click(x, y, { clickCount: 2 });
+  await page.mouse.click(x, y, { clickCount: 3 });
+  await expect(page.getByRole('dialog', { name: 'Admin key' })).toBeVisible();
+  expect(await page.evaluate(() => String(getSelection()))).toBe('');
 });

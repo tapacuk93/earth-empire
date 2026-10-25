@@ -133,7 +133,8 @@ export function Home({ route }: { route: Route }) {
             <div class="empty-full"><p>Nothing is public yet.</p><p class="muted">Videos appear here as they arrive.</p></div>
           )}
           {!mosaic ? <div class="skeleton-cloud" aria-hidden="true" /> : mosaic.tiles.length > 0 && (
-            <MosaicView id="m-all" title="Every video" mosaic={mosaic} hrefFor={hrefFor} />
+            <MosaicView id="m-all" title="Every video" mosaic={mosaic} hrefFor={hrefFor}
+              onEdge={(d) => { const el = modes.current; if (el && d > 0) el.scrollTo({ top: el.clientHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' }); }} />
           )}
         </section>
         <section class="mode" id="mode-tags" aria-label="Tag graph mode">

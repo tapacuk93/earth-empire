@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { lastAlpha, pack, type Mosaic, type Packed, type Tile } from '../layout';
+import { lastAlpha, pack, worldHeight, type Mosaic, type Packed, type Tile } from '../layout';
 import { navigate } from '../router';
 import { fmtShort } from '../util';
 import { attachPanZoom, claimPlayback, fitCanvas, image, savedViews, zoomBy, type View } from './zoom';
@@ -35,31 +35,33 @@ let drawMore: (ctx: CanvasRenderingContext2D, more: Tile[], ix: number, iy: numb
  * tile under the pointer or keyboard focus plays muted; labels, dates and descriptions appear as
  * tiles grow. A hidden list of links mirrors the tiles for keyboard and screen-reader users.
  */
-export function MosaicView({ mosaic, title, id, hrefFor, share, clamped }: { mosaic: Mosaic; title: string; id: string; hrefFor: (t: Tile) => string; share?: number; clamped?: boolean }) {
+export function MosaicView({ mosaic, title, id, hrefFor, share, clamped, onEdge }: { mosaic: Mosaic; title: string; id: string; hrefFor: (t: Tile) => string; share?: number; clamped?: boolean; onEdge?: (dir: number) => void }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const vid = useRef<HTMLVideoElement>(null);
   const view = useRef<View>({ k: 1, x: 0, y: 0 });
   const cells = useRef<Packed[]>([]);
-  const size = useRef({ w: 0, h: 0 });
+  const size = useRef<{ w: number; h: number; hw?: number }>({ w: 0, h: 0 });
   const hover = useRef<Packed | null>(null);
   const raf = useRef(0);
   const [zoom, setZoom] = useState(1);
 
-  // The world is the box itself at zoom 1: W×H in CSS pixels.
+  // The world is the box's width and as tall as the tiles need (one screen or more) at zoom 1.
   const layoutFor = (w: number, h: number) => {
     if (w === size.current.w && h === size.current.h && cells.current.length) return;
-    size.current = { w, h };
-    cells.current = pack(mosaic, w, h);
+    const hw = worldHeight(mosaic, w, h);
+    size.current = { w, h, hw };
+    cells.current = pack(mosaic, w, hw);
+    if (canvas.current) canvas.current.dataset.world = `${w}x${Math.round(hw)}`;
     // For tests and debugging: each video's area and weight (attached images left out).
     const c = canvas.current;
     if (c) c.dataset.alpha = String(lastAlpha);
-    if (c) c.dataset.cells = JSON.stringify(cells.current.map((p) => [p.tile.id, Math.round(p.w * p.h), +(p.tile.r * p.tile.r).toFixed(4), Math.round(p.x), Math.round(p.y), Math.round(p.w), Math.round(p.h), p.tile.video ? 1 : 0, p.tile.more ? 1 : 0]));
+    if (c) c.dataset.cells = JSON.stringify(cells.current.map((p) => [p.tile.id, Math.round(p.w * p.h), +(p.tile.r * p.tile.r).toFixed(4), Math.round(p.x), Math.round(p.y), Math.round(p.w), Math.round(p.h), p.tile.video ? 1 : 0, p.tile.more ? p.tile.more.length : 0]));
   };
   const clamp = () => {
-    const v = view.current, { w, h } = size.current;
+    const v = view.current, { w, h, hw } = size.current;
     v.k = Math.max(1, Math.min(MAXZ, v.k));
     v.x = Math.min(0, Math.max(w - w * v.k, v.x));
-    v.y = Math.min(0, Math.max(h - h * v.k, v.y));
+    v.y = Math.min(0, Math.max(h - (hw || h) * v.k, v.y));
   };
 
   const draw = () => {
@@ -185,7 +187,8 @@ export function MosaicView({ mosaic, title, id, hrefFor, share, clamped }: { mos
     if (delay && p) { hoverTimer.current = window.setTimeout(() => { hover.current = p; schedule(); }, delay); return; }
     hover.current = p; schedule();
   };
-  const changed = () => { clamp(); savedViews.set(id, { ...view.current }); setZoom(view.current.k); schedule(); };
+  const over = useRef(0);
+  const changed = () => { const y0 = view.current.y; clamp(); over.current += y0 - view.current.y; savedViews.set(id, { ...view.current }); setZoom(view.current.k); schedule(); };
 
   const fit = () => { Object.assign(view.current, { k: 1, x: 0, y: 0 }); changed(); };
 
@@ -218,6 +221,9 @@ export function MosaicView({ mosaic, title, id, hrefFor, share, clamped }: { mos
       },
       onHover: (sx, sy) => { const p = cellAt(sx, sy); setHover(p, 150); c.style.cursor = p ? 'pointer' : 'grab'; },
       onLeave: () => setHover(null),
+      onStart: () => { over.current = 0; },
+      // Pulled on past the bottom (or the top), the swipe goes on to the next (or previous) mode.
+      onRelease: (panned) => { if (panned && over.current < -90) onEdge?.(1); else if (panned && over.current > 90) onEdge?.(-1); over.current = 0; },
     });
     const ro = new ResizeObserver(() => schedule());
     ro.observe(c);

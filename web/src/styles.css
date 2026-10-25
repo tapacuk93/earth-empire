@@ -724,3 +724,5 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 /* Faded, the Earth icon still takes taps (never falling through to a tile) and counts them */
 .ui-idle .home-pill, .ui-idle .float-home { pointer-events: auto; }
 .earth-btn, .home-pill { -webkit-user-select: none; user-select: none; }
+/* The mosaic pans with one finger (it can be taller than the screen); pulling past its end moves to the next mode */
+.mode-mosaic .mosaic-canvas { touch-action: none; }

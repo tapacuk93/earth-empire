@@ -393,3 +393,17 @@ export function pack(m: Mosaic, W: number, H: number): Packed[] {
   lastAlpha = used;
   return cells.map((c) => ({ tile: c.d, x: c.x, y: c.y, w: c.w, h: c.h }));
 }
+
+/**
+ * The height a half needs (W wide) so that all but the few tiniest tiles get at least a
+ * comfortable minimum square; never less than the screen, at most fifteen screens.
+ */
+export function worldHeight(m: Mosaic, W: number, H: number): number {
+  const ws = m.tiles.filter((t) => !t.attachedTo).map((t) => t.r * t.r).sort((a, b) => a - b);
+  if (!ws.length || W <= 0) return H;
+  const total = ws.reduce((s, x) => s + x, 0);
+  const ref = ws[Math.min(5, ws.length - 1)];   // up to five tiniest may still go to "+N"
+  const want = MIN_SIDE * 1.3;
+  const area = (want * want * total) / ref;
+  return Math.max(H, Math.min(H * 15, area / W));
+}

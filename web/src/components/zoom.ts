@@ -11,6 +11,8 @@ export interface PanZoomOptions {
   onTap: (sx: number, sy: number) => void;
   onHover?: (sx: number, sy: number) => void;
   onLeave?: () => void;
+  onStart?: () => void;
+  onRelease?: (panned: boolean) => void;
 }
 
 export function attachPanZoom(el: HTMLElement, view: View, o: PanZoomOptions): () => void {
@@ -34,7 +36,7 @@ export function attachPanZoom(el: HTMLElement, view: View, o: PanZoomOptions): (
     el.setPointerCapture?.(e.pointerId);
     const p = local(e);
     pts.set(e.pointerId, p);
-    if (pts.size === 1) { start = { ...p, t: Date.now() }; moved = false; }
+    if (pts.size === 1) { start = { ...p, t: Date.now() }; moved = false; o.onStart?.(); }
     if (pts.size === 2) {
       const [a, b] = [...pts.values()];
       pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
@@ -62,7 +64,7 @@ export function attachPanZoom(el: HTMLElement, view: View, o: PanZoomOptions): (
     if (pts.size === 1 && start && !moved && Date.now() - start.t < 600) { active = true; o.onTap(p.x, p.y); }
     pts.delete(e.pointerId);
     if (pts.size < 2) pinch = null;
-    if (!pts.size) start = null;
+    if (!pts.size) { start = null; o.onRelease?.(moved); }
   };
   const cancel = (e: PointerEvent) => { pts.delete(e.pointerId); pinch = null; if (!pts.size) start = null; };
   const wheel = (e: WheelEvent) => {

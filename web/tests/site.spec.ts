@@ -710,3 +710,24 @@ test('mosaic: no slivers - every tile at most 1:2.5 and at least 48 px a side', 
     expect(Math.max(w, h) / Math.min(w, h), `tile ${c[0]} too thin`).toBeLessThanOrEqual(2.6);
   }
 });
+
+test('mosaic: "+N" holds only the tiniest few; dragging past the end goes on to the next mode', async ({ page }) => {
+  await page.goto('/');
+  const canvas = page.locator('.mode-mosaic canvas');
+  await expect(canvas).toHaveAttribute('data-cells', /\[\[/);
+  const cells: number[][] = JSON.parse((await canvas.getAttribute('data-cells'))!);
+  const folded = cells.reduce((s, c) => s + (c[8] || 0), 0);
+  expect(folded, 'videos folded into "+N"').toBeLessThanOrEqual(8);
+  const [, worldH] = ((await canvas.getAttribute('data-world')) || '0x0').split('x').map(Number);
+  const box = (await canvas.boundingBox())!;
+  expect(worldH).toBeGreaterThanOrEqual(Math.round(box.height) - 1);
+  // Drag up through the whole mosaic and a bit further.
+  const x = box.x + box.width / 2;
+  for (let i = 0; i < Math.ceil(worldH / (box.height * 0.6)) + 1; i++) {
+    await page.mouse.move(x, box.y + box.height * 0.8);
+    await page.mouse.down();
+    await page.mouse.move(x, box.y + box.height * 0.15, { steps: 6 });
+    await page.mouse.up();
+  }
+  await expect(page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Tag graph mode' })).toHaveAttribute('aria-current', 'true');
+});

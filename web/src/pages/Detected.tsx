@@ -12,12 +12,12 @@ const KINDS: [string | undefined, string][] = [[undefined, 'All'], ['name', 'Nam
 /** "+" approves a hit for Home at the AI's level, which the owner may change first. */
 function Approve({ h, onSet }: { h: Hit; onSet: (level: number | null) => void }) {
   const ai = aiLevel(h);
-  const [lv, setLv] = useState(ai.level);
+  const [lv, setLv] = useState(ai.level ?? 2);
   const on = !!h.published_at;
   const cur = (h as Hit & { level?: number | null }).level;
   return (
     <div class="addtwice">
-      <p class="suggest">AI level <b>{ai.level}</b>{ai.reason && <span> — {ai.reason}</span>}</p>
+      <p class="suggest">{ai.level ? <>AI level <b>{ai.level}</b></> : 'Not judged yet'}{ai.reason && <span> — {ai.reason}</span>}</p>
       {on ? (
         <>
           <span class="state-chip s-dedicated">On Home{cur ? ` · level ${cur}` : ''}</span>
@@ -87,9 +87,8 @@ export function DetectedPage({ route }: { route: Route }) {
   };
   const place = async (h: Hit, level: number | null) => {
     try {
-      const section = level === null ? undefined : level <= 1 ? 'dedicated' : 'common'; // for an API that still takes sections
-      const r = await setPublished(h.id, level !== null, section, level ?? undefined);
-      setHits((hs) => hs?.map((x) => (x.id === h.id ? { ...x, ...r, published_at: level ? r.published_at || new Date().toISOString() : null, section: section ?? null, level } as Hit : x)));
+      const r = await setPublished(h.id, level !== null, undefined, level ?? undefined);
+      setHits((hs) => hs?.map((x) => (x.id === h.id ? { ...x, ...r, published_at: level ? r.published_at || new Date().toISOString() : null, level } as Hit : x)));
       setMsg(level ? `Approved for Home at level ${level}.` : 'Removed from Home.');
     } catch (e) { setMsg(`Could not change it: ${(e as Error).message}`); }
   };

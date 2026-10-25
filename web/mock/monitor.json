@@ -52,7 +52,9 @@
    "published_at": "2026-10-24T13:00:00Z",
    "suggested_section": "dedicated",
    "section": "dedicated",
-   "section_reason": "The full name, said about the owner's own project."
+   "section_reason": "The full name, said about the owner's own project.",
+   "level": 1,
+   "level_reason": "The owner named in full, on his own project."
   },
   {
    "id": "h_mock2",
@@ -106,7 +108,9 @@
    "published_at": "2026-10-22T13:00:00Z",
    "suggested_section": "common",
    "section": "common",
-   "section_reason": "Surname only; the context is a public event."
+   "section_reason": "Surname only; the context is a public event.",
+   "level": 2,
+   "level_reason": "Surname at a public event."
   },
   {
    "id": "h_mock3",
@@ -160,7 +164,9 @@
    "published_at": null,
    "suggested_section": "dedicated",
    "section": null,
-   "section_reason": "First name in a cooking segment like the owner's recipe reels."
+   "section_reason": "First name in a cooking segment like the owner's recipe reels.",
+   "level": 3,
+   "level_reason": "First name in a cooking segment."
   },
   {
    "id": "h_mock4",
@@ -215,7 +221,9 @@
    "published_at": null,
    "suggested_section": "common",
    "section": null,
-   "section_reason": "Language hit, not about the owner."
+   "section_reason": "Language hit, not about the owner.",
+   "level": 4,
+   "level_reason": "Language hit, not about the owner."
   }
  ],
  "next": null

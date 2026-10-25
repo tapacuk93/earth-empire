@@ -201,7 +201,7 @@ def main(argv=None):
         n = 0
         for r in c.execute("SELECT id, published_at FROM items WHERE analysis IS NOT NULL").fetchall():
             with db.tx(c):
-                public, why = store.gate(c, r["id"], legacy_ok=True)
+                public, why = store.gate(c, r["id"])
             if r["published_at"] and not public:
                 print("unpublished", r["id"], "-", why)
                 n += 1

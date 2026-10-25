@@ -397,7 +397,7 @@ def apply_result(c, item_id: str, out: dict, model: str) -> list[str]:
         store.index_item(c, item_id)
         store._set_step(c, item_id, "analyze", "done", note=f"categories {cats}, new {added}")
         # public only when not an image-only repost and the monitor's scan matched (store.gate)
-        store.gate(c, item_id, legacy_ok=True)
+        store.gate(c, item_id)
     return cats
 
 

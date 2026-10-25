@@ -83,11 +83,11 @@ def publishable(d: dict) -> tuple[bool, str | None]:
     return True, None
 
 
-def gate(c, item_id: str, *, legacy_ok: bool = False) -> tuple[bool, str]:
+def gate(c, item_id: str) -> tuple[bool, str]:
     """Is this item public? Analyzed, not an image-only repost, and scanned by the monitor with
     detection.matched = true. Apply the answer: publish (site step posted, the posters may post)
-    or unpublish (site skipped; X/Facebook skipped unless they already posted). `legacy_ok` keeps an
-    item that was public before the gate existed public until its scan arrives."""
+    or unpublish (site skipped; X/Facebook skipped unless they already posted). Unscanned items are
+    not public."""
     row = c.execute("SELECT data, analysis, detection, published_at FROM items WHERE id=?", (item_id,)).fetchone()
     if not row:
         return False, "no such item"
@@ -98,8 +98,7 @@ def gate(c, item_id: str, *, legacy_ok: bool = False) -> tuple[bool, str]:
     elif not ok:
         public = False
     elif det is None:
-        public = bool(legacy_ok and row["published_at"])
-        why = "public before the detection gate; waiting for its scan" if public else "waiting for the detection scan"
+        public, why = False, "waiting for the detection scan"
     elif det.get("matched"):
         public, why = True, "detection matched"
     else:

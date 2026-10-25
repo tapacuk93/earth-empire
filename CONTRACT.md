@@ -242,8 +242,7 @@ reports the result:
   matches count). Everything else stays stored and unpublished: no `/v1/items`, `/v1/layout`,
   related lists, tag graph, site, X or Facebook. Something already posted to X or Facebook stays
   there; nothing new is posted.
-- An item not scanned yet waits unpublished. Items that were public before the gate stay public
-  until their scan arrives.
+- An item not scanned yet is not public, whether it is new or was public before the gate.
 - Each public item carries `detection.hits`, so the site can show why it is there and the
   full-screen mode can start a video at its first matched moment (`hits[0].media`, `hits[0].at`).
 - The monitor checks the item's own videos and, for a repost, the original's audio (the collector's

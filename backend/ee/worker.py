@@ -260,9 +260,9 @@ def site_once(c) -> None:
     row = c.execute("SELECT id, published_at FROM items WHERE published_at IS NOT NULL "
                     "ORDER BY published_at DESC, id DESC LIMIT 1").fetchone()
     force = setting(c, "site.force")
-    if not row or (row["published_at"] <= (setting(c, "site.built_at") or "") and not force):
+    if not force and (not row or row["published_at"] <= (setting(c, "site.built_at") or "")):
         return
-    newest, newest_id = row["published_at"], row["id"]
+    newest, newest_id = (row["published_at"], row["id"]) if row else (setting(c, "site.built_at") or "", None)
     _last["site"] = time.time()
     t0 = time.time()
     store.job_start(c, "site", "site", "building and publishing empire.earth", progress="npm build, prerender, sync")
@@ -270,7 +270,7 @@ def site_once(c) -> None:
         p = subprocess.run(["bash", SITE_BUILD], capture_output=True, text=True, timeout=1800)
         if p.returncode == 0:
             store.job_progress(c, "site", "checking the new page is live")
-            live = site_live(newest_id)
+            live = site_live(newest_id) if newest_id else True   # nothing public: the empty site is fine
     finally:
         store.job_end(c, "site")
     from .db import set_setting

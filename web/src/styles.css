@@ -681,3 +681,4 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .hit-bar-fill { position: absolute; left: 0; top: 0; bottom: 0; background: #fff; }
 .hit-mark { position: absolute; top: -4px; width: 4px; height: 12px; margin-left: -2px; border-radius: 2px; background: #e9a35a; box-shadow: 0 0 0 1px rgb(0 0 0 / .4); }
 .unmute { top: auto; bottom: 46%; }
+.empty-full { flex: 1; display: grid; place-content: center; text-align: center; padding: 24px; font-size: 1.1rem; } .empty-full p { margin: 4px 0; }

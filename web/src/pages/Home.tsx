@@ -104,6 +104,9 @@ export function Home({ route }: { route: Route }) {
     <>
       <div class="modes" ref={modes} onScroll={onModesScroll}>
         <section class="mode mode-mosaic" id="mode-mosaic" aria-label="Mosaic mode">
+          {halves && !halves.some((h) => h.mosaic.tiles.length) && (
+            <div class="empty-full"><p>Nothing is public yet.</p><p class="muted">Videos appear here as the monitor finds the moments they are about.</p></div>
+          )}
           {!halves ? <div class="skeleton-cloud" aria-hidden="true" /> : halves.map((h) => h.mosaic.tiles.length > 0 && (
             <MosaicView key={h.id} id={`m-${h.id}`} title={SECTION_TITLE[h.id]} mosaic={h.mosaic} hrefFor={hrefFor(h.id)} />
           ))}

@@ -25,7 +25,8 @@ function Details({ d }: { d?: Record<string, unknown> }) {
     <dl class="kv">
       {entries.map(([k, v]) => (
         <div key={k}><dt>{k.replace(/_/g, ' ')}</dt>
-          <dd>{v && typeof v === 'object'
+          <dd>{Array.isArray(v) ? v.map((x) => (typeof x === 'object' ? JSON.stringify(x) : String(x))).join(', ')
+            : v && typeof v === 'object'
             ? Object.entries(v as Record<string, unknown>).map(([a, b]) => `${a.replace(/_/g, ' ')}: ${typeof b === 'object' ? JSON.stringify(b) : String(b)}`).join(' · ')
             : String(v)}</dd></div>
       ))}

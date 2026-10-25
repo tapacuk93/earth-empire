@@ -1,124 +1,104 @@
-// The monitor: videos from official accounts that mention the watched phrases.
-// The endpoints and the Hit shape are in CONTRACT.md "Monitor": one entry here per hit (a moment in a
-// video). Everything read passes through `normalize`, which also still accepts the mock's shape.
+// The monitor (CONTRACT.md "Monitor"): hits - moments in public videos that sound like one of the
+// owner's phrases, or Ukrainian/Russian speech where it is not expected.
 import { ApiError } from './api';
 import { API_BASE, MOCK } from './config';
 import { adminToken } from './live';
 
-export interface Match { phrase?: string; text?: string; at?: number | null }
-export interface MonitorVideo {
+export interface Hit {
   id: string;
-  title: string;
-  url: string;              // the video
-  cover?: string;
-  account?: string;         // who posted it
-  accountName?: string;
+  kind: 'name' | 'language';
+  phrase?: string | null;
+  matched?: string;
+  confidence?: number;
+  confidence_label?: 'likely' | 'possible' | 'low confidence' | string;
+  notes?: string[];
+  judge?: { by?: string; name_probability?: number; reason?: string } | null;
+  language?: string;
+  expected_languages?: string[];
   platform?: string;
-  sourceUrl?: string;
-  takenAt?: string;
-  foundAt?: string;
-  confidence?: number;      // 0..1
-  low: boolean;             // a low-confidence hit
-  matches: Match[];
-  transcript?: string;
-  published: boolean;
-  item?: string;            // the archive item, when it has one
+  source_kind?: string;
+  source?: { id?: string; name?: string; kind?: string | null; country?: string | null; source_kind?: string };
+  account?: string | null;
+  video?: { id?: string; url?: string; title?: string | null; posted_at?: string | null; duration?: number | null; thumbnail?: string | null };
+  start?: number; end?: number;
+  at_url?: string | null;
+  excerpt?: { text?: string; start?: number; end?: number; language?: string; en?: string | null };
+  clip?: string | null;
+  frame?: string | null;
+  found_at?: string;
+  published_at?: string | null;
 }
-export interface VideoPage { videos: MonitorVideo[]; next: string | null }
+export interface HitPage { hits: Hit[]; next: string | null }
 
-export const LOW_CONFIDENCE = 0.6;
-type Raw = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+export const labelOf = (h: Hit) => h.confidence_label || (typeof h.confidence === 'number' ? (h.confidence >= 0.7 ? 'likely' : h.confidence >= 0.4 ? 'possible' : 'low confidence') : '');
+export const isLow = (h: Hit) => labelOf(h) === 'low confidence';
+export const LANG: Record<string, string> = { uk: 'Ukrainian', ru: 'Russian', en: 'English' };
+export const whatOf = (h: Hit) => (h.kind === 'language' ? `${LANG[h.matched || ''] || h.matched} speech` : `“${h.matched || h.phrase}”`);
+export const titleOf = (h: Hit) => h.video?.title || `${whatOf(h)} in ${h.source?.name || h.account || h.platform || 'a video'}`;
+/** Only links a person can open: never a signed storage URL. */
+export const safeUrl = (u?: string | null) => (u && /^https?:\/\//.test(u) && !/X-Amz-Signature=/i.test(u) ? u : undefined);
 
-export function normalize(r: Raw): MonitorVideo {
-  if (r.video && typeof r.video === 'object' && r.kind) return fromHit(r);
-  const m0 = Array.isArray(r.media) ? r.media.find((m: Raw) => m.type === 'video') || r.media[0] : null;
-  const src: Raw = r.source && typeof r.source === 'object' ? r.source : {};
-  let conf = r.confidence ?? r.score ?? null;
-  if (typeof conf === 'number' && conf > 1) conf = conf / 100;
-  const account = src.account || src.username || r.account || r.channel || r.author || undefined;
-  return {
-    id: String(r.id),
-    title: r.title || r.summary || r.caption || r.description || 'Video',
-    url: r.video_url || m0?.url || r.url,
-    cover: r.cover || m0?.cover || m0?.thumbnail || r.thumbnail || undefined,
-    account: account ? String(account).replace(/^@/, '') : undefined,
-    accountName: src.name || r.account_name || r.channel_name || undefined,
-    platform: src.platform || r.platform || undefined,
-    sourceUrl: src.url || r.source_url || undefined,
-    takenAt: r.taken_at || r.published_at_source || r.posted_at || undefined,
-    foundAt: r.found_at || r.created_at || undefined,
-    confidence: typeof conf === 'number' ? conf : undefined,
-    low: r.low_confidence ?? (typeof conf === 'number' ? conf < LOW_CONFIDENCE : false),
-    matches: (r.matches || r.hits || []).map((m: Raw) => (typeof m === 'string' ? { text: m } : { phrase: m.phrase, text: m.text || m.quote, at: m.at ?? m.start ?? null })),
-    transcript: typeof r.transcript === 'string' ? r.transcript : r.transcript?.text,
-    published: !!(r.published ?? r.published_at),
-    item: r.item_id || r.item || undefined,
-  };
-}
-
-/** A Hit (CONTRACT.md "Monitor") as one found moment. */
-function fromHit(h: Raw): MonitorVideo {
-  const v: Raw = h.video || {};
-  const src: Raw = h.source || {};
-  const ex: Raw = h.excerpt || {};
-  const what = h.kind === 'language' ? `${String(h.matched).toUpperCase()} speech` : h.matched;
-  return {
-    id: String(h.id),
-    title: v.title || `${what} in a ${h.platform || ''} video`.trim(),
-    url: h.at_url || v.url,
-    cover: h.frame || v.thumbnail || undefined,
-    account: h.account ? String(h.account).replace(/^@/, '') : undefined,
-    accountName: src.name || undefined,
-    platform: h.platform || undefined,
-    sourceUrl: v.url || undefined,
-    takenAt: v.posted_at || undefined,
-    foundAt: h.found_at || undefined,
-    confidence: typeof h.confidence === 'number' ? h.confidence : undefined,
-    low: h.confidence_label ? h.confidence_label === 'low confidence' : (h.confidence ?? 0) < LOW_CONFIDENCE,
-    matches: [{ phrase: h.phrase || (h.kind === 'language' ? `${h.matched} speech` : undefined), text: what, at: h.start ?? null }],
-    transcript: [ex.text, ex.en && ex.en !== ex.text ? `(${ex.en})` : null].filter(Boolean).join(' ') || undefined,
-    published: !!h.published_at,
-    item: undefined,
-  };
-}
-
-const list = (j: Raw): Raw[] => j.hits || j.videos || j.items || j.published || [];
-
-async function get(path: string): Promise<Raw> {
-  const r = await fetch(API_BASE + path, { headers: { Accept: 'application/json' } });
-  if (!r.ok) throw new ApiError(r.status, `${r.status} for ${path}`);
-  return r.json();
+async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const t = adminToken();
+  if (t) headers.Authorization = `Bearer ${t}`;
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  const r = await fetch(API_BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store' });
+  if (!r.ok) {
+    let detail = '';
+    try { const j = await r.json(); detail = j.detail || j.error || ''; } catch { /* not JSON */ }
+    throw new ApiError(r.status, `${r.status}${detail ? ': ' + detail : ''}`);
+  }
+  return r.json() as Promise<T>;
 }
 
 // ---- mock ----
-let mockData: Promise<MonitorVideo[]> | null = null;
-const mockVideos = () => (mockData ??= fetch('/mock/monitor.json').then((r) => r.json()).then((j: Raw) => list(j).map(normalize)));
+let mock: Promise<Hit[]> | null = null;
+const mockHits = () => (mock ??= fetch('/mock/monitor.json').then((r) => r.json()).then((j: { hits: Hit[] }) => j.hits));
+const ownerOk = () => { if (adminToken() !== 'owner') throw new ApiError(401, '401: owner token required'); };
 
-/** Found videos, highest confidence first. */
-export async function getMonitorVideos(before?: string): Promise<VideoPage> {
+/** Hits, highest confidence first. */
+export async function getHits(opts: { kind?: string; before?: string; limit?: number } = {}): Promise<HitPage> {
   if (MOCK) {
-    const all = (await mockVideos()).slice().sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
-    return { videos: all, next: null };
+    let all = (await mockHits()).slice().sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+    if (opts.kind) all = all.filter((h) => h.kind === opts.kind);
+    const i = opts.before ? all.findIndex((h) => h.id === opts.before) + 1 : 0;
+    const n = opts.limit ?? 30;
+    const page = all.slice(i, i + n);
+    return { hits: page, next: i + n < all.length ? page[page.length - 1].id : null };
   }
-  const j = await get(`/v1/monitor/hits?sort=confidence&limit=50${before ? '&before=' + encodeURIComponent(before) : ''}`);
-  const videos = list(j).map(normalize).sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
-  return { videos, next: j.next ?? null };
+  const p = new URLSearchParams({ sort: 'confidence', limit: String(opts.limit ?? 30) });
+  if (opts.kind) p.set('kind', opts.kind);
+  if (opts.before) p.set('before', opts.before);
+  const j = await req<HitPage>('GET', '/v1/monitor/hits?' + p);
+  return { hits: j.hits || [], next: j.next ?? null };
 }
 
-/** The monitor videos that went public, newest first. */
-export async function getPublished(): Promise<MonitorVideo[]> {
-  if (MOCK) return (await mockVideos()).filter((v) => v.published);
-  try { return list(await get('/v1/published?limit=50')).map(normalize); }
-  catch (e) { if (e instanceof ApiError && e.status === 404) return []; throw e; } // not deployed yet
+/** The hits the owner published, newest first: Home's monitor row. */
+export async function getPublished(): Promise<Hit[]> {
+  if (MOCK) return (await mockHits()).filter((h) => h.published_at).sort((a, b) => String(b.published_at).localeCompare(String(a.published_at)));
+  try { return (await req<HitPage>('GET', '/v1/published?limit=50')).hits || []; }
+  catch (e) { if (e instanceof ApiError && e.status === 404) return []; throw e; }
 }
 
-/** Owner only: publish a found video. */
-export async function publishVideo(id: string): Promise<void> {
+export async function setPublished(id: string, on: boolean): Promise<Hit> {
   if (MOCK) {
-    if (adminToken() !== 'owner') throw new ApiError(401, '401 Unauthorized');
-    (await mockVideos()).forEach((v) => { if (v.id === id) v.published = true; });
-    return;
+    ownerOk();
+    const h = (await mockHits()).find((x) => x.id === id)!;
+    h.published_at = on ? new Date().toISOString() : null;
+    return { ...h };
   }
-  const r = await fetch(`${API_BASE}/v1/monitor/hits/${encodeURIComponent(id)}/publish`, { method: 'POST', headers: { Authorization: `Bearer ${adminToken()}` } });
-  if (!r.ok) throw new ApiError(r.status, `${r.status} publishing ${id}`);
+  return req<Hit>('POST', `/v1/monitor/hits/${encodeURIComponent(id)}/${on ? 'publish' : 'unpublish'}`);
+}
+
+/** Ask the monitor to scan at least n more videos. */
+export async function fetchMore(n: number): Promise<{ n?: number; queued?: number; to_discover?: number }> {
+  if (MOCK) { ownerOk(); return { n, queued: Math.min(n, 7), to_discover: Math.max(0, n - 7) }; }
+  return req('POST', '/v1/monitor/fetch', { n });
+}
+
+/** The monitor's own numbers: queues, totals, throughput, caps, stops. */
+export async function getMonitorStatus(): Promise<Record<string, unknown>> {
+  if (MOCK) return { totals: { videos: 1240, scanned: 1187, hits: 4 }, queue: { youtube: { queued: 12, running: 1 }, telegram: { queued: 30 } }, cpu_per_audio: 0.21, usage: { videos_today: 210, cap: 600 }, stops: [] };
+  return req('GET', '/v1/monitor/status');
 }

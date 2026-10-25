@@ -1,11 +1,43 @@
 // The live, uncached parts of the API: status, the owner's token, and the monitor's phrases.
+import { useEffect, useState } from 'preact/hooks';
 import { ApiError } from './api';
 import { API_BASE, MOCK } from './config';
 
 // ---- the owner's token: kept in this browser only ----
 const TOKEN_KEY = 'ee-admin-token';
 export function adminToken(): string { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; } }
-export function setAdminToken(t: string) { try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch { /* blocked */ } }
+export function setAdminToken(t: string) {
+  try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch { /* blocked */ }
+  verified = t ? Promise.resolve(true) : Promise.resolve(false); // set only after checkAdmin accepted it
+  ownerListeners.forEach((f) => f());
+}
+
+// ---- owner mode: on only once the stored token passed GET /v1/admin/me ----
+let verified: Promise<boolean> | null = null;
+const ownerListeners = new Set<() => void>();
+export function ownerCheck(): Promise<boolean> {
+  return (verified ??= (async () => {
+    const t = adminToken();
+    if (!t) return false;
+    try {
+      const ok = await checkAdmin(t);
+      if (!ok) { try { localStorage.removeItem(TOKEN_KEY); } catch { /* blocked */ } }
+      return ok;
+    } catch { return false; } // unreachable API: stay a visitor this time, keep the token
+  })());
+}
+/** `undefined` while checking. */
+export function useOwner(): boolean | undefined {
+  const [ok, setOk] = useState<boolean | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    const run = () => ownerCheck().then((v) => live && setOk(v));
+    run();
+    ownerListeners.add(run);
+    return () => { live = false; ownerListeners.delete(run); };
+  }, []);
+  return ok;
+}
 
 async function call<T>(method: string, path: string, body?: unknown, admin = false): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
@@ -25,7 +57,7 @@ export interface Status { generated_at: string; overall: State; components: Comp
 
 export async function getStatus(): Promise<Status> {
   if (MOCK) return mockStatus();
-  return call<Status>('GET', '/v1/status');
+  return call<Status>('GET', '/v1/status', undefined, !!adminToken());
 }
 
 /** Checks the token with GET /v1/admin/me. */
@@ -38,7 +70,7 @@ export async function checkAdmin(token: string): Promise<boolean> {
 }
 
 // ---- the monitor's phrases ----
-export interface Phrase { text: string; variants?: string[] }
+export interface Phrase { text: string; variants?: string[]; mishearings?: string[]; claude_variants?: string[]; updated_at?: string }
 
 let mockPhrases: Phrase[] = [{ text: 'тарас' }, { text: 'тарас маслов' }, { text: 'маслов' }].map((p) => ({ ...p, variants: mockVariants(p.text) }));
 function mockVariants(t: string): string[] {
@@ -49,7 +81,7 @@ function mockVariants(t: string): string[] {
 
 export async function getPhrases(): Promise<Phrase[]> {
   if (MOCK) return mockPhrases.map((p) => ({ ...p }));
-  return (await call<{ phrases: Phrase[] }>('GET', '/v1/monitor/phrases')).phrases || [];
+  return (await call<{ phrases: Phrase[] }>('GET', '/v1/monitor/phrases', undefined, !!adminToken())).phrases || [];
 }
 
 export async function savePhrases(texts: string[]): Promise<Phrase[]> {
@@ -58,7 +90,7 @@ export async function savePhrases(texts: string[]): Promise<Phrase[]> {
     mockPhrases = texts.map((text) => ({ text, variants: mockVariants(text) }));
     return getPhrases();
   }
-  const r = await call<{ phrases?: Phrase[] } | undefined>('PUT', '/v1/monitor/phrases', { phrases: texts.map((text) => ({ text })) }, true);
+  const r = await call<{ phrases?: Phrase[] } | undefined>('PUT', '/v1/monitor/phrases', { phrases: texts }, true);
   return r?.phrases || getPhrases();
 }
 

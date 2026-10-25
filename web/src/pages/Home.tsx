@@ -3,10 +3,10 @@ import { Feed } from '../components/Feed';
 import { CategoryChips, HighlightsRow, KindTabs, ProfileHeader, useCategories, useHighlights, useProfile } from '../components/Profile';
 import { Icon } from '../components/icons';
 import { TagCloud } from '../components/TagCloud';
-import { MonitorMeta } from '../components/MonitorCard';
+import { hitSlide } from '../components/MonitorCard';
 import { VideoFeed, type FeedVideo } from '../components/VideoFeed';
 import { getItems } from '../api';
-import { getPublished, type MonitorVideo } from '../monitor';
+import { getPublished, titleOf, whatOf, type Hit } from '../monitor';
 import { useData } from '../components/Profile';
 import { fmtShort, posterOf, KIND_LABEL } from '../util';
 import type { Item } from '../types';
@@ -83,7 +83,7 @@ export function Home({ route }: { route: Route }) {
   useEffect(() => { if (watch && !archive) archiveVideos().then(setArchive, () => setArchive([])); }, [watch]);
   const openWatch = (id?: string) => navigate(withParam(route, 'watch', id), { replace: !!watch || !id, keepScroll: true });
   const feed: FeedVideo[] = [
-    ...(published.data || []).map((v) => ({ id: v.id, url: v.url, cover: v.cover, label: v.title, overlay: <MonitorMeta v={v} /> })),
+    ...(published.data || []).map(hitSlide),
     ...(archive || []).map((it) => {
       const m = (it.media[0]?.type === 'video' ? it.media[0] : it.repost_of?.media?.[0])!;
       return { id: it.id, url: m.url, cover: posterOf(m), label: it.summary || it.caption || KIND_LABEL[it.kind],
@@ -120,20 +120,23 @@ export function Home({ route }: { route: Route }) {
   );
 }
 
-function PublishedRow({ videos, onWatch }: { videos: MonitorVideo[]; onWatch: (id: string) => void }) {
+function PublishedRow({ videos, onWatch }: { videos: Hit[]; onWatch: (id: string) => void }) {
   return (
     <section aria-labelledby="pub-h">
-      <div class="section-head"><h2 id="pub-h">From the monitor</h2><a href="/monitor">All found videos →</a></div>
+      <div class="section-head"><h2 id="pub-h">Detected and published</h2></div>
       <ul class="mon-row" role="list">
-        {videos.map((v) => (
-          <li key={v.id}>
-            <button class="mon-thumb" onClick={() => onWatch(v.id)} aria-label={`Watch fullscreen: ${v.title}`}>
-              {v.cover ? <img src={v.cover} alt="" loading="lazy" width={180} height={320} /> : <span />}
-              <span class="mon-play" aria-hidden="true">▶</span>
-            </button>
-            <p>{v.title}</p>
-          </li>
-        ))}
+        {videos.map((h) => {
+          const img = h.frame || h.video?.thumbnail;
+          return (
+            <li key={h.id}>
+              <button class="mon-thumb" onClick={() => onWatch(h.id)} aria-label={`Fullscreen: ${titleOf(h)}`}>
+                {img ? <img src={img} alt="" loading="lazy" width={180} height={320} /> : <span class="mon-noimg">{whatOf(h)}</span>}
+                <span class="mon-play" aria-hidden="true">▶</span>
+              </button>
+              <p><b>{whatOf(h)}</b> · {h.source?.name || h.account || h.platform}</p>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

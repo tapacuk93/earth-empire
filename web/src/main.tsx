@@ -7,8 +7,10 @@ import { SITE_NAME } from './config';
 import { CategoryPage } from './pages/Category';
 import { HighlightPage } from './pages/Highlight';
 import { Home } from './pages/Home';
-import { MonitorPage } from './pages/Monitor';
+import { DetectedPage } from './pages/Detected';
+import { OwnerOnly, SettingsPage } from './pages/Settings';
 import { StatusPage } from './pages/Status';
+import { useOwner } from './live';
 import { ItemPage } from './pages/Item';
 import { NotFound } from './pages/NotFound';
 import { useRoute } from './router';
@@ -33,8 +35,11 @@ function ThemeToggle() {
 
 function decode(s: string) { try { return decodeURIComponent(s); } catch { return s; } }
 
+const OWNER_ROUTES = ['detected', 'monitor', 'status', 'settings'];
+
 function App() {
   const route = useRoute();
+  const owner = useOwner();
   const seg = route.path.split('/').filter(Boolean).map(decode);
   const first = useRef(true);
   const mainRef = useRef<HTMLElement>(null);
@@ -53,8 +58,9 @@ function App() {
   if (seg.length === 0) page = <Home route={route} />;
   else if (seg[0] === 'item' && seg[1] && seg.length === 2) page = <ItemPage id={seg[1]} />;
   else if (seg[0] === 'category' && seg[1] && seg.length === 2) page = <CategoryPage slug={seg[1]} route={route} />;
-  else if (seg[0] === 'monitor' && seg.length === 1) page = <MonitorPage route={route} />;
-  else if (seg[0] === 'status' && seg.length === 1) page = <StatusPage />;
+  else if ((seg[0] === 'detected' || seg[0] === 'monitor') && seg.length === 1) page = <OwnerOnly><DetectedPage route={route} /></OwnerOnly>;
+  else if (seg[0] === 'status' && seg.length === 1) page = <OwnerOnly><StatusPage /></OwnerOnly>;
+  else if (seg[0] === 'settings' && seg.length === 1) page = <SettingsPage />;
   else page = <NotFound />;
 
   return (
@@ -63,18 +69,21 @@ function App() {
       <header class="site-head">
         <a class="brand" href="/" aria-label={`${SITE_NAME}, home`}><span class="logo" aria-hidden="true" /><span class="brand-name">{SITE_NAME}</span></a>
         <span class="spacer" />
-        <nav class="site-nav" aria-label="Sections">
-          {([['/', 'Home'], ['/monitor', 'Monitor'], ['/status', 'Status']] as const).map(([href, label]) => {
-            const here = href === '/' ? !['monitor', 'status'].includes(seg[0] || '') : seg[0] === href.slice(1);
-            return <a key={href} href={href} aria-current={here ? 'page' : undefined}>{label}</a>;
-          })}
-        </nav>
+        {owner && (
+          <nav class="site-nav" aria-label="Sections">
+            {([['/', 'Home'], ['/detected', 'Detected'], ['/status', 'Status'], ['/settings', 'Settings']] as const).map(([href, label]) => {
+              const here = href === '/' ? !OWNER_ROUTES.includes(seg[0] || '') : seg[0] === href.slice(1) || (href === '/detected' && seg[0] === 'monitor');
+              return <a key={href} href={href} aria-current={here ? 'page' : undefined}>{label}</a>;
+            })}
+          </nav>
+        )}
         <ThemeToggle />
       </header>
       <main id="main" ref={mainRef} tabIndex={-1}>{page}</main>
       <AppBanner route={route} />
       <footer class="site-foot">
         <p>An archive of an Instagram account. Every item is described by Claude; people are named only from what the post says.</p>
+        {!owner && <p><a class="owner-link" href="/settings">Owner</a></p>}
       </footer>
     </>
   );

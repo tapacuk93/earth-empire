@@ -157,13 +157,11 @@ if (!data) {
     count++;
   }
 
-  page('monitor/index.html', { title: 'Monitor', description: 'Videos from official accounts that mention the watched phrases, by confidence.', url: `${SITE}/monitor`, image: profile.avatar }, '<h1>Monitor</h1>');
-  page('status/index.html', { title: 'Status', description: 'Live activity and health of the archive’s parts.', url: `${SITE}/status`, image: profile.avatar }, '<h1>Status</h1>');
-  count += 2;
-  const urls = ['/', '/monitor', ...categories.map((c) => `/category/${encodeURIComponent(c.slug)}`), ...highlights.map((h) => `/highlight/${encodeURIComponent(h.id)}`), ...items.map((i) => `/item/${encodeURIComponent(i.id)}`)];
+  // Detected, Status and Settings are the owner's: no prerendered page and no sitemap entry.
+  const urls = ['/', ...categories.map((c) => `/category/${encodeURIComponent(c.slug)}`), ...highlights.map((h) => `/highlight/${encodeURIComponent(h.id)}`), ...items.map((i) => `/item/${encodeURIComponent(i.id)}`)];
   writeFileSync(join(DIST, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${esc(SITE + u)}</loc></url>`).join('\n')}\n</urlset>\n`);
 }
-writeFileSync(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\n${data ? `Sitemap: ${SITE}/sitemap.xml\n` : ''}`);
+writeFileSync(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /detected\nDisallow: /status\nDisallow: /settings\n${data ? `Sitemap: ${SITE}/sitemap.xml\n` : ''}`);
 // App links: the apps' own files, served at /.well-known/ (see README for the CloudFront side).
 mkdirSync(join(DIST, '.well-known'), { recursive: true });
 // The repository root: web/.. here, or EE_REPO_ROOT / the box checkout when web/ is built from a copy.

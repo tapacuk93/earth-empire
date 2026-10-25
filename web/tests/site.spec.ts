@@ -335,67 +335,94 @@ test.describe('app banner on iPhone', () => {
   });
 });
 
-test('sections: Home, Monitor and Status in the header', async ({ page }) => {
+async function signIn(page: Page) {
+  await page.goto('/settings');
+  await page.locator('#admin-token').fill('owner');
+  await page.getByRole('button', { name: 'Check and keep' }).click();
+  await expect(page.getByText('Signed in as the owner on this device.')).toBeVisible();
+}
+
+test('visitors see only Home; the owner link signs in', async ({ page, request }) => {
   await page.goto('/');
+  await expect(page.getByRole('navigation', { name: 'Sections' })).toHaveCount(0);
+  for (const path of ['/detected', '/status']) {
+    await page.goto(path);
+    await expect(page.getByRole('heading', { level: 1, name: 'Owner sign-in' })).toBeVisible();
+    await expect(page.locator('.comp, .mon-card')).toHaveCount(0);
+  }
+  // Not prerendered, not in the sitemap.
+  expect((await request.get('/status')).status()).toBe(404);
+  expect((await request.get('/detected')).status()).toBe(404);
+  const sitemap = await (await request.get('/sitemap.xml')).text();
+  expect(sitemap).not.toMatch(/detected|status|settings|monitor/);
+  // A wrong token is refused.
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Owner' }).click();
+  await page.locator('#admin-token').fill('nope');
+  await page.getByRole('button', { name: 'Check and keep' }).click();
+  await expect(page.getByText('That token was not accepted.')).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Sections' })).toHaveCount(0);
+});
+
+test('owner: four sections in the header, sign out hides them', async ({ page }) => {
+  await signIn(page);
   const nav = page.getByRole('navigation', { name: 'Sections' });
-  await expect(nav.getByRole('link', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
-  await nav.getByRole('link', { name: 'Monitor' }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Monitor' })).toBeVisible();
+  await expect(nav.getByRole('link')).toHaveText(['Home', 'Detected', 'Status', 'Settings']);
+  await nav.getByRole('link', { name: 'Detected' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Detected' })).toBeVisible();
   await nav.getByRole('link', { name: 'Status' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Status' })).toBeVisible();
   await noHorizontalScroll(page);
+  await nav.getByRole('link', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await expect(page.getByRole('navigation', { name: 'Sections' })).toHaveCount(0);
 });
 
-test('monitor: by confidence, low hits labelled, fullscreen mode', async ({ page }) => {
-  await page.goto('/monitor');
+test('detected: by confidence, labels, publish to Home, fetch more, fullscreen', async ({ page }) => {
+  await signIn(page);
+  await page.goto('/detected');
   const cards = page.locator('.mon-card');
   await expect(cards).toHaveCount(4);
-  await expect(cards.first()).toContainText('94%');
-  await expect(cards.nth(2)).toContainText('Low confidence');
-  // No owner token: no publish button.
-  await expect(page.getByRole('button', { name: 'Add to the site' })).toHaveCount(0);
-  await page.getByRole('button', { name: 'Watch fullscreen' }).first().click();
-  const dlg = page.getByRole('dialog', { name: 'Monitor' });
-  await expect(dlg).toBeVisible();
+  await expect(cards.first()).toContainText('likely · 94%');
+  await expect(cards.nth(3)).toContainText('low confidence · 32%');
+  await expect(cards.nth(3)).toContainText('Russian speech');
+  await page.getByRole('group', { name: 'Kind of hit' }).getByRole('button', { name: 'Language' }).click();
+  await expect(cards).toHaveCount(1);
+  await page.getByRole('group', { name: 'Kind of hit' }).getByRole('button', { name: 'All' }).click();
+  await expect(cards).toHaveCount(4);
+  await cards.nth(2).getByRole('button', { name: /Publish to Home/ }).click();
+  await expect(cards.nth(2)).toContainText('On Home');
+  await page.getByLabel('Scan more videos').fill('12');
+  await page.getByRole('button', { name: 'Fetch 12 more' }).click();
+  await expect(page.getByText(/Queued 7 videos to scan; 5 more to discover/)).toBeVisible();
+  await page.getByRole('button', { name: 'Fullscreen', exact: true }).click();
+  const dlg = page.getByRole('dialog', { name: 'Detected' });
   await expect(dlg).toContainText('1/4');
   await dlg.locator('.vfeed-list').focus();
   await page.keyboard.press('ArrowDown');
   await expect(dlg).toContainText('2/4');
-  await expect(page).toHaveURL(/watch=mon_2/);
   await page.keyboard.press('Escape');
   await expect(dlg).toHaveCount(0);
   await noHorizontalScroll(page);
 });
 
-test('home: published monitor videos and the fullscreen watch mode', async ({ page }) => {
+test('home: published hits and the fullscreen mode', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'From the monitor' })).toBeVisible();
-  await page.getByRole('button', { name: /Watch fullscreen: City council/ }).click();
+  await expect(page.getByRole('heading', { name: 'Detected and published' })).toBeVisible();
+  await page.getByRole('button', { name: /Fullscreen: City council/ }).click();
   const dlg = page.getByRole('dialog', { name: 'Watch' });
   await expect(dlg).toBeVisible();
-  // Two published monitor videos, then the archive's videos.
+  // Two published hits, then the archive's videos.
   await expect(dlg.locator('.vfeed-slide')).toHaveCount(2 + 4);
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(dlg).toHaveCount(0);
 });
 
-test('status: components, activity, and owner-only phrase settings', async ({ page }) => {
-  await page.goto('/status');
-  await expect(page.locator('.comp')).toHaveCount(10);
-  await expect(page.getByText('Instagram asked to slow down; waiting 15 min')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible();
+test('status and settings for the owner: health, activity, stats, phrases', async ({ page }) => {
+  await signIn(page);
   const phrases = page.getByRole('region', { name: 'Phrases the monitor listens for' });
   await expect(phrases.locator('.phrase')).toHaveCount(3);
   await expect(phrases.getByRole('list', { name: 'Variants of “тарас маслов”' })).toContainText('taras maslov');
-  await expect(phrases.getByRole('button', { name: 'Save' })).toHaveCount(0);
-  // A wrong token is refused; the right one turns editing on.
-  const token = page.getByLabel('Owner token');
-  await token.fill('nope');
-  await page.getByRole('button', { name: 'Check and keep' }).click();
-  await expect(page.getByText('That token was not accepted.')).toBeVisible();
-  await token.fill('owner');
-  await page.getByRole('button', { name: 'Check and keep' }).click();
-  await expect(page.getByText('Signed in as the owner on this device.')).toBeVisible();
   await phrases.getByLabel('New phrase').fill('t. maslov');
   await phrases.getByRole('button', { name: 'Add' }).click();
   await phrases.getByRole('button', { name: 'Save' }).click();
@@ -403,8 +430,9 @@ test('status: components, activity, and owner-only phrase settings', async ({ pa
   await expect(phrases.locator('.phrase')).toHaveCount(4);
   await phrases.getByRole('button', { name: 'Rescan stored transcripts' }).click();
   await expect(phrases.getByText('Rescan started.', { exact: false })).toBeVisible();
-  // The owner sees the publish button in Monitor.
-  await page.goto('/monitor');
-  await page.getByRole('button', { name: 'Add to the site' }).first().click();
-  await expect(page.locator('.mon-card').nth(2)).toContainText('Published');
+  await page.goto('/status');
+  await expect(page.locator('.comp')).toHaveCount(10);
+  await expect(page.getByText('Instagram asked to slow down; waiting 15 min')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Monitor stats' })).toContainText('cpu per audio');
 });

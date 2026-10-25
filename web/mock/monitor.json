@@ -1,132 +1,209 @@
 {
- "videos": [
+ "hits": [
   {
-   "id": "mon_1",
-   "title": "City council session: the harbour project",
-   "media": [
-    {
-     "type": "video",
-     "url": "/mock/media/ocean-reel.mp4",
-     "thumbnail": "/mock/media/ocean-reel.thumb.jpg",
-     "cover": "/mock/media/ocean-reel.cover.jpg",
-     "width": 540,
-     "height": 960
-    }
-   ],
-   "source": {
-    "platform": "youtube",
-    "account": "sample.council",
-    "name": "Sample City Council (mock)",
-    "url": "https://www.youtube.com/@sample.council"
-   },
-   "taken_at": "2026-10-24T10:00:00Z",
-   "found_at": "2026-10-24T12:00:00Z",
+   "id": "h_mock1",
+   "kind": "name",
+   "phrase": "тарас маслов",
+   "matched": "Тарас Маслов",
    "confidence": 0.94,
-   "matches": [
-    {
-     "phrase": "тарас маслов",
-     "text": "…слово має Тарас Маслов…",
-     "at": 3.5
-    }
+   "confidence_label": "likely",
+   "notes": [
+    "full name, both words"
    ],
-   "transcript": "Наступне питання. Слово має Тарас Маслов, автор проєкту гавані.",
-   "published": true
+   "judge": null,
+   "language": "uk",
+   "expected_languages": [
+    "en"
+   ],
+   "platform": "youtube",
+   "source_kind": "official",
+   "via": null,
+   "hop": 0,
+   "source": {
+    "id": "sample.council",
+    "name": "Sample City Council (mock)",
+    "kind": "media",
+    "country": "UA",
+    "source_kind": "official"
+   },
+   "account": "sample.council",
+   "video": {
+    "id": "youtube:sample.council/h_mock1",
+    "url": "https://www.youtube.com/watch?v=mockh_mock1",
+    "title": "City council session: the harbour project",
+    "posted_at": "2026-10-24T10:00:00Z",
+    "duration": 9.0,
+    "thumbnail": "/mock/media/ocean-reel.thumb.jpg"
+   },
+   "start": 3.5,
+   "end": 4.4,
+   "at_url": "https://www.youtube.com/watch?v=mockh_mock1&t=3",
+   "excerpt": {
+    "text": "Наступне питання. Слово має Тарас Маслов, автор проєкту гавані.",
+    "start": 1.0,
+    "end": 8.0,
+    "language": "uk",
+    "en": "Next item. The floor goes to Taras Maslov, the author of the harbour project."
+   },
+   "clip": "/mock/media/ocean-reel.mp4",
+   "frame": "/mock/media/ocean-reel.cover.jpg",
+   "model": "faster-whisper small int8",
+   "found_at": "2026-10-24T12:00:00Z",
+   "published_at": "2026-10-24T13:00:00Z"
   },
   {
-   "id": "mon_2",
-   "title": "Regional news: coastal run raises funds",
-   "media": [
-    {
-     "type": "video",
-     "url": "/mock/media/reel-sunset.mp4",
-     "thumbnail": "/mock/media/reel-sunset.thumb.jpg",
-     "cover": "/mock/media/reel-sunset.cover.jpg",
-     "width": 540,
-     "height": 960
-    }
-   ],
-   "source": {
-    "platform": "youtube",
-    "account": "sample.news",
-    "name": "Sample Regional News (mock)",
-    "url": "https://www.youtube.com/@sample.news"
-   },
-   "taken_at": "2026-10-22T10:00:00Z",
-   "found_at": "2026-10-22T12:00:00Z",
+   "id": "h_mock2",
+   "kind": "name",
+   "phrase": "маслов",
+   "matched": "Маслов",
    "confidence": 0.81,
-   "matches": [
-    {
-     "phrase": "маслов",
-     "text": "…організатор Маслов сказав…",
-     "at": 6.0
-    }
+   "confidence_label": "likely",
+   "notes": [
+    "surname only; a common surname"
    ],
-   "transcript": "Забіг уздовж узбережжя зібрав кошти. Організатор Маслов сказав, що наступного року буде більше учасників.",
-   "published": true
+   "judge": null,
+   "language": "uk",
+   "expected_languages": [
+    "en"
+   ],
+   "platform": "youtube",
+   "source_kind": "official",
+   "via": null,
+   "hop": 0,
+   "source": {
+    "id": "sample.news",
+    "name": "Sample Regional News (mock)",
+    "kind": "media",
+    "country": "UA",
+    "source_kind": "official"
+   },
+   "account": "sample.news",
+   "video": {
+    "id": "youtube:sample.news/h_mock2",
+    "url": "https://www.youtube.com/watch?v=mockh_mock2",
+    "title": "Regional news: coastal run raises funds",
+    "posted_at": "2026-10-22T10:00:00Z",
+    "duration": 9.0,
+    "thumbnail": "/mock/media/reel-sunset.thumb.jpg"
+   },
+   "start": 3.5,
+   "end": 4.4,
+   "at_url": "https://www.youtube.com/watch?v=mockh_mock2&t=3",
+   "excerpt": {
+    "text": "Організатор Маслов сказав, що наступного року буде більше учасників.",
+    "start": 1.0,
+    "end": 8.0,
+    "language": "uk",
+    "en": "Organizer Maslov said there will be more runners next year."
+   },
+   "clip": "/mock/media/reel-sunset.mp4",
+   "frame": "/mock/media/reel-sunset.cover.jpg",
+   "model": "faster-whisper small int8",
+   "found_at": "2026-10-22T12:00:00Z",
+   "published_at": "2026-10-22T13:00:00Z"
   },
   {
-   "id": "mon_3",
-   "title": "Morning show: home cooking segment",
-   "media": [
-    {
-     "type": "video",
-     "url": "/mock/media/reel-cooking.mp4",
-     "thumbnail": "/mock/media/reel-cooking.thumb.jpg",
-     "cover": "/mock/media/reel-cooking.cover.jpg",
-     "width": 540,
-     "height": 960
-    }
-   ],
-   "source": {
-    "platform": "youtube",
-    "account": "sample.tv",
-    "name": "Sample TV (mock)",
-    "url": "https://www.youtube.com/@sample.tv"
-   },
-   "taken_at": "2026-10-21T10:00:00Z",
-   "found_at": "2026-10-21T12:00:00Z",
+   "id": "h_mock3",
+   "kind": "name",
+   "phrase": "тарас",
+   "matched": "Тарасе",
    "confidence": 0.55,
-   "matches": [
-    {
-     "phrase": "тарас",
-     "text": "…Тарасе, покажи…",
-     "at": 2.0
-    }
+   "confidence_label": "possible",
+   "notes": [
+    "first name only; very common"
    ],
-   "transcript": "Тарасе, покажи, як різати гарбуз.",
-   "published": false
+   "judge": null,
+   "language": "uk",
+   "expected_languages": [
+    "en"
+   ],
+   "platform": "youtube",
+   "source_kind": "official",
+   "via": null,
+   "hop": 0,
+   "source": {
+    "id": "sample.tv",
+    "name": "Sample TV (mock)",
+    "kind": "media",
+    "country": "UA",
+    "source_kind": "official"
+   },
+   "account": "sample.tv",
+   "video": {
+    "id": "youtube:sample.tv/h_mock3",
+    "url": "https://www.youtube.com/watch?v=mockh_mock3",
+    "title": "Morning show: home cooking segment",
+    "posted_at": "2026-10-21T10:00:00Z",
+    "duration": 9.0,
+    "thumbnail": "/mock/media/reel-cooking.thumb.jpg"
+   },
+   "start": 3.5,
+   "end": 4.4,
+   "at_url": "https://www.youtube.com/watch?v=mockh_mock3&t=3",
+   "excerpt": {
+    "text": "Тарасе, покажи, як різати гарбуз.",
+    "start": 1.0,
+    "end": 8.0,
+    "language": "uk",
+    "en": "Taras, show how to cut the squash."
+   },
+   "clip": "/mock/media/reel-cooking.mp4",
+   "frame": "/mock/media/reel-cooking.cover.jpg",
+   "model": "faster-whisper small int8",
+   "found_at": "2026-10-21T12:00:00Z",
+   "published_at": null
   },
   {
-   "id": "mon_4",
-   "title": "Market day report",
-   "media": [
-    {
-     "type": "video",
-     "url": "/mock/media/story-market.mp4",
-     "thumbnail": "/mock/media/story-market.thumb.jpg",
-     "cover": "/mock/media/story-market.cover.jpg",
-     "width": 540,
-     "height": 960
-    }
-   ],
-   "source": {
-    "platform": "youtube",
-    "account": "sample.city",
-    "name": "Sample City (mock)",
-    "url": "https://www.youtube.com/@sample.city"
-   },
-   "taken_at": "2026-10-20T10:00:00Z",
-   "found_at": "2026-10-20T12:00:00Z",
+   "id": "h_mock4",
+   "kind": "language",
+   "phrase": null,
+   "matched": "ru",
    "confidence": 0.32,
-   "matches": [
-    {
-     "phrase": "тарас",
-     "text": "…на Тарасівській вулиці…",
-     "at": 4.1
-    }
+   "confidence_label": "low confidence",
+   "notes": [
+    "6 s of speech identified as ru",
+    "may be a quoted clip"
    ],
-   "transcript": "Ярмарок на Тарасівській вулиці триватиме до неділі.",
-   "published": false
+   "judge": null,
+   "language": "ru",
+   "expected_languages": [
+    "en"
+   ],
+   "platform": "telegram",
+   "source_kind": "official",
+   "via": null,
+   "hop": 0,
+   "source": {
+    "id": "sample.city",
+    "name": "Sample City (mock)",
+    "kind": "media",
+    "country": "UA",
+    "source_kind": "official"
+   },
+   "account": "sample.city",
+   "video": {
+    "id": "telegram:sample.city/h_mock4",
+    "url": "https://www.youtube.com/watch?v=mockh_mock4",
+    "title": "Market day report",
+    "posted_at": "2026-10-20T10:00:00Z",
+    "duration": 9.0,
+    "thumbnail": "/mock/media/story-market.thumb.jpg"
+   },
+   "start": 3.5,
+   "end": 4.4,
+   "at_url": "https://www.youtube.com/watch?v=mockh_mock4&t=3",
+   "excerpt": {
+    "text": "Ярмарка будет до воскресенья.",
+    "start": 1.0,
+    "end": 8.0,
+    "language": "uk",
+    "en": "The fair runs until Sunday."
+   },
+   "clip": "/mock/media/story-market.mp4",
+   "frame": "/mock/media/story-market.cover.jpg",
+   "model": "faster-whisper small int8",
+   "found_at": "2026-10-20T12:00:00Z",
+   "published_at": null
   }
  ],
  "next": null

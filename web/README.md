@@ -39,31 +39,22 @@ backend/deploy/deploy-site.sh
 | `/item/<id>` | media viewer, caption, details, description and the analysis; a repost shows the sharing item and the credited original side by side (stacked on phones) |
 | `/highlight/<id>?item=<id>` | Instagram-style story viewer: tap left/right, hold to pause, swipe sideways for the next highlight, swipe down or Esc to close; arrows, Space, `m` on a keyboard |
 | `/category/<slug>` | one category |
-| `/monitor` | videos the monitor found, highest confidence first; low-confidence hits marked; the owner gets "Add to the site" |
-| `/status` | live health of every component (`GET /v1/status`, refreshed every 10 s), current jobs and events; settings: the owner token and the monitor's phrases (edit, save, rescan) |
+| `/detected` (owner) | the monitor's hits by confidence, labelled (likely, possible, low confidence), with the excerpt, clip and frame; **+ Publish** puts one on Home; "Fetch N more" asks the monitor to scan more (`POST /v1/monitor/fetch`) |
+| `/status` (owner) | component health (`GET /v1/status`, every 10 s), what is running now, latest events, monitor stats (`GET /v1/monitor/status`) |
+| `/settings` | the owner token; for the owner, the phrases (variants read-only, Save, Rescan) |
 
-`?watch=<id>` on Home or Monitor opens the **fullscreen video mode**: one video per screen, swipe
-or arrow keys up and down. On Home it plays the published monitor videos, then the archive's videos.
+Home is the only public section: the hits the owner published (`GET /v1/published`), then the
+Instagram mirror. `?watch=<id>` on Home or Detected opens the **fullscreen mode**: one per screen,
+swipe or arrow keys up and down. On Home it plays the published hits (frame and clip), then the
+archive's videos.
 
-**Owner mode:** the owner token (`earth-empire/admin-token`) is entered in Status, checked with
-`GET /v1/admin/me`, and kept in this browser's `localStorage` only. It turns on editing the phrases
-(`PUT /v1/monitor/phrases`, `POST /v1/monitor/rescan`) and publishing found videos.
-
-**Provisional:** CONTRACT.md has no Monitor section yet. `src/monitor.ts` reads
-`GET /v1/monitor/videos?sort=confidence`, `GET /v1/published` and
-`POST /v1/monitor/videos/{id}/publish` through one tolerant `normalize()`, so the final shape only
-changes that file. Until those endpoints exist, Home leaves the monitor row out and Monitor says
-it is not live yet.
-
-## Opening the apps
-
-- With an app installed, Universal Links (iOS) and App Links (Android) open every empire.earth URL
-  on the same screen in the app, through the `.well-known` files below.
-- Without it, phones and tablets get a small banner (`src/components/AppBanner.tsx`): on Android an
-  `intent://<host><path>#Intent;scheme=https;package=com.oeaio.earthempire;S.browser_fallback_url=<Play Store>;end`
-  URL, and on iOS `earthempire://<path>` with a fallback to the App Store link after 1.5 s. On iOS
-  Safari with `VITE_IOS_APP_ID` set, Safari's own Smart App Banner is used instead. Desktop never
-  sees a banner, the story viewer hides it, and "Stay on the web" hides it for good (`localStorage`).
+**Owner mode:** visitors see only Home and a small "Owner" link in the footer, which goes to
+`/settings`. There the owner enters the token (`earth-empire/admin-token`). It is checked with
+`GET /v1/admin/me` and kept in this browser's `localStorage`. The token is checked again on each
+visit, and a rejected one is forgotten. Only then do Detected, Status and Settings appear; their
+routes show the sign-in form to anyone else. They are not prerendered, are absent from the sitemap,
+are disallowed in `robots.txt`, and carry `noindex`. Every monitor and status request sends the
+token. Signed storage URLs in a hit are never shown as links.
 
 ## Sharing: prerendered route shells
 

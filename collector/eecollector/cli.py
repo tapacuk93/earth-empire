@@ -167,6 +167,8 @@ def _stop_label(e: IGStop) -> str:
         return "login refused"
     if e.kind == "login" and "automatic login is off" in text:
         return "logged out, waiting for a login by hand"
+    if e.kind == "config" and "not available" in text:
+        return "target profile not available"
     return {"checkpoint": "checkpoint", "login": "logged out", "rate_limit": "rate limited",
             "config": "config"}.get(e.kind, e.kind)
 

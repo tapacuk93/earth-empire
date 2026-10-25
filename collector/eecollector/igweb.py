@@ -33,6 +33,23 @@ APP_ID = "936619743392459"
 CHALLENGE_PATHS = ("/challenge", "/checkpoint", "/accounts/suspended", "/auth_platform/", "/accounts/disabled")
 
 
+def json_documents(text: str) -> list:
+    """Instagram streams some GraphQL answers as several JSON documents in one body (deferred
+    parts), sometimes behind "for (;;);". Returns every document."""
+    text = text.strip()
+    if text.startswith("for (;;);"):
+        text = text[len("for (;;);"):]
+    dec, out, i = json.JSONDecoder(), [], 0
+    while i < len(text):
+        while i < len(text) and text[i] in " \r\n\t":
+            i += 1
+        if i >= len(text):
+            break
+        doc, i = dec.raw_decode(text, i)
+        out.append(doc)
+    return out
+
+
 class IGStop(RuntimeError):
     """Stop the run cleanly. `kind` is checkpoint | login | rate_limit | config."""
 
@@ -377,12 +394,13 @@ class IGBrowser:
         if "/api/v1/" not in u and "/graphql" not in u:
             return
         try:
-            if "json" not in r.headers.get("content-type", "") and "javascript" not in r.headers.get("content-type", ""):
+            ctype = r.headers.get("content-type", "")
+            if not any(t in ctype for t in ("json", "javascript", "text/plain")):
                 return
-            body = r.json()
-            self.seen.append({"url": u.split("?")[0], "status": r.status, "body": body})
-        except Exception:  # noqa: BLE001 - a response we cannot read is just skipped
-            pass
+            for body in json_documents(r.text()):
+                self.seen.append({"url": u.split("?")[0], "status": r.status, "body": body})
+        except Exception as e:  # noqa: BLE001 - a response we cannot read is just skipped
+            log.debug("unreadable response %s: %s", u.split("?")[0], e)
 
     def _fetch(self, method: str, path: str, form: dict | None = None) -> dict:
         csrf = self.cookies().get("csrftoken", "")
@@ -448,6 +466,12 @@ class IGBrowser:
 
     def media_info(self, pk: str) -> dict:
         return self.api(f"/api/v1/media/{pk}/info/")
+
+    def page_text(self) -> str:
+        try:
+            return self.page.evaluate("document.body.innerText")[:2000]
+        except PWError:
+            return ""
 
     def browse(self, url: str, scrolls: int = 3) -> list[dict]:
         """Visit a page like a person and return the JSON responses it loaded (e.g. the reposts tab)."""

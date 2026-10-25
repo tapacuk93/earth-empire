@@ -13,7 +13,7 @@ from typing import Any
 
 from . import parse
 from .backend import Backend
-from .igweb import IGError
+from .igweb import IGError, IGStop
 from .media import Downloader, MediaGone, fetch_video, image_size, thumb, to_jpeg, video_frame
 from .state import State
 
@@ -113,6 +113,11 @@ class Collector:
             # the profile page as a person opens it; its own requests carry the profile and the
             # newest posts, so web_profile_info is not needed
             bodies = self.ig.browse(f"https://www.instagram.com/{self.target}/", scrolls=1)
+            shown = self.ig.page_text() if hasattr(self.ig, "page_text") else ""
+            if "isn't available" in shown or "Sorry, this page" in shown:
+                raise IGStop("config", "the target profile is not available to the downloader account "
+                                       "(Instagram shows \"isn't available\"): wrong username in earth-empire/target, "
+                                       "the account was renamed or deactivated, or it blocks the downloader")
             user = parse.find_user(bodies, self.target)
             if user:
                 p = parse.profile({"user": user})

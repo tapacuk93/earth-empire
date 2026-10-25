@@ -93,6 +93,8 @@ def jpeg(src: Path, dest: Path, edge: int, at: float | None = None) -> bytes:
     cmd += ["-i", str(src), "-frames:v", "1",
             "-vf", f"scale={edge}:{edge}:force_original_aspect_ratio=decrease", "-q:v", "4", str(dest)]
     run(cmd)
+    if not dest.exists() or dest.stat().st_size == 0:   # e.g. a seek past the last decodable frame
+        raise RuntimeError(f"ffmpeg wrote no frame at {at}")
     return dest.read_bytes()
 
 

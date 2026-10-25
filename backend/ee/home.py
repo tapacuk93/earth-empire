@@ -353,7 +353,10 @@ def tag_graph(c, max_nodes: int = 300, edges_per_node: int = 6) -> dict:
     tag_items: dict[str, set] = {}
     kinds: dict[str, set] = {}
     for r in rows:
-        tag_items.setdefault(r["tag"], set()).add(r["item_id"])
+        t = r["tag"]
+        if len(t) > 40 or len(t.split()) > 4 or any(ch in t for ch in "()[]:;,"):
+            continue   # descriptive phrases stored before tags were kept short
+        tag_items.setdefault(t, set()).add(r["item_id"])
         kinds.setdefault(r["tag"], set()).add(r["kind"])
     ranked = sorted(tag_items, key=lambda t: (-len(tag_items[t]), t))[:max_nodes]
     nodes = []

@@ -410,8 +410,9 @@ def tags_for(d: dict, out: dict, cats: list[str]) -> set[tuple[str, str]]:
 
     def add(value, kind):
         if isinstance(value, str):
-            v = " ".join(value.strip().lower().lstrip("#").split())[:60]
-            if 1 < len(v):
+            v = " ".join(value.strip().lower().lstrip("#").split())
+            # a tag is a word or a short name, not a descriptive phrase
+            if 1 < len(v) <= 40 and len(v.split()) <= 4 and not any(ch in v for ch in "()[]:;,"):
                 tags.add((v, kind))
 
     for c_ in cats:

@@ -213,14 +213,11 @@ def main(argv=None):
         ids = list(a.ids)
         if a.tests:
             ids += [r["id"] for r in c.execute("SELECT id FROM items WHERE id LIKE 'ig\\_test\\_%' ESCAPE '\\'")]
-        with db.tx(c):
-            for i in ids:
-                for t in ("items", "items_fts"):
-                    c.execute(f"DELETE FROM {t} WHERE id=?", (i,))
-                for t in ("steps", "item_categories", "item_tags", "item_highlights"):
-                    c.execute(f"DELETE FROM {t} WHERE item_id=?", (i,))
-            if a.tests:
-                c.execute("DELETE FROM highlights WHERE id LIKE 'hl\\_test\\_%' ESCAPE '\\'")
+        for i in ids:
+            print(store.delete_item(c, i))
+        if a.tests:
+            c.execute("DELETE FROM highlights WHERE id LIKE 'hl\\_test\\_%' ESCAPE '\\'")
+        db.set_setting(c, "site.force", db.now())
         from .logs import event
         event("items.deleted", ids=ids)
         print(f"deleted {len(ids)}: {ids}")

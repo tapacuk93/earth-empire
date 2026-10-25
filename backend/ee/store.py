@@ -5,6 +5,7 @@ import base64
 import hashlib
 import json
 import logging
+import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
@@ -84,25 +85,20 @@ def publishable(d: dict) -> tuple[bool, str | None]:
 
 
 def gate(c, item_id: str) -> tuple[bool, str]:
-    """Is this item public? Analyzed, not an image-only repost, and scanned by the monitor with
-    detection.matched = true. Apply the answer: publish (site step posted, the posters may post)
-    or unpublish (site skipped; X/Facebook skipped unless they already posted). Unscanned items are
-    not public."""
+    """Is this archive item public? Every mirrored item of the account is, once analyzed, unless it
+    is an image-only repost. A monitor detection is context (shown and used as a start point), never
+    a condition. Apply the answer: publish (site step posted, the posters may post) or unpublish
+    (site skipped; X/Facebook skipped unless they already posted)."""
     row = c.execute("SELECT data, analysis, detection, published_at FROM items WHERE id=?", (item_id,)).fetchone()
     if not row:
         return False, "no such item"
     ok, why = publishable(json.loads(row["data"]))
-    det = json.loads(row["detection"]) if row["detection"] else None
     if not row["analysis"]:
         public, why = False, "not analyzed yet"
     elif not ok:
         public = False
-    elif det is None:
-        public, why = False, "waiting for the detection scan"
-    elif det.get("matched"):
-        public, why = True, "detection matched"
     else:
-        public, why = False, "no detection match"
+        public, why = True, "analyzed"
     ts = now()
     if public and not row["published_at"]:
         c.execute("UPDATE items SET published_at=? WHERE id=?", (ts, item_id))
@@ -118,13 +114,43 @@ def gate(c, item_id: str) -> tuple[bool, str]:
             if states.get(step) == "skipped":
                 _set_step(c, item_id, step, "pending", note=why)
     else:
-        target = "pending" if why in ("not analyzed yet", "waiting for the detection scan") else "skipped"
+        target = "pending" if why == "not analyzed yet" else "skipped"
         if states.get("site") != target:
             _set_step(c, item_id, "site", target, note=why)
         for step in ("x", "facebook"):
             if states.get(step) not in ("posted", "running", target):
                 _set_step(c, item_id, step, target, note=why)
     return public, why
+
+
+def delete_item(c, item_id: str, *, media: bool = True) -> dict:
+    """Remove an item for good: its rows everywhere and, with media=True, its files under
+    items/<id>/ in the media bucket (and the CDN's cached copies)."""
+    with tx(c):
+        for t in ("items", "items_fts", "embeddings", "layout"):
+            c.execute(f"DELETE FROM {t} WHERE id=?", (item_id,))
+        for t in ("steps", "item_categories", "item_tags", "item_highlights", "transitions", "costs"):
+            c.execute(f"DELETE FROM {t} WHERE item_id=?", (item_id,))
+    removed = 0
+    if media and re.fullmatch(r"[A-Za-z0-9_\-]+", item_id):
+        import boto3
+        s3 = boto3.client("s3", region_name=config.REGION)
+        prefix = f"items/{item_id}/"
+        for page in s3.get_paginator("list_object_versions").paginate(Bucket=config.MEDIA_BUCKET, Prefix=prefix):
+            objs = [{"Key": v["Key"], "VersionId": v["VersionId"]}
+                    for v in (page.get("Versions") or []) + (page.get("DeleteMarkers") or [])]
+            for k in range(0, len(objs), 1000):
+                s3.delete_objects(Bucket=config.MEDIA_BUCKET, Delete={"Objects": objs[k:k + 1000], "Quiet": True})
+            removed += len(objs)
+        dist = config.env("EE_MEDIA_DISTRIBUTION_ID")
+        if removed and dist:
+            try:
+                boto3.client("cloudfront").create_invalidation(DistributionId=dist, InvalidationBatch={
+                    "Paths": {"Quantity": 1, "Items": [f"/{prefix}*"]}, "CallerReference": f"del-{item_id}-{now()}"})
+            except Exception as e:
+                event("delete.invalidation_failed", logging.WARNING, item=item_id, error=str(e))
+    event("item.deleted", item=item_id, media_objects=removed)
+    return {"id": item_id, "media_objects_removed": removed}
 
 
 # ------------------------------------------------------------------ ingest

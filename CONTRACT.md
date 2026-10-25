@@ -125,7 +125,7 @@ store it in `extra`.
   "summary": "one sentence" | null,        // set by the backend
   "importance": 0.6 | null,                // set by the backend: 0-1, how significant the content is;
                                            // judged on content only, never lower for a story or a repost
-  "detection": null | {                    // set by the monitor's scan of the item; the public gate
+  "detection": null | {                    // set by the monitor's scan of the item; context only
     "matched": true,                       // any hit, low confidence too
     "hits": [{"kind": "name" | "language", "phrase": "тарас" | null, "lang": "uk" | null,
               "media": 0, "at": 12.4,      // media index and seconds into it: TikTok mode starts here
@@ -225,34 +225,29 @@ Status, **owner only** (`Authorization: Bearer <earth-empire/admin-token>`; 401 
 Owner-only (`Authorization: Bearer <earth-empire/admin-token>`):
 
 - `GET /v1/admin/me` → `{"ok": true, "role": "owner"}`, or 401: checks a token the owner entered.
+- `DELETE /v1/admin/items/{id}` → `{"ok", "id", "media_objects_removed"}`: removes an archive item for
+  good (its data, pipeline state, and every version of its media under `items/<id>/`), and the site
+  is rebuilt without it.
 - `GET /v1/admin/pipeline` (the ingest token works here too), `GET /v1/admin/items/{id}`
   (the item whatever its state, with its steps and transitions), `POST /v1/admin/items/{id}/reanalyze`.
 
-## Detection gate
+## Detection
 
-Nothing outside the detection criteria is public. The monitor runs its detectors (the owner's
-phrases and out-of-place Ukrainian or Russian) over every archive item's speech and text, and
-reports the result:
+**Everything in the account's own profile is public:** every mirrored item (posts, reposts,
+stories, highlight stories) once it is analyzed, scanned or not, matched or not. The only exception
+is an image-only repost (see "The pipeline"). Videos the monitor finds elsewhere are public only when
+the owner publishes them ("+", `POST /v1/monitor/hits/{id}/publish`).
+
+The monitor also scans archive items with its detectors (the owner's phrases, out-of-place Ukrainian
+or Russian) and reports the result as context:
 
 - `PUT /v1/ingest/detections` (ingest token)
   `{"detections": [{"id": "ig_…", "detection": {"matched": bool, "hits": [Hit…], "model"?, "scanned_at"?}}]}`
-  → `{"ok", "published": [ids], "unpublished": [ids], "unchanged": n, "unknown": [ids]}`.
-  Send it again whenever a rescan changes the result; the backend publishes or unpublishes to match.
-- **Public** = analyzed, not an image-only repost, and `detection.matched = true` (low-confidence
-  matches count). Everything else stays stored and unpublished: no `/v1/items`, `/v1/layout`,
-  related lists, tag graph, site, X or Facebook. Something already posted to X or Facebook stays
-  there; nothing new is posted.
-- An item not scanned yet is not public, whether it is new or was public before the gate.
-- Each public item carries `detection.hits`, so the site can show why it is there and the
-  full-screen mode can start a video at its first matched moment (`hits[0].media`, `hits[0].at`).
-- The monitor checks the item's own videos and, for a repost, the original's audio (the collector's
-  copy on the media host), plus the caption text (the original's for a repost). Published items are
-  checked first. Besides the fields above it sends: per hit `"repost": true` when `media` indexes the
-  repost original's media (`media: null, "source": "caption"` for a caption match), `"end"`, `"label"`
-  (`likely` | `possible` | `low confidence`) and `"matched_words"`; per detection `"complete"` (false when
-  some media could not be scanned), `"reason"` when nothing matched, and `"media": [{"media", "repost",
-  "video_id", "state", "error"?}]`. Items with neither audio nor matching text are `matched: false`.
-  `GET /v1/monitor/status` shows the gate's counts (`gate`, `gate_published`).
+  → `{"ok", "published": [], "unpublished": [], "unchanged": n, "unknown": [ids]}`. Send it again
+  whenever a rescan changes the result.
+- An item with hits carries them as `detection`, so the site shows the chip and the full-screen mode
+  starts the video at the first matched moment (`hits[0].media`, `hits[0].at`). Without hits it
+  plays from the start.
 
 ## Home layout
 
@@ -334,9 +329,9 @@ backoff without blocking other items. Every transition is logged.
 
 1. **Downloaded:** the collector has ingested it (a post, carousel, reel, story, highlight story, or
    a repost together with its original).
-2. **Analyzed and matched:** the backend has written `analysis`, `categories`, `summary` and
-   `description`, **and the monitor's scan found a match** (`detection.matched`, see "Detection
-   gate"). The public API shows an item only from this point on, and never an **image-only repost**: an item
+2. **Analyzed:** the backend has written `analysis`, `categories`, `summary` and `description`.
+   The public API shows an item only from this point on (a monitor detection is not required, see
+   "Detection"), and never an **image-only repost**: an item
    with `repost_of` and no video, in its own media or the original's (someone else's photo, shared
    in a post or a story). Such an item is kept and analyzed, but its `site`, `x` and `facebook`
    steps are `skipped`. It never appears in `/v1/items`, `/v1/layout`, related lists, the tag graph

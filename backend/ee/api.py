@@ -266,7 +266,7 @@ async def ingest_items(request: Request):
 
 @app.put("/v1/ingest/detections", dependencies=[Depends(require_token)])
 async def ingest_detections(request: Request):
-    """The monitor's scan of archive items (CONTRACT.md "Detection gate"); publishes or unpublishes them."""
+    """The monitor's scan of archive items (CONTRACT.md "Detection"): stored as context on each item."""
     body = await request.json()
     rows = body.get("detections") if isinstance(body, dict) else None
     if not isinstance(rows, list):
@@ -385,6 +385,17 @@ def admin_item(item_id: str):
     steps = [dict(r) for r in c.execute("SELECT * FROM steps WHERE item_id=?", (item_id,))]
     trans = [dict(r) for r in c.execute("SELECT * FROM transitions WHERE item_id=? ORDER BY id", (item_id,))]
     return {"item": store.render_item(c, row), "steps": steps, "transitions": trans}
+
+
+@app.delete("/v1/admin/items/{item_id}", dependencies=[Depends(require_admin)])
+def admin_delete(item_id: str):
+    """Remove an item for good (rows, media, CDN cache); the site is rebuilt without it."""
+    c = conn()
+    if not c.execute("SELECT 1 FROM items WHERE id=?", (item_id,)).fetchone():
+        raise HTTPException(404, "no such item")
+    out = store.delete_item(c, item_id)
+    db.set_setting(c, "site.force", db.now())
+    return {"ok": True, **out}
 
 
 @app.post("/v1/admin/items/{item_id}/reanalyze", dependencies=[Depends(require_admin)])

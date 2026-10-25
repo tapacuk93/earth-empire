@@ -18,6 +18,7 @@ else
 fi
 MEDIA_HOSTS=$(out MediaHost)
 SITE_DIST=$(out SiteDistributionId)
+MEDIA_DIST=$(out MediaDistributionId)
 
 read -r -d '' SCRIPT <<EOF || true
 set -euxo pipefail
@@ -30,6 +31,7 @@ setkv EE_PUBLIC_API_URL $API
 setkv EE_MEDIA_BASE_URL $MEDIA
 setkv EE_MEDIA_HOSTS $MEDIA_HOSTS
 setkv EE_SITE_DISTRIBUTION_ID $SITE_DIST
+setkv EE_MEDIA_DISTRIBUTION_ID $MEDIA_DIST
 for p in ${PARTS:-*}; do
   if [ -x "\$p/deploy/install.sh" ] || [ -f "\$p/deploy/install.sh" ]; then echo "== \$p"; bash "\$p/deploy/install.sh"; fi
 done

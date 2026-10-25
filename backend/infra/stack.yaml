@@ -231,7 +231,8 @@ Resources:
           PolicyDocument:
             Statement:
               - Effect: Allow
-                Action: [s3:GetObject, s3:PutObject, s3:DeleteObject, s3:ListBucket]
+                Action: [s3:GetObject, s3:PutObject, s3:DeleteObject, s3:ListBucket,
+                         s3:ListBucketVersions, s3:DeleteObjectVersion]   # versions: deleting an item for good
                 Resource:
                   - !GetAtt MediaBucket.Arn
                   - !Sub "${MediaBucket.Arn}/*"

@@ -12,7 +12,7 @@
 // Env: VITE_API_BASE (as for the build; `mock` reads mock/fixture.json), SITE_URL (default
 // https://empire.earth). If the API cannot be reached the build still succeeds with the generic
 // shells only, so routes keep working; their previews are generic until the next build.
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,6 +21,7 @@ const DIST = join(ROOT, 'dist');
 const API = (process.env.VITE_API_BASE || readEnvFile().VITE_API_BASE || 'https://api.empire.earth').replace(/\/+$/, '');
 const SITE = (process.env.SITE_URL || 'https://empire.earth').replace(/\/+$/, '');
 const NAME = 'Earth Empire';
+const IOS_APP_ID = process.env.VITE_IOS_APP_ID || readEnvFile().VITE_IOS_APP_ID || '';
 
 function readEnvFile() {
   const out = {};
@@ -84,6 +85,7 @@ function head({ title, description, image, url, type = 'website', video, noindex
     `<meta name="twitter:title" content="${esc(full)}">`,
     `<meta name="twitter:description" content="${esc(description)}">`,
     image && `<meta name="twitter:image" content="${esc(abs(image))}">`,
+    IOS_APP_ID && url && `<meta name="apple-itunes-app" content="app-id=${esc(IOS_APP_ID)}, app-argument=${esc(url)}">`,
   ];
   return t.filter(Boolean).join('\n');
 }
@@ -159,4 +161,24 @@ if (!data) {
   writeFileSync(join(DIST, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${esc(SITE + u)}</loc></url>`).join('\n')}\n</urlset>\n`);
 }
 writeFileSync(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\n${data ? `Sitemap: ${SITE}/sitemap.xml\n` : ''}`);
+// App links: the apps' own files, served at /.well-known/ (see README for the CloudFront side).
+mkdirSync(join(DIST, '.well-known'), { recursive: true });
+// The repository root: web/.. here, or EE_REPO_ROOT / the box checkout when web/ is built from a copy.
+const REPO = [process.env.EE_REPO_ROOT, join(ROOT, '..'), '/opt/earth-empire/repo'].find((d) => d && existsSync(join(d, 'ios'))) || join(ROOT, '..');
+const AASA = join(REPO, 'ios/AppSiteAssociation/apple-app-site-association');
+if (existsSync(AASA)) { JSON.parse(readFileSync(AASA, 'utf8')); copyFileSync(AASA, join(DIST, '.well-known/apple-app-site-association')); }
+else console.warn('prerender: no ios/AppSiteAssociation/apple-app-site-association');
+const findAssetLinks = (dir, depth = 0) => {
+  if (!existsSync(dir) || depth > 4) return null;
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === 'node_modules' || e.name === 'build' || e.name.startsWith('.')) continue;
+    const p = join(dir, e.name);
+    if (e.isFile() && e.name === 'assetlinks.json') return p;
+    if (e.isDirectory()) { const f = findAssetLinks(p, depth + 1); if (f) return f; }
+  }
+  return null;
+};
+const ASSETLINKS = findAssetLinks(join(REPO, 'android'));
+if (ASSETLINKS) { JSON.parse(readFileSync(ASSETLINKS, 'utf8')); copyFileSync(ASSETLINKS, join(DIST, '.well-known/assetlinks.json')); }
+else console.warn('prerender: no assetlinks.json under android/ yet');
 console.log(`prerender: ${count} pages from ${API === 'mock' ? 'the mock fixture' : API}, site ${SITE}`);

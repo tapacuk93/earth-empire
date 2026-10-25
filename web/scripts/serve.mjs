@@ -13,6 +13,7 @@ const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
 
 // The same rewrite as the CloudFront viewer-request function.
 export function rewrite(uri) {
+  if (uri.startsWith('/.well-known/')) return uri; // app links: served as they are
   if (uri.endsWith('/')) return uri + 'index.html';
   if (!extname(uri.split('/').pop())) return uri + '/index.html';
   return uri;
@@ -27,7 +28,7 @@ createServer((req, res) => {
   let status = 200;
   if (!file.startsWith(DIST) || !isFile(file)) { file = join(DIST, '404.html'); status = 404; }
   const size = statSync(file).size;
-  const type = TYPES[extname(file)] || 'application/octet-stream';
+  const type = file.includes('/.well-known/') ? 'application/json' : TYPES[extname(file)] || 'application/octet-stream';
   const range = req.headers.range && /bytes=(\d*)-(\d*)/.exec(req.headers.range);
   if (range && status === 200) {
     const start = range[1] ? Number(range[1]) : size - Number(range[2]);

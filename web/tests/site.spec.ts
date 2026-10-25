@@ -107,7 +107,9 @@ test('item: carousel moves with buttons, dots and keys', async ({ page }) => {
   await page.keyboard.press('ArrowLeft');
   await expect(viewer.locator('.counter')).toHaveText('2/3');
   // A swipe is a native scroll of the track.
-  await viewer.locator('.track').evaluate((t) => { t.scrollTo({ left: 0 }); });
+  // Let the smooth scroll to slide 2 finish (a real touch would cancel it), then swipe back.
+  await expect.poll(() => viewer.locator('.track').evaluate((t) => Math.abs(t.scrollLeft - t.clientWidth) < 2)).toBe(true);
+  await viewer.locator('.track').evaluate((t) => { t.dispatchEvent(new Event('touchstart', { bubbles: true })); t.scrollTo({ left: 0 }); });
   await expect(viewer.locator('.counter')).toHaveText('1/3');
   await expect(page.getByRole('link', { name: '@leo.maps' }).first()).toBeVisible();
 });
@@ -290,4 +292,44 @@ test('video covers: the chosen frame, else the thumbnail', async ({ page }) => {
   await expect(page.locator('.viewer video')).toHaveAttribute('poster', /story-market\.thumb\.jpg/);
   await page.goto('/?kind=reel');
   await expect(tiles(page).first().locator('img')).toHaveAttribute('src', /\.cover\.jpg/);
+});
+
+test('app links: the association files are served as JSON', async ({ request }) => {
+  const res = await request.get('/.well-known/apple-app-site-association', { maxRedirects: 0 });
+  expect(res.status()).toBe(200);
+  expect(res.headers()['content-type']).toContain('application/json');
+  const body = await res.json();
+  expect(body.applinks.details[0].appIDs[0]).toContain('com.oeaio.earthempire');
+});
+
+test('app banner: never on desktop', async ({ page, isMobile }) => {
+  test.skip(!!isMobile, 'desktop user agents only');
+  await page.goto('/item/ig_3400000000000000001');
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Open in the app' })).toHaveCount(0);
+});
+
+test.describe('app banner on Android', () => {
+  test.use({ userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36' });
+  test('opens the same page in the app, falls back to the store, and can be dismissed for good', async ({ page }) => {
+    await page.goto('/item/ig_3400000000000000001');
+    const banner = page.getByRole('complementary', { name: 'Open in the app' });
+    await expect(banner).toBeVisible();
+    const href = await banner.getByRole('link', { name: 'Open' }).getAttribute('href');
+    expect(href).toMatch(/^intent:\/\/[^/]+\/item\/ig_3400000000000000001#Intent;scheme=https;package=com\.oeaio\.earthempire;S\.browser_fallback_url=https%3A%2F%2Fplay\.google\.com/);
+    await banner.getByRole('button', { name: 'Stay on the web' }).click();
+    await expect(banner).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Open in the app' })).toHaveCount(0);
+  });
+});
+
+test.describe('app banner on iPhone', () => {
+  test.use({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
+  test('opens the app by its scheme at the same path', async ({ page }) => {
+    await page.goto('/category/food');
+    const open = page.getByRole('complementary', { name: 'Open in the app' }).getByRole('link', { name: 'Open' });
+    await expect(open).toHaveAttribute('href', 'earthempire://category/food');
+  });
 });

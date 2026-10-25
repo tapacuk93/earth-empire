@@ -20,6 +20,9 @@ npm test                            # Playwright: chromium, firefox, webkit x 5 
 |---|---|---|
 | `VITE_API_BASE` | build | API origin. Default `https://api.empire.earth`. Before DNS moves, the backend's CloudFront hostname, e.g. `https://dlmlvr97ak287.cloudfront.net`. `mock` uses `mock/fixture.json`. |
 | `SITE_URL` | build (prerender) | Public origin for canonical and Open Graph URLs. Default `https://empire.earth`. |
+| `VITE_IOS_APP_ID` | build | Numeric App Store id. With it every page carries `apple-itunes-app` (Safari's Smart App Banner, `app-argument` = the page URL). Unset until the listing exists. |
+| `VITE_APP_STORE_URL` | build | App Store link for the banner's fallback (default from `VITE_IOS_APP_ID`). |
+| `VITE_PLAY_STORE_URL` | build | Play Store link (default `https://play.google.com/store/apps/details?id=com.oeaio.earthempire`). |
 
 Deploy (from the repository root, with AWS credentials):
 
@@ -36,6 +39,16 @@ backend/deploy/deploy-site.sh
 | `/item/<id>` | media viewer, caption, details, description and the analysis; a repost shows the sharing item and the credited original side by side (stacked on phones) |
 | `/highlight/<id>?item=<id>` | Instagram-style story viewer: tap left/right, hold to pause, swipe sideways for the next highlight, swipe down or Esc to close; arrows, Space, `m` on a keyboard |
 | `/category/<slug>` | one category |
+
+## Opening the apps
+
+- With an app installed, Universal Links (iOS) and App Links (Android) open every empire.earth URL
+  on the same screen in the app, through the `.well-known` files below.
+- Without it, phones and tablets get a small banner (`src/components/AppBanner.tsx`): on Android an
+  `intent://<host><path>#Intent;scheme=https;package=com.oeaio.earthempire;S.browser_fallback_url=<Play Store>;end`
+  URL, and on iOS `earthempire://<path>` with a fallback to the App Store link after 1.5 s. On iOS
+  Safari with `VITE_IOS_APP_ID` set, Safari's own Smart App Banner is used instead. Desktop never
+  sees a banner, the story viewer hides it, and "Stay on the web" hides it for good (`localStorage`).
 
 ## Sharing: prerendered route shells
 
@@ -72,6 +85,15 @@ build still succeeds with generic shells only.
 The stack currently rewrites every extensionless path to `/index.html` and maps 403 to
 `/index.html`. That keeps every route working, but every page then shares the home page's preview.
 The two changes above in `backend/infra/stack.yaml` make per-item previews work.
+
+3. **App links**: `dist/.well-known/apple-app-site-association` (copied at build time from
+   `ios/AppSiteAssociation/`) and `dist/.well-known/assetlinks.json` (from `android/`, once it
+   exists) must be served as `application/json`, with status 200 and no redirect, on both
+   `empire.earth` and `www.empire.earth`. So the viewer-request function leaves `/.well-known/*`
+   alone (no rewrite, and no www-to-apex redirect for it), and `deploy-site.sh` uploads those two
+   files with `--content-type application/json` (S3 would otherwise guess `binary/octet-stream`
+   for the extensionless one). When the build runs from a copy of `web/`, set `EE_REPO_ROOT` to
+   the repository so the build finds `ios/` and `android/`.
 
 Caching (set by `deploy-site.sh`): `assets/*` is hashed and immutable, and everything else gets
 `max-age=60`.

@@ -14,12 +14,17 @@ export function MediaViewer({ media, alt, label, eager, handle }: Props) {
   const root = useRef<HTMLDivElement>(null);
   const videos = useRef<(HTMLVideoElement | null)[]>([]);
   const [idx, setIdx] = useState(0);
+  const target = useRef<number | null>(null); // a slide being scrolled to by a button or key
   const n = media.length;
 
   const show = (i: number) => {
     const t = track.current;
     if (!t) return;
     const c = Math.max(0, Math.min(n - 1, i));
+    if (Math.round(Math.abs(t.scrollLeft) / t.clientWidth) !== c) {
+      target.current = c;
+      window.setTimeout(() => { if (target.current === c) target.current = null; }, 1200);
+    }
     t.scrollTo({ left: c * t.clientWidth, behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
     setIdx(c);
   };
@@ -58,6 +63,10 @@ export function MediaViewer({ media, alt, label, eager, handle }: Props) {
     const t = track.current;
     if (!t || !t.clientWidth) return;
     const i = Math.round(Math.abs(t.scrollLeft) / t.clientWidth);
+    if (target.current !== null) {
+      if (i !== target.current) return; // passing slides on the way there
+      target.current = null;
+    }
     if (i !== idx) setIdx(i);
   };
 
@@ -69,6 +78,7 @@ export function MediaViewer({ media, alt, label, eager, handle }: Props) {
     <div class="viewer" ref={root} style={{ '--ar': String(ar) }} role={n > 1 ? 'region' : undefined}
       aria-roledescription={n > 1 ? 'carousel' : undefined} aria-label={n > 1 ? label : undefined}>
       <div class="track" ref={track} onScroll={onScroll} tabIndex={n > 1 ? 0 : -1}
+        onPointerDown={() => { target.current = null; }} onTouchStart={() => { target.current = null; }} onWheel={() => { target.current = null; }}
         aria-label={n > 1 ? `${label}: use the arrow keys to move between ${n} slides` : undefined}
         onKeyDown={(e) => {
           if ((e.target as HTMLElement).tagName === 'VIDEO') return;

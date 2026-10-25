@@ -1,6 +1,7 @@
 import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import './styles.css';
+import { AppBanner } from './components/AppBanner';
 import { Icon } from './components/icons';
 import { SITE_NAME } from './config';
 import { CategoryPage } from './pages/Category';
@@ -61,6 +62,7 @@ function App() {
         <ThemeToggle />
       </header>
       <main id="main" ref={mainRef} tabIndex={-1}>{page}</main>
+      <AppBanner route={route} />
       <footer class="site-foot">
         <p>An archive of an Instagram account. Every item is described by Claude; people are named only from what the post says.</p>
       </footer>

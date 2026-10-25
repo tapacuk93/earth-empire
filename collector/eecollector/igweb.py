@@ -244,11 +244,30 @@ class IGBrowser:
         p.wait_for_timeout(random.randint(600, 1500))
         btn = p.query_selector('[role="button"][aria-label="Log In"], [role="button"][aria-label="Log in"], '
                                'button[type="submit"]')
-        if btn and btn.get_attribute("aria-disabled") != "true":
+        disabled = btn.get_attribute("aria-disabled") if btn else None
+        log.info("login: form filled (button %s, disabled=%s)", "found" if btn else "missing", disabled)
+
+        def on_login_response(r):
+            if "login" in r.url and r.request.method == "POST":
+                try:
+                    body = r.text()[:300]
+                except Exception:  # noqa: BLE001
+                    body = "?"
+                log.info("login: %s -> %d %s", r.url.split("?")[0], r.status, body.replace("\n", " "))
+        p.on("response", on_login_response)
+        if btn and disabled != "true":
             btn.click()
         else:
-            p.press(pass_sel, "Enter")
+            p.locator(pass_sel).first.press("Enter")
         result = self._await_login(creds)
+        if result != "ok":
+            try:
+                txt = p.evaluate("document.body.innerText")[:400].replace("\n", " | ")
+                log.info("login: page at %s shows: %s", p.url.split("?")[0], txt)
+            except PWError:
+                pass
+            if self.state is not None:
+                self.screenshot(self.s.state_dir / "screenshots")
         if result != "ok":
             if self.state is not None:
                 self.state.set("login.last_failed_at", time.time())

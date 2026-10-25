@@ -148,8 +148,10 @@ def importance_once(c) -> bool:
     """When the analyzer has nothing to do: score items analyzed before importance existed."""
     if setting(c, "analysis.enabled") != "1":
         return False
-    if c.execute("SELECT 1 FROM steps WHERE step='analyze' AND state IN ('pending','running') LIMIT 1").fetchone():
-        return False   # the lowest priority: only when nothing waits for analysis
+    analysis_can_run = analysis.analyses_today(c) < int(setting(c, "analysis.daily_cap") or 0)
+    if analysis_can_run and c.execute(
+            "SELECT 1 FROM steps WHERE step='analyze' AND state IN ('pending','running') LIMIT 1").fetchone():
+        return False   # the lowest priority: only when no analysis is waiting (and allowed today)
     if c.execute("""SELECT 1 FROM items i JOIN steps s ON s.item_id = i.id WHERE i.priority = 1 AND
                     ((s.step = 'site' AND s.state = 'pending') OR i.thumbs IS NULL) LIMIT 1""").fetchone():
         return False   # and never while a new item is still on its way

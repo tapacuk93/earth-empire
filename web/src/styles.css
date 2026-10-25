@@ -574,3 +574,6 @@ progress { accent-color: var(--accent); height: 8px; }
 .prompt h2 { margin-top: 0; }
 .prompt input { width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 16px; }
 .chips-list .chip { white-space: normal; max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+.site-nav a { white-space: nowrap; overflow-wrap: normal; }
+@media (max-width: 420px) { .site-nav { gap: 0; } .site-nav a { padding: 4px 7px; font-size: .82rem; } }
+.wover .btn.ghost { color: #fff; border-color: rgb(255 255 255 / .5); background: transparent; }

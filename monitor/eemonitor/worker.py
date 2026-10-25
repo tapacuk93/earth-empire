@@ -240,7 +240,13 @@ def _account_error(c, a, e):
     ev("poll_failed", logging.WARNING, platform=a["platform"], account=a["handle"], error=str(e)[:300])
 
 
-def discover(c) -> int:
+_last_browser = 0.0
+
+
+def discover(c, browsers: bool = True) -> int:
+    """Poll due accounts: the plain-HTTP platforms every time, the browser ones (a Chromium session
+    each) only when `browsers` - the loop asks for those at most every 20 minutes while scans wait."""
+    global _last_browser
     n = 0
     for platform in ("telegram", "youtube"):
         if db.setting(c, f"{platform}.enabled") != "1" or db.stopped(c, platform):
@@ -253,6 +259,9 @@ def discover(c) -> int:
                 break
             except Exception as e:  # noqa: BLE001
                 _account_error(c, a, e)
+    if not browsers:
+        return n
+    _last_browser = time.time()
     if db.setting(c, "facebook.enabled") == "1" and not db.stopped(c, "facebook") and due_accounts(c, "facebook", 1):
         n += browser_round(c, "facebook")
     if db.setting(c, "instagram.enabled") == "1" and not db.stopped(c, "instagram") and instagram.session_exists():
@@ -674,7 +683,8 @@ def loop() -> None:
                 last_seed = time.time()
                 setup(c)
                 repost_seeds(c)
-            discover(c)
+            busy = c.execute("SELECT 1 FROM videos WHERE state='queued' LIMIT 1").fetchone()
+            discover(c, browsers=not busy or time.time() - _last_browser > 1200)
             v = pick(c)
             if v:
                 scan(c, v)

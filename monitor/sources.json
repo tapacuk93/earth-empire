@@ -1,0 +1,3148 @@
+{
+ "_note": "Official accounts the monitor watches - data, not code. Edit by hand (a PR) or add through POST /v1/monitor/sources. expected_languages: ISO 639-1 codes the account normally speaks ([] = inferred from scans). Each account was verified as described in `method`; weaker ones carry a note.",
+ "generated": "2026-10-25",
+ "method": "YouTube channel ids resolved from the channel page (externalId) and checked against https://www.youtube.com/feeds/videos.xml?channel_id=...; verified_title is the feed <title>. Telegram checked via https://t.me/s/<handle> og:title. Other platform handles are copied from the official site in source_url (or from a verified YouTube channel's header links when noted). Entries with a 'verification' field explain the reverse-link or weaker basis used when the official site blocks automated fetches.",
+ "sources": [
+  {
+   "id": "us_whitehouse",
+   "name": "The White House",
+   "kind": "head_of_state",
+   "country": "US",
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@WhiteHouse",
+     "channel_id": "UCYxRlFDqcWM4y7FfpiAN3KQ",
+     "verified_title": "The White House",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCYxRlFDqcWM4y7FfpiAN3KQ",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "x",
+     "handle": "whitehouse"
+    },
+    {
+     "platform": "instagram",
+     "handle": "whitehouse"
+    },
+    {
+     "platform": "facebook",
+     "handle": "WhiteHouse"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@WhiteHouse"
+    }
+   ],
+   "source_url": "https://www.whitehouse.gov/"
+  },
+  {
+   "id": "us_state",
+   "name": "U.S. Department of State",
+   "kind": "ministry",
+   "country": "US",
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@statedept",
+     "channel_id": "UC6ZhpmNnLxlOYipqh8wbM3A",
+     "verified_title": "U.S. Department of State",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC6ZhpmNnLxlOYipqh8wbM3A",
+     "last_upload_seen": "2026-10-22"
+    },
+    {
+     "platform": "x",
+     "handle": "StateDept"
+    },
+    {
+     "platform": "instagram",
+     "handle": "statedept"
+    },
+    {
+     "platform": "facebook",
+     "handle": "statedept"
+    }
+   ],
+   "source_url": "https://www.state.gov/"
+  },
+  {
+   "id": "uk_no10",
+   "name": "UK Prime Minister's Office, 10 Downing Street",
+   "kind": "government",
+   "country": "GB",
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@10downingstreet",
+     "channel_id": "UC8o7mIMg3mmO9-dx3e2iFgw",
+     "verified_title": "10 Downing Street",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC8o7mIMg3mmO9-dx3e2iFgw",
+     "last_upload_seen": "2026-10-09"
+    },
+    {
+     "platform": "x",
+     "handle": "10DowningStreet"
+    },
+    {
+     "platform": "instagram",
+     "handle": "10downingstreet"
+    },
+    {
+     "platform": "facebook",
+     "handle": "10downingstreet"
+    }
+   ],
+   "source_url": "https://www.gov.uk/government/organisations/prime-ministers-office-10-downing-street"
+  },
+  {
+   "id": "uk_fcdo",
+   "name": "UK Foreign, Commonwealth & Development Office",
+   "kind": "ministry",
+   "country": "GB",
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@ukforeignoffice",
+     "channel_id": "UCWl6ZVke4P2GYpk6eq4BPIQ",
+     "verified_title": "Foreign, Commonwealth and Development Office",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCWl6ZVke4P2GYpk6eq4BPIQ",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "x",
+     "handle": "fcdogovuk"
+    },
+    {
+     "platform": "instagram",
+     "handle": "ForeignAndDevelopmentOffice"
+    },
+    {
+     "platform": "facebook",
+     "handle": "ForeignCommonwealthAndDevelopmentOffice"
+    }
+   ],
+   "source_url": "https://www.gov.uk/government/organisations/foreign-commonwealth-development-office"
+  },
+  {
+   "id": "uk_parliament",
+   "name": "UK Parliament",
+   "kind": "parliament",
+   "country": "GB",
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@ukparliament",
+     "channel_id": "UCMasyWuE1P2AaEKw_FkGq9g",
+     "verified_title": "UK Parliament",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCMasyWuE1P2AaEKw_FkGq9g",
+     "last_upload_seen": "2026-10-23",
+     "note": "channel header links x.com/HouseofCommons and facebook.com/ukhouseofcommons"
+    },
+    {
+     "platform": "x",
+     "handle": "HouseofCommons",
+     "note": "from YouTube channel header, not from parliament.uk"
+    }
+   ],
+   "source_url": "https://www.parliament.uk/",
+   "verification": "parliament.uk blocks automated fetches; channel accepted on title + its links to the official House of Commons accounts"
+  },
+  {
+   "id": "fr_elysee",
+   "name": "Élysée (President of France)",
+   "kind": "head_of_state",
+   "country": "FR",
+   "expected_languages": [
+    "fr",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@elysee",
+     "channel_id": "UCPaeEhnVIdn4T01gUphIltw",
+     "verified_title": "Élysée",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCPaeEhnVIdn4T01gUphIltw",
+     "last_upload_seen": "2026-10-24"
+    },
+    {
+     "platform": "x",
+     "handle": "elysee"
+    },
+    {
+     "platform": "instagram",
+     "handle": "elysee"
+    },
+    {
+     "platform": "facebook",
+     "handle": "elysee.fr"
+    }
+   ],
+   "source_url": "https://www.elysee.fr/"
+  },
+  {
+   "id": "fr_diplomatie",
+   "name": "France Diplomatie (Ministère de l'Europe et des Affaires étrangères)",
+   "kind": "ministry",
+   "country": "FR",
+   "expected_languages": [
+    "fr",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@francediplomatie",
+     "channel_id": "UCTItQw_aTIIt1i8ysgYMH3w",
+     "verified_title": "Ministère de l'Europe et des Affaires étrangères",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCTItQw_aTIIt1i8ysgYMH3w",
+     "last_upload_seen": "2026-10-24"
+    },
+    {
+     "platform": "x",
+     "handle": "francediplo"
+    },
+    {
+     "platform": "instagram",
+     "handle": "francediplo"
+    },
+    {
+     "platform": "facebook",
+     "handle": "france.diplomatie"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@francediplo"
+    }
+   ],
+   "source_url": "https://www.diplomatie.gouv.fr/fr/"
+  },
+  {
+   "id": "de_bundesregierung",
+   "name": "Bundesregierung / Bundeskanzler",
+   "kind": "government",
+   "country": "DE",
+   "expected_languages": [
+    "de"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@bundesregierung",
+     "channel_id": "UCcnFmkINMo4Jmkx5mvlCh6g",
+     "verified_title": "Bundesregierung",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCcnFmkINMo4Jmkx5mvlCh6g",
+     "last_upload_seen": "2026-10-22"
+    },
+    {
+     "platform": "x",
+     "handle": "bundeskanzler"
+    },
+    {
+     "platform": "x",
+     "handle": "RegSprecher"
+    },
+    {
+     "platform": "instagram",
+     "handle": "bundeskanzler"
+    },
+    {
+     "platform": "instagram",
+     "handle": "bundesregierung"
+    },
+    {
+     "platform": "facebook",
+     "handle": "Bundesregierung"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@Bundeskanzler"
+    }
+   ],
+   "source_url": "https://www.bundesregierung.de/breg-de"
+  },
+  {
+   "id": "de_aa",
+   "name": "Auswärtiges Amt (German Federal Foreign Office)",
+   "kind": "ministry",
+   "country": "DE",
+   "expected_languages": [
+    "de",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/AuswaertigesAmtDE",
+     "channel_id": "UCpYp9GcXspUXMjsKeVdmlvA",
+     "verified_title": "AuswaertigesAmtDE",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCpYp9GcXspUXMjsKeVdmlvA",
+     "last_upload_seen": "2026-10-17"
+    },
+    {
+     "platform": "x",
+     "handle": "auswaertigesamt"
+    },
+    {
+     "platform": "instagram",
+     "handle": "auswaertigesamt"
+    },
+    {
+     "platform": "facebook",
+     "handle": "AuswaertigesAmt"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@aussenpolitik"
+    }
+   ],
+   "source_url": "https://www.auswaertiges-amt.de/de"
+  },
+  {
+   "id": "de_bundestag",
+   "name": "Deutscher Bundestag",
+   "kind": "parliament",
+   "country": "DE",
+   "expected_languages": [
+    "de"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@bundestag",
+     "channel_id": "UCbh5D3EdIHP4YQA5X-eK1ug",
+     "verified_title": "Deutscher Bundestag",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCbh5D3EdIHP4YQA5X-eK1ug",
+     "last_upload_seen": "2026-10-19"
+    },
+    {
+     "platform": "instagram",
+     "handle": "bundestag"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@bundestag"
+    }
+   ],
+   "source_url": "https://www.bundestag.de/"
+  },
+  {
+   "id": "it_chigi",
+   "name": "Palazzo Chigi (Italian Government / Prime Minister)",
+   "kind": "government",
+   "country": "IT",
+   "expected_languages": [
+    "it"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@palazzochigi",
+     "channel_id": "UCp8W1bzofvzB8MfZSkYW2xw",
+     "verified_title": "Palazzo Chigi",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCp8W1bzofvzB8MfZSkYW2xw",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "x",
+     "handle": "Palazzo_Chigi"
+    },
+    {
+     "platform": "instagram",
+     "handle": "palazzo_chigi"
+    },
+    {
+     "platform": "facebook",
+     "handle": "palazzochigi.it"
+    }
+   ],
+   "source_url": "https://www.governo.it/"
+  },
+  {
+   "id": "it_quirinale",
+   "name": "Presidenza della Repubblica (Quirinale)",
+   "kind": "head_of_state",
+   "country": "IT",
+   "expected_languages": [
+    "it"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@presidenzarepubblica",
+     "channel_id": "UCWVTngiI0h4XpCB_nKtdY7g",
+     "verified_title": "Presidenza della Repubblica Italiana Quirinale",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCWVTngiI0h4XpCB_nKtdY7g",
+     "last_upload_seen": "2026-10-23"
+    }
+   ],
+   "source_url": "https://www.quirinale.it/",
+   "verification": "quirinale.it renders its social links with JavaScript; channel verified by its header link to www.quirinale.it"
+  },
+  {
+   "id": "it_farnesina",
+   "name": "Farnesina (Italian Ministry of Foreign Affairs)",
+   "kind": "ministry",
+   "country": "IT",
+   "expected_languages": [
+    "it",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@ministeroesteri",
+     "channel_id": "UCTb1JMVIjbXXDvN1ldghMww",
+     "verified_title": "Farnesina",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCTb1JMVIjbXXDvN1ldghMww",
+     "last_upload_seen": "2026-10-25"
+    },
+    {
+     "platform": "x",
+     "handle": "ItalyMFA"
+    },
+    {
+     "platform": "instagram",
+     "handle": "italymfa"
+    },
+    {
+     "platform": "facebook",
+     "handle": "ItalyMFA.it"
+    }
+   ],
+   "source_url": "https://www.esteri.it/it/"
+  },
+  {
+   "id": "es_moncloa",
+   "name": "La Moncloa (Spanish Government / Prime Minister)",
+   "kind": "government",
+   "country": "ES",
+   "expected_languages": [
+    "es"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/lamoncloa",
+     "channel_id": "UCzJtDQ9b_Uq1tA5W_tMiMUQ",
+     "verified_title": "La Moncloa",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCzJtDQ9b_Uq1tA5W_tMiMUQ",
+     "last_upload_seen": "2026-10-25"
+    },
+    {
+     "platform": "x",
+     "handle": "desdelamoncloa"
+    },
+    {
+     "platform": "instagram",
+     "handle": "desdelamoncloa"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@desdelamoncloa"
+    },
+    {
+     "platform": "facebook",
+     "handle": "271484039577944",
+     "note": "page id (La-Moncloa)"
+    }
+   ],
+   "source_url": "https://www.lamoncloa.gob.es/"
+  },
+  {
+   "id": "es_casareal",
+   "name": "Casa de S.M. el Rey (Spanish Royal Household)",
+   "kind": "head_of_state",
+   "country": "ES",
+   "expected_languages": [
+    "es"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@casarealtv",
+     "channel_id": "UC7DIwkg2oz6N7_ZVzUG3prA",
+     "verified_title": "casarealtv",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC7DIwkg2oz6N7_ZVzUG3prA",
+     "last_upload_seen": "2026-10-24"
+    },
+    {
+     "platform": "x",
+     "handle": "casareal"
+    },
+    {
+     "platform": "instagram",
+     "handle": "casareal.es"
+    }
+   ],
+   "source_url": "https://www.casareal.es/"
+  },
+  {
+   "id": "es_exteriores",
+   "name": "Spanish Ministry of Foreign Affairs, EU and Cooperation",
+   "kind": "ministry",
+   "country": "ES",
+   "expected_languages": [
+    "es",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/canalmaectv",
+     "channel_id": "UCL5YmQ0UfxNoFQULOTOsGEw",
+     "verified_title": "Ministerio de Asuntos Exteriores, UE y Cooperación",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCL5YmQ0UfxNoFQULOTOsGEw",
+     "last_upload_seen": "2026-10-09"
+    },
+    {
+     "platform": "x",
+     "handle": "MAECgob"
+    },
+    {
+     "platform": "x",
+     "handle": "spainmfa"
+    },
+    {
+     "platform": "instagram",
+     "handle": "exteriores.maec"
+    },
+    {
+     "platform": "facebook",
+     "handle": "Exteriores.maec"
+    }
+   ],
+   "source_url": "https://www.exteriores.gob.es/"
+  },
+  {
+   "id": "jp_kantei",
+   "name": "Prime Minister's Office of Japan (Kantei)",
+   "kind": "government",
+   "country": "JP",
+   "expected_languages": [
+    "ja"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@kanteijp",
+     "channel_id": "UCogK43-0HpBQXPahOswXJ0g",
+     "verified_title": "首相官邸",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCogK43-0HpBQXPahOswXJ0g",
+     "last_upload_seen": "2026-10-24"
+    }
+   ],
+   "source_url": "https://www.kantei.go.jp/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (kantei.go.jp). Beware several impersonator channels also titled 首相官邸 with single-digit subscribers."
+  },
+  {
+   "id": "jp_mofa",
+   "name": "Ministry of Foreign Affairs of Japan",
+   "kind": "ministry",
+   "country": "JP",
+   "expected_languages": [
+    "ja",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@mofachannel",
+     "channel_id": "UCooFm-JPL0IcKDk1g3B2Zow",
+     "verified_title": "外務省 / MOFA",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCooFm-JPL0IcKDk1g3B2Zow",
+     "last_upload_seen": "2026-10-24"
+    }
+   ],
+   "source_url": "https://www.mofa.go.jp/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (mofa.go.jp)"
+  },
+  {
+   "id": "in_pmo",
+   "name": "Prime Minister's Office, India",
+   "kind": "government",
+   "country": "IN",
+   "expected_languages": [
+    "hi",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@pmoindia",
+     "channel_id": "UCDS9hpqUEXsXUIcf0qDcBIA",
+     "verified_title": "PMO India",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCDS9hpqUEXsXUIcf0qDcBIA",
+     "last_upload_seen": "2026-10-25"
+    },
+    {
+     "platform": "x",
+     "handle": "PMOIndia"
+    },
+    {
+     "platform": "facebook",
+     "handle": "PMOIndia"
+    }
+   ],
+   "source_url": "https://www.pmindia.gov.in/en/"
+  },
+  {
+   "id": "in_president",
+   "name": "President of India (Rashtrapati Bhavan)",
+   "kind": "head_of_state",
+   "country": "IN",
+   "expected_languages": [
+    "hi",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@presidentofindia",
+     "channel_id": "UCqrJfqXKFIBs4llVPipWppg",
+     "verified_title": "President of India",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCqrJfqXKFIBs4llVPipWppg",
+     "last_upload_seen": "2026-10-24"
+    },
+    {
+     "platform": "x",
+     "handle": "rashtrapatibhvn"
+    },
+    {
+     "platform": "instagram",
+     "handle": "presidentofindia"
+    },
+    {
+     "platform": "facebook",
+     "handle": "presidentofindia"
+    }
+   ],
+   "source_url": "https://presidentofindia.nic.in/"
+  },
+  {
+   "id": "in_mea",
+   "name": "Ministry of External Affairs, India",
+   "kind": "ministry",
+   "country": "IN",
+   "expected_languages": [
+    "en",
+    "hi"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@MEAIndia",
+     "channel_id": "UC-wttYGdvP8Roy8mh8VbzKw",
+     "verified_title": "Ministry of External Affairs, India",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC-wttYGdvP8Roy8mh8VbzKw",
+     "last_upload_seen": "2026-10-25",
+     "note": "not linked from mea.gov.in homepage; channel header links mea.gov.in and it is the active channel"
+    },
+    {
+     "platform": "youtube",
+     "handle": "user/Indiandiplomacy",
+     "channel_id": "UCJyP-OtuzlRV-r-3vR9qQTg",
+     "verified_title": "Indian Diplomacy",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCJyP-OtuzlRV-r-3vR9qQTg",
+     "last_upload_seen": "2026-08-06",
+     "note": "the channel mea.gov.in actually links; posts rarely"
+    },
+    {
+     "platform": "instagram",
+     "handle": "meaindia"
+    },
+    {
+     "platform": "facebook",
+     "handle": "MEAINDIA"
+    }
+   ],
+   "source_url": "https://www.mea.gov.in/"
+  },
+  {
+   "id": "ru_kremlin",
+   "name": "Kremlin (President of Russia)",
+   "kind": "head_of_state",
+   "country": "RU",
+   "expected_languages": [
+    "ru"
+   ],
+   "accounts": [
+    {
+     "platform": "telegram",
+     "handle": "news_kremlin",
+     "verified_title": "Кремль. Новости",
+     "subscribers_seen": "281K",
+     "last_post_seen": "2026-10-23"
+    },
+    {
+     "platform": "telegram",
+     "handle": "news_kremlin_eng",
+     "verified_title": "Kremlin. News",
+     "subscribers_seen": "26.8K",
+     "last_post_seen": "2026-10-23",
+     "note": "English-language channel, linked from en.kremlin.ru"
+    },
+    {
+     "platform": "rutube",
+     "handle": "u/kremlin"
+    },
+    {
+     "platform": "vk",
+     "handle": "kremlin_news"
+    },
+    {
+     "platform": "max",
+     "handle": "news_kremlin",
+     "note": "MAX messenger channel, linked from kremlin.ru"
+    },
+    {
+     "platform": "youtube",
+     "handle": "@kremlin",
+     "channel_id": "UCZkiUDyOBtkaTWGRfGnKaHw",
+     "verified_title": "kremlin",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCZkiUDyOBtkaTWGRfGnKaHw",
+     "last_upload_seen": "2026-10-23",
+     "note": "NOT linked from kremlin.ru; channel header links news.kremlin.ru (reverse link only)"
+    }
+   ],
+   "source_url": "http://kremlin.ru/"
+  },
+  {
+   "id": "ru_government",
+   "name": "Government of Russia",
+   "kind": "government",
+   "country": "RU",
+   "expected_languages": [
+    "ru"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/pravitelstvoRF",
+     "channel_id": "UCYU2x_Ou168vbWcgH0c8t-g",
+     "verified_title": "Правительство России",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCYU2x_Ou168vbWcgH0c8t-g",
+     "last_upload_seen": "2026-10-22"
+    },
+    {
+     "platform": "telegram",
+     "handle": "government_rus",
+     "verified_title": "Правительство России",
+     "subscribers_seen": "168K",
+     "last_post_seen": "2026-10-25",
+     "note": "government.ru links Dzen and MAX under the same name government_rus; its Telegram link is an invite to a different channel (Объясняем.рф), so this handle is matched by name, not linked directly"
+    },
+    {
+     "platform": "rutube",
+     "handle": "channel/24624174"
+    },
+    {
+     "platform": "dzen",
+     "handle": "government_rus"
+    },
+    {
+     "platform": "max",
+     "handle": "government_rus"
+    },
+    {
+     "platform": "ok",
+     "handle": "gov"
+    }
+   ],
+   "source_url": "http://government.ru/"
+  },
+  {
+   "id": "ru_mid",
+   "name": "Ministry of Foreign Affairs of Russia",
+   "kind": "ministry",
+   "country": "RU",
+   "expected_languages": [
+    "ru",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "telegram",
+     "handle": "MID_Russia",
+     "verified_title": "МИД России 🇷🇺",
+     "subscribers_seen": "139K",
+     "last_post_seen": "2026-10-25",
+     "note": "mid.ru blocks automated fetches; channel title 'МИД России' and size match the official channel"
+    },
+    {
+     "platform": "youtube",
+     "handle": "@midrftube",
+     "channel_id": "UCrVo0BXjIUlZ-YylYF8oNxg",
+     "verified_title": "Ministry of Foreign Affairs of Russia",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCrVo0BXjIUlZ-YylYF8oNxg",
+     "last_upload_seen": "2026-10-21",
+     "note": "channel header links twitter.com/MID_RF and vk.com/mid (official MFA accounts)"
+    },
+    {
+     "platform": "x",
+     "handle": "MID_RF",
+     "note": "from YouTube channel header"
+    },
+    {
+     "platform": "vk",
+     "handle": "mid",
+     "note": "from YouTube channel header"
+    }
+   ],
+   "source_url": "https://mid.ru/ru/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link)"
+  },
+  {
+   "id": "ru_duma",
+   "name": "State Duma of the Russian Federation",
+   "kind": "parliament",
+   "country": "RU",
+   "expected_languages": [
+    "ru"
+   ],
+   "accounts": [
+    {
+     "platform": "telegram",
+     "handle": "duma_gov_ru",
+     "verified_title": "Государственная Дума",
+     "subscribers_seen": "111K",
+     "last_post_seen": "2026-10-25"
+    },
+    {
+     "platform": "vk",
+     "handle": "duma"
+    },
+    {
+     "platform": "ok",
+     "handle": "duma"
+    },
+    {
+     "platform": "max",
+     "handle": "duma_gov_ru"
+    }
+   ],
+   "source_url": "http://duma.gov.ru/"
+  },
+  {
+   "id": "ru_sovfed",
+   "name": "Federation Council of Russia",
+   "kind": "parliament",
+   "country": "RU",
+   "expected_languages": [
+    "ru"
+   ],
+   "accounts": [
+    {
+     "platform": "telegram",
+     "handle": "sovfedofficial",
+     "verified_title": "Совет Федерации",
+     "subscribers_seen": "26.6K",
+     "last_post_seen": "2026-10-25"
+    },
+    {
+     "platform": "rutube",
+     "handle": "channel/23489764"
+    },
+    {
+     "platform": "vk",
+     "handle": "sovfedinfo"
+    },
+    {
+     "platform": "dzen",
+     "handle": "sovfedinfo"
+    },
+    {
+     "platform": "ok",
+     "handle": "sovfedinfo"
+    }
+   ],
+   "source_url": "http://council.gov.ru/"
+  },
+  {
+   "id": "ua_president",
+   "name": "President of Ukraine / Office of the President",
+   "kind": "head_of_state",
+   "country": "UA",
+   "expected_languages": [
+    "uk",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@PresidentGovUa",
+     "channel_id": "UCncq73xfx9sVA3Ht2uVRrCw",
+     "verified_title": "Офіс Президента України",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCncq73xfx9sVA3Ht2uVRrCw",
+     "last_upload_seen": "2026-10-24",
+     "note": "header links president.gov.ua"
+    },
+    {
+     "platform": "telegram",
+     "handle": "OP_UA",
+     "verified_title": "Офіс Президента",
+     "subscribers_seen": "77.9K",
+     "last_post_seen": "2026-10-24",
+     "note": "description: official channel of the Office of the President, links president.gov.ua"
+    },
+    {
+     "platform": "telegram",
+     "handle": "V_Zelenskiy_official",
+     "verified_title": "Zelenskiy / Official",
+     "subscribers_seen": "668K",
+     "last_post_seen": "2026-10-25",
+     "note": "description: official channel of the President of Ukraine Volodymyr Zelenskyy"
+    }
+   ],
+   "source_url": "https://www.president.gov.ua/",
+   "verification": "president.gov.ua returns Access Denied to automated fetches; accounts verified by reverse links / self-description"
+  },
+  {
+   "id": "ua_cabinet",
+   "name": "Cabinet of Ministers of Ukraine",
+   "kind": "government",
+   "country": "UA",
+   "expected_languages": [
+    "uk"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@GovernmentUkraine",
+     "channel_id": "UCYlTFedAEZiqE6r9eY0PZ1A",
+     "verified_title": "Кабінет Міністрів України",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCYlTFedAEZiqE6r9eY0PZ1A",
+     "last_upload_seen": "2026-10-23",
+     "note": "WEAKER: no header link; accepted on exact title 'Кабінет Міністрів України' and regular uploads"
+    }
+   ],
+   "source_url": "https://www.kmu.gov.ua/",
+   "verification": "kmu.gov.ua blocks automated fetches; Telegram channel not found"
+  },
+  {
+   "id": "ua_mfa",
+   "name": "Ministry of Foreign Affairs of Ukraine",
+   "kind": "ministry",
+   "country": "UA",
+   "expected_languages": [
+    "uk",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@MFA_Ukraine",
+     "channel_id": "UCfIsGtgdMS2bw--CF9W8wGA",
+     "verified_title": "Ministry of Foreign Affairs of Ukraine",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfIsGtgdMS2bw--CF9W8wGA",
+     "last_upload_seen": "2026-10-22",
+     "note": "description: 'official YouTube channel of the Ministry of Foreign Affairs of Ukraine'; header links u24.gov.ua"
+    },
+    {
+     "platform": "telegram",
+     "handle": "Ukraine_MFA",
+     "verified_title": "МЗС України 🇺🇦",
+     "note": "og:title checked; mfa.gov.ua blocks automated checks of its links"
+    }
+   ],
+   "source_url": "https://mfa.gov.ua/",
+   "verification": "mfa.gov.ua blocks automated fetches; Telegram channel not found"
+  },
+  {
+   "id": "ua_rada",
+   "name": "Verkhovna Rada of Ukraine",
+   "kind": "parliament",
+   "country": "UA",
+   "expected_languages": [
+    "uk"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/RadaTVchannel",
+     "channel_id": "UC5V8mErVFOpcQXEb3y9IMZw",
+     "verified_title": "Телеканал Рада",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC5V8mErVFOpcQXEb3y9IMZw",
+     "last_upload_seen": "2026-10-25",
+     "note": "Rada TV, the parliament's own channel"
+    },
+    {
+     "platform": "telegram",
+     "handle": "verkhovnaradaukrainy",
+     "verified_title": "Верховна Рада України",
+     "subscribers_seen": "96.4K",
+     "last_post_seen": "2026-10-25"
+    },
+    {
+     "platform": "x",
+     "handle": "verkhovna_rada"
+    },
+    {
+     "platform": "instagram",
+     "handle": "verkhovna_rada_of_ukraine"
+    },
+    {
+     "platform": "facebook",
+     "handle": "verkhovna.rada.ukraine"
+    }
+   ],
+   "source_url": "https://www.rada.gov.ua/"
+  },
+  {
+   "id": "ua_mod",
+   "name": "Ministry of Defence of Ukraine",
+   "kind": "ministry",
+   "country": "UA",
+   "expected_languages": [
+    "uk",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@uamod",
+     "channel_id": "UC9czaUKJ_YOY-NHu2_H8rWA",
+     "verified_title": "Міністерство оборони України",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC9czaUKJ_YOY-NHu2_H8rWA",
+     "last_upload_seen": "2026-10-24"
+    },
+    {
+     "platform": "youtube",
+     "handle": "@army_tv_ua",
+     "channel_id": "UCWRZ7gEgbry5FI2-46EX3jA",
+     "verified_title": "Армія Медіа",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCWRZ7gEgbry5FI2-46EX3jA",
+     "last_upload_seen": "2026-10-25",
+     "note": "Армія Медіа / Army TV"
+    },
+    {
+     "platform": "x",
+     "handle": "DefenceU"
+    },
+    {
+     "platform": "instagram",
+     "handle": "ministry_of_defense_ua"
+    },
+    {
+     "platform": "facebook",
+     "handle": "MinistryofDefence.UA"
+    }
+   ],
+   "source_url": "https://mod.gov.ua/"
+  },
+  {
+   "id": "pl_president",
+   "name": "President of Poland",
+   "kind": "head_of_state",
+   "country": "PL",
+   "expected_languages": [
+    "pl"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@prezydent",
+     "channel_id": "UCaTXcCfYQd_G5VZeNwsYzPg",
+     "verified_title": "Prezydent RP",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCaTXcCfYQd_G5VZeNwsYzPg",
+     "last_upload_seen": "2026-10-21"
+    }
+   ],
+   "source_url": "https://www.prezydent.pl/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (prezydent.pl)"
+  },
+  {
+   "id": "pl_premier",
+   "name": "Chancellery of the Prime Minister of Poland",
+   "kind": "government",
+   "country": "PL",
+   "expected_languages": [
+    "pl"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@premierRP",
+     "channel_id": "UCFNTA9OJobnolDKH1EnZ66A",
+     "verified_title": "Kancelaria Premiera",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCFNTA9OJobnolDKH1EnZ66A",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "x",
+     "handle": "premierRP"
+    },
+    {
+     "platform": "instagram",
+     "handle": "premierRP"
+    },
+    {
+     "platform": "facebook",
+     "handle": "kancelaria.premiera"
+    }
+   ],
+   "source_url": "https://www.gov.pl/web/premier"
+  },
+  {
+   "id": "pl_msz",
+   "name": "Polish Ministry of Foreign Affairs",
+   "kind": "ministry",
+   "country": "PL",
+   "expected_languages": [
+    "pl",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@MinSprawZagranicznych",
+     "channel_id": "UC9GeUAWwjL0B9jVS_v5tZ2Q",
+     "verified_title": "Minister Spraw Zagranicznych",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC9GeUAWwjL0B9jVS_v5tZ2Q",
+     "last_upload_seen": "2026-04-28",
+     "note": "posts rarely"
+    },
+    {
+     "platform": "x",
+     "handle": "MSZ_RP"
+    },
+    {
+     "platform": "instagram",
+     "handle": "polandmfa"
+    }
+   ],
+   "source_url": "https://www.gov.pl/web/dyplomacja"
+  },
+  {
+   "id": "pl_sejm",
+   "name": "Sejm of the Republic of Poland",
+   "kind": "parliament",
+   "country": "PL",
+   "expected_languages": [
+    "pl"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@SejmRP_PL",
+     "channel_id": "UCN5seY_Oy_GiJRhF06GfRlw",
+     "verified_title": "Sejm RP",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCN5seY_Oy_GiJRhF06GfRlw",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "x",
+     "handle": "KancelariaSejmu"
+    },
+    {
+     "platform": "instagram",
+     "handle": "sejmrp"
+    },
+    {
+     "platform": "facebook",
+     "handle": "KancelariaSejmu"
+    }
+   ],
+   "source_url": "https://www.sejm.gov.pl/"
+  },
+  {
+   "id": "tr_presidency",
+   "name": "Presidency of Türkiye",
+   "kind": "head_of_state",
+   "country": "TR",
+   "expected_languages": [
+    "tr"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "c/tcbestepe",
+     "channel_id": "UC1tB74NrcYEiCgoHZXfSWQA",
+     "verified_title": "T.C. Cumhurbaşkanlığı",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC1tB74NrcYEiCgoHZXfSWQA",
+     "last_upload_seen": "2026-10-25"
+    },
+    {
+     "platform": "youtube",
+     "handle": "@rterdogan",
+     "channel_id": "UCiHR69jCQX8uoH-B1tX6lzg",
+     "verified_title": "Recep Tayyip Erdoğan",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCiHR69jCQX8uoH-B1tX6lzg",
+     "last_upload_seen": "2026-10-24",
+     "note": "President Erdoğan's own channel, linked from tccb.gov.tr"
+    },
+    {
+     "platform": "x",
+     "handle": "tcbestepe"
+    },
+    {
+     "platform": "x",
+     "handle": "RTErdogan"
+    },
+    {
+     "platform": "instagram",
+     "handle": "tcbestepe"
+    },
+    {
+     "platform": "instagram",
+     "handle": "rterdogan"
+    },
+    {
+     "platform": "facebook",
+     "handle": "tcbestepe"
+    },
+    {
+     "platform": "facebook",
+     "handle": "RTErdogan"
+    }
+   ],
+   "source_url": "https://www.tccb.gov.tr/"
+  },
+  {
+   "id": "tr_mfa",
+   "name": "Ministry of Foreign Affairs of Türkiye",
+   "kind": "ministry",
+   "country": "TR",
+   "expected_languages": [
+    "tr",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/TCDisisleri",
+     "channel_id": "UCTGV_MONOWXKGBGrZdly7Lw",
+     "verified_title": "Türkiye Cumhuriyeti Dışişleri Bakanlığı",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCTGV_MONOWXKGBGrZdly7Lw",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "x",
+     "handle": "MFATurkiye"
+    },
+    {
+     "platform": "x",
+     "handle": "HakanFidan"
+    },
+    {
+     "platform": "instagram",
+     "handle": "tcdisisleri"
+    },
+    {
+     "platform": "facebook",
+     "handle": "MFATurkiye"
+    }
+   ],
+   "source_url": "https://www.mfa.gov.tr/"
+  },
+  {
+   "id": "tr_tbmm",
+   "name": "Grand National Assembly of Türkiye (TBMM)",
+   "kind": "parliament",
+   "country": "TR",
+   "expected_languages": [
+    "tr"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "c/tbmm",
+     "channel_id": "UCJEn13vDGcJTyqe-hdpFP-g",
+     "verified_title": "TBMM - Türkiye Büyük Millet Meclisi",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCJEn13vDGcJTyqe-hdpFP-g",
+     "last_upload_seen": "2026-10-24"
+    },
+    {
+     "platform": "x",
+     "handle": "TBMMresmi"
+    },
+    {
+     "platform": "instagram",
+     "handle": "tbmmresmi"
+    },
+    {
+     "platform": "facebook",
+     "handle": "TBMMresmi"
+    }
+   ],
+   "source_url": "https://www.tbmm.gov.tr/"
+  },
+  {
+   "id": "br_gov",
+   "name": "Governo do Brasil (Federal Government / Presidency)",
+   "kind": "government",
+   "country": "BR",
+   "expected_languages": [
+    "pt"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@GovernoDoBrasil",
+     "channel_id": "UCOwuzVSWrrAdRIviGN7-T5g",
+     "verified_title": "Governo do Brasil",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCOwuzVSWrrAdRIviGN7-T5g",
+     "last_upload_seen": "2026-08-02",
+     "note": "linked from gov.br; last upload Aug 2026"
+    },
+    {
+     "platform": "instagram",
+     "handle": "govbr"
+    },
+    {
+     "platform": "facebook",
+     "handle": "govbrasil"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@govbr"
+    }
+   ],
+   "source_url": "https://www.gov.br/pt-br",
+   "verification": "gov.br/planalto links youtube.com/@Presidencia_do_Brasil, which does not resolve (see unverified)"
+  },
+  {
+   "id": "br_planalto",
+   "name": "Presidência da República (Planalto)",
+   "kind": "head_of_state",
+   "country": "BR",
+   "expected_languages": [
+    "pt"
+   ],
+   "accounts": [
+    {
+     "platform": "instagram",
+     "handle": "presidenciadobrasil"
+    },
+    {
+     "platform": "facebook",
+     "handle": "presidenciadobrasil"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@presidencia_br"
+    }
+   ],
+   "source_url": "https://www.gov.br/planalto/pt-br"
+  },
+  {
+   "id": "br_itamaraty",
+   "name": "Itamaraty (Brazilian Ministry of Foreign Affairs)",
+   "kind": "ministry",
+   "country": "BR",
+   "expected_languages": [
+    "pt"
+   ],
+   "accounts": [
+    {
+     "platform": "instagram",
+     "handle": "itamaratygovbr"
+    }
+   ],
+   "source_url": "https://www.gov.br/mre/pt-br",
+   "verification": "no verifiable YouTube: @ItamaratyGovBr exists but has 4 subscribers and no uploads"
+  },
+  {
+   "id": "ca_pm",
+   "name": "Prime Minister of Canada",
+   "kind": "government",
+   "country": "CA",
+   "expected_languages": [
+    "en",
+    "fr"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@CanadianPM",
+     "channel_id": "UCyvEONnqE2Krm9Zi0LVvGmA",
+     "verified_title": "Prime Minister of Canada",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCyvEONnqE2Krm9Zi0LVvGmA",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "x",
+     "handle": "CanadianPM"
+    },
+    {
+     "platform": "instagram",
+     "handle": "canadianpm"
+    },
+    {
+     "platform": "facebook",
+     "handle": "CanadianPM"
+    }
+   ],
+   "source_url": "https://www.pm.gc.ca/en"
+  },
+  {
+   "id": "ca_gac",
+   "name": "Global Affairs Canada",
+   "kind": "ministry",
+   "country": "CA",
+   "expected_languages": [
+    "en",
+    "fr"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@GlobalAffairsCanada",
+     "channel_id": "UCIVMBvs03h74NSdQMH31jKA",
+     "verified_title": "Global Affairs Canada",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCIVMBvs03h74NSdQMH31jKA",
+     "last_upload_seen": "2026-10-09"
+    }
+   ],
+   "source_url": "https://www.international.gc.ca/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (international.gc.ca)"
+  },
+  {
+   "id": "au_pm",
+   "name": "Prime Minister of Australia",
+   "kind": "government",
+   "country": "AU",
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "x",
+     "handle": "AlboMP"
+    },
+    {
+     "platform": "instagram",
+     "handle": "albomp"
+    },
+    {
+     "platform": "facebook",
+     "handle": "AlboMP"
+    }
+   ],
+   "source_url": "https://www.pm.gov.au/",
+   "verification": "pm.gov.au links only the PM's personal (party-run) accounts; no official PM YouTube channel linked"
+  },
+  {
+   "id": "au_dfat",
+   "name": "Department of Foreign Affairs and Trade (Australia)",
+   "kind": "ministry",
+   "country": "AU",
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@dfat",
+     "channel_id": "UCXNx5tIec3oLCikLFzExaNA",
+     "verified_title": "Department of Foreign Affairs and Trade",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCXNx5tIec3oLCikLFzExaNA",
+     "last_upload_seen": "2026-10-21"
+    }
+   ],
+   "source_url": "https://www.dfat.gov.au/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (dfat.gov.au)"
+  },
+  {
+   "id": "kr_mofa",
+   "name": "Ministry of Foreign Affairs, Republic of Korea",
+   "kind": "ministry",
+   "country": "KR",
+   "expected_languages": [
+    "ko",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@MOFAKorea",
+     "channel_id": "UCwRFj9gC3meixU8fqKJdgxA",
+     "verified_title": "외교부 Ministry of Foreign Affairs, Korea",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCwRFj9gC3meixU8fqKJdgxA",
+     "last_upload_seen": "2026-10-13"
+    }
+   ],
+   "source_url": "https://www.mofa.go.kr/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (mofa.go.kr)"
+  },
+  {
+   "id": "mx_gob",
+   "name": "Gobierno de México (Presidency)",
+   "kind": "government",
+   "country": "MX",
+   "expected_languages": [
+    "es"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@gobiernodemexico",
+     "channel_id": "UCvzHrtf9by1-UY67SfZse8w",
+     "verified_title": "Gobierno de México",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCvzHrtf9by1-UY67SfZse8w",
+     "last_upload_seen": "2026-10-24",
+     "note": "carries the daily presidential press conference; header links are short URLs, gob.mx blocks automated fetches"
+    }
+   ],
+   "source_url": "https://www.gob.mx/presidencia",
+   "verification": "WEAKER: accepted on title, 1.1M subscribers and daily uploads; gob.mx not fetchable"
+  },
+  {
+   "id": "mx_sre",
+   "name": "Secretaría de Relaciones Exteriores (Mexico)",
+   "kind": "ministry",
+   "country": "MX",
+   "expected_languages": [
+    "es"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@SREmx_oficial",
+     "channel_id": "UC40sKLFAX_YQzGrF13QpipQ",
+     "verified_title": "SREmx",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC40sKLFAX_YQzGrF13QpipQ",
+     "last_upload_seen": "2026-10-22",
+     "note": "header links linktr.ee/sremx"
+    }
+   ],
+   "source_url": "https://www.gob.mx/sre",
+   "verification": "WEAKER: gob.mx not fetchable"
+  },
+  {
+   "id": "id_setneg",
+   "name": "Ministry of State Secretariat, Indonesia (Kemensetneg)",
+   "kind": "government",
+   "country": "ID",
+   "expected_languages": [
+    "id"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@KementerianSekretariatNegaraRI",
+     "channel_id": "UCUZIgAVuVq_YEUeOAxwrlTQ",
+     "verified_title": "Kementerian Sekretariat Negara RI",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCUZIgAVuVq_YEUeOAxwrlTQ",
+     "last_upload_seen": "2026-10-22"
+    },
+    {
+     "platform": "x",
+     "handle": "kemensetnegri"
+    },
+    {
+     "platform": "instagram",
+     "handle": "kemensetneg.ri"
+    },
+    {
+     "platform": "facebook",
+     "handle": "KemensetnegRI"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@kemensetneg.ri"
+    }
+   ],
+   "source_url": "https://www.setneg.go.id/"
+  },
+  {
+   "id": "id_mofa",
+   "name": "Ministry of Foreign Affairs of Indonesia (Kemlu)",
+   "kind": "ministry",
+   "country": "ID",
+   "expected_languages": [
+    "id",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@MoFAIndonesia",
+     "channel_id": "UCPvFP6lS5EauoyT3GyPtfwA",
+     "verified_title": "MoFA Indonesia",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCPvFP6lS5EauoyT3GyPtfwA",
+     "last_upload_seen": "2026-10-22",
+     "note": "header links facebook.com/Kemlu.RI and instagram.com/kemlu_ri"
+    }
+   ],
+   "source_url": "https://kemlu.go.id/",
+   "verification": "WEAKER: kemlu.go.id not fetchable"
+  },
+  {
+   "id": "sa_mofa",
+   "name": "Ministry of Foreign Affairs, Saudi Arabia",
+   "kind": "ministry",
+   "country": "SA",
+   "expected_languages": [
+    "ar",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@KSAMOFA",
+     "channel_id": "UC339Wu-uH2VPXz_CyLEK9Ig",
+     "verified_title": "وزارة الخارجية السعودية",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC339Wu-uH2VPXz_CyLEK9Ig",
+     "last_upload_seen": "2026-09-28",
+     "note": "not on mofa.gov.sa homepage; channel header links mofa.gov.sa"
+    },
+    {
+     "platform": "x",
+     "handle": "ksamofa"
+    },
+    {
+     "platform": "instagram",
+     "handle": "ksa_mofa"
+    }
+   ],
+   "source_url": "https://www.mofa.gov.sa/"
+  },
+  {
+   "id": "za_presidency",
+   "name": "The Presidency of South Africa",
+   "kind": "head_of_state",
+   "country": "ZA",
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/PresidencyZA",
+     "channel_id": "UCaVkkSIuwelBM9inQwm91FA",
+     "verified_title": "The Presidency of the Republic of South Africa",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCaVkkSIuwelBM9inQwm91FA",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "x",
+     "handle": "PresidencyZA"
+    },
+    {
+     "platform": "instagram",
+     "handle": "presidencyza"
+    },
+    {
+     "platform": "facebook",
+     "handle": "PresidencyZA"
+    }
+   ],
+   "source_url": "https://www.thepresidency.gov.za/"
+  },
+  {
+   "id": "za_dirco",
+   "name": "DIRCO (South African Department of International Relations)",
+   "kind": "ministry",
+   "country": "ZA",
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@theDIRCOZA",
+     "channel_id": "UCssQdVPAOsKsTm3WH1AEaBw",
+     "verified_title": "theDIRCOZA",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCssQdVPAOsKsTm3WH1AEaBw",
+     "last_upload_seen": "2026-10-23"
+    }
+   ],
+   "source_url": "https://www.dirco.gov.za/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (dirco.gov.za)"
+  },
+  {
+   "id": "il_pmo",
+   "name": "Prime Minister of Israel",
+   "kind": "government",
+   "country": "IL",
+   "expected_languages": [
+    "he",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@IsraeliPM",
+     "channel_id": "UC4XJnRPZjXhgvVMhXKNSJvQ",
+     "verified_title": "IsraeliPM",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC4XJnRPZjXhgvVMhXKNSJvQ",
+     "last_upload_seen": "2026-10-23"
+    }
+   ],
+   "source_url": "https://www.gov.il/en/departments/prime_ministers_office",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (pmo.gov.il)"
+  },
+  {
+   "id": "il_mfa",
+   "name": "Israel Ministry of Foreign Affairs",
+   "kind": "ministry",
+   "country": "IL",
+   "expected_languages": [
+    "en",
+    "he"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@IsraelMFA",
+     "channel_id": "UC6zZ6ROUfiMqSRrsMQamlhA",
+     "verified_title": "Israel's Foreign Affairs Min.",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC6zZ6ROUfiMqSRrsMQamlhA",
+     "last_upload_seen": "2026-10-14",
+     "note": "header links twitter.com/israelmfa"
+    }
+   ],
+   "source_url": "https://www.gov.il/en/departments/ministry_of_foreign_affairs",
+   "verification": "WEAKER: gov.il not fetchable"
+  },
+  {
+   "id": "ir_president",
+   "name": "President of Iran",
+   "kind": "head_of_state",
+   "country": "IR",
+   "expected_languages": [
+    "fa"
+   ],
+   "accounts": [
+    {
+     "platform": "telegram",
+     "handle": "president_irFans",
+     "verified_title": "اخبار ریاست جمهوری",
+     "subscribers_seen": "10.4K",
+     "last_post_seen": "2026-10-25",
+     "note": "linked from president.ir despite the 'Fans' in the handle; title 'اخبار ریاست جمهوری' (presidential news)"
+    },
+    {
+     "platform": "x",
+     "handle": "iripresident"
+    },
+    {
+     "platform": "instagram",
+     "handle": "iripresident"
+    }
+   ],
+   "source_url": "https://www.president.ir/"
+  },
+  {
+   "id": "by_mfa",
+   "name": "Ministry of Foreign Affairs of Belarus",
+   "kind": "ministry",
+   "country": "BY",
+   "expected_languages": [
+    "ru",
+    "be",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/BelarusMFA",
+     "channel_id": "UC1wREjavwTctQq71LcUfbVQ",
+     "verified_title": "BelarusMFA",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC1wREjavwTctQq71LcUfbVQ",
+     "last_upload_seen": "2026-10-01"
+    },
+    {
+     "platform": "telegram",
+     "handle": "BelarusMFA",
+     "verified_title": "МИД Беларуси 🇧🇾",
+     "subscribers_seen": "30.7K",
+     "last_post_seen": "2026-10-25"
+    },
+    {
+     "platform": "x",
+     "handle": "BelarusMID"
+    },
+    {
+     "platform": "instagram",
+     "handle": "belarusmfa"
+    },
+    {
+     "platform": "facebook",
+     "handle": "belarusmfa"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@mfabelarus"
+    }
+   ],
+   "source_url": "https://mfa.gov.by/"
+  },
+  {
+   "id": "kz_akorda",
+   "name": "Akorda (President of Kazakhstan)",
+   "kind": "head_of_state",
+   "country": "KZ",
+   "expected_languages": [
+    "kk",
+    "ru"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/akordapress",
+     "channel_id": "UCvozf3nTF7K4_7m2dZpoFjg",
+     "verified_title": "Қазақстан Президентінің Баспасөз қызметі",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCvozf3nTF7K4_7m2dZpoFjg",
+     "last_upload_seen": "2026-10-25"
+    },
+    {
+     "platform": "telegram",
+     "handle": "aqorda_resmi",
+     "verified_title": "Aqorda 🇰🇿",
+     "subscribers_seen": "83.7K",
+     "last_post_seen": "2026-10-25"
+    },
+    {
+     "platform": "x",
+     "handle": "TokayevKZ"
+    },
+    {
+     "platform": "x",
+     "handle": "akorda_press"
+    },
+    {
+     "platform": "instagram",
+     "handle": "akordapress"
+    },
+    {
+     "platform": "instagram",
+     "handle": "tokayev_online"
+    },
+    {
+     "platform": "facebook",
+     "handle": "AqordaResmi"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@aqorda_official"
+    }
+   ],
+   "source_url": "https://www.akorda.kz/ru"
+  },
+  {
+   "id": "kz_government",
+   "name": "Government / Prime Minister of Kazakhstan",
+   "kind": "government",
+   "country": "KZ",
+   "expected_languages": [
+    "kk",
+    "ru"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "c/pmkz",
+     "channel_id": "UCPf1FQVQtODCfw31n51-W9Q",
+     "verified_title": "PrimeMinister_kz",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCPf1FQVQtODCfw31n51-W9Q",
+     "last_upload_seen": "2026-10-14"
+    },
+    {
+     "platform": "telegram",
+     "handle": "KZgovernment",
+     "verified_title": "UKIMET",
+     "subscribers_seen": "21.4K",
+     "last_post_seen": "2026-10-25"
+    },
+    {
+     "platform": "x",
+     "handle": "primeministerkz"
+    },
+    {
+     "platform": "instagram",
+     "handle": "primeministerkz"
+    },
+    {
+     "platform": "facebook",
+     "handle": "primeminister.kz"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@ukimet"
+    }
+   ],
+   "source_url": "https://primeminister.kz/ru"
+  },
+  {
+   "id": "kz_mfa",
+   "name": "Ministry of Foreign Affairs of Kazakhstan",
+   "kind": "ministry",
+   "country": "KZ",
+   "expected_languages": [
+    "kk",
+    "ru",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@foreignministry",
+     "channel_id": "UC8yibX2PUKXBVFU8etTWBnw",
+     "verified_title": "Ministry of Foreign Affairs Kazakhstan",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC8yibX2PUKXBVFU8etTWBnw",
+     "last_upload_seen": "2024-05-21",
+     "note": "STALE: last upload 2024"
+    }
+   ],
+   "source_url": "https://www.gov.kz/memleket/entities/mfa",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (mfa.gov.kz)"
+  },
+  {
+   "id": "ge_mfa",
+   "name": "Ministry of Foreign Affairs of Georgia",
+   "kind": "ministry",
+   "country": "GE",
+   "expected_languages": [
+    "ka",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@MFAGEO",
+     "channel_id": "UCjp21jKBLlIJ0OEbT_3294Q",
+     "verified_title": "MFA Georgia",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCjp21jKBLlIJ0OEbT_3294Q",
+     "last_upload_seen": "2026-10-19"
+    },
+    {
+     "platform": "x",
+     "handle": "MFAgovge"
+    },
+    {
+     "platform": "instagram",
+     "handle": "MFAgovge"
+    },
+    {
+     "platform": "facebook",
+     "handle": "mfageorgia"
+    }
+   ],
+   "source_url": "https://www.mfa.gov.ge/en"
+  },
+  {
+   "id": "md_president",
+   "name": "Presidency of the Republic of Moldova",
+   "kind": "head_of_state",
+   "country": "MD",
+   "expected_languages": [
+    "ro",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "channel/UCfHvTms86Y-w63XIR3JYn6A",
+     "channel_id": "UCfHvTms86Y-w63XIR3JYn6A",
+     "verified_title": "Președinția Republicii Moldova",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCfHvTms86Y-w63XIR3JYn6A",
+     "last_upload_seen": "2026-10-11"
+    },
+    {
+     "platform": "x",
+     "handle": "sandumaiamd"
+    },
+    {
+     "platform": "instagram",
+     "handle": "maia.sandu"
+    },
+    {
+     "platform": "facebook",
+     "handle": "presedinte.md"
+    }
+   ],
+   "source_url": "https://presedinte.md/"
+  },
+  {
+   "id": "md_government",
+   "name": "Government of the Republic of Moldova",
+   "kind": "government",
+   "country": "MD",
+   "expected_languages": [
+    "ro",
+    "ru"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@guvernulrm",
+     "channel_id": "UCPTJwnSDMuOR1ZTSy9y_mdQ",
+     "verified_title": "Guvernul Republicii Moldova",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCPTJwnSDMuOR1ZTSy9y_mdQ",
+     "last_upload_seen": "2026-10-25"
+    },
+    {
+     "platform": "telegram",
+     "handle": "prima_sursa_md",
+     "verified_title": "Prima Sursă | Первоисточник",
+     "subscribers_seen": "42.8K",
+     "last_post_seen": "2026-10-21",
+     "note": "government fact-checking channel ('Canal oficial de verificare a informațiilor Guvernului'), linked from gov.md; posts in ro and ru"
+    },
+    {
+     "platform": "x",
+     "handle": "guvernulrmd"
+    },
+    {
+     "platform": "instagram",
+     "handle": "gov_md"
+    },
+    {
+     "platform": "facebook",
+     "handle": "GuvernulRepubliciiMoldova"
+    }
+   ],
+   "source_url": "https://gov.md/"
+  },
+  {
+   "id": "md_mfa",
+   "name": "Ministry of Foreign Affairs of Moldova",
+   "kind": "ministry",
+   "country": "MD",
+   "expected_languages": [
+    "ro",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@MFARM01",
+     "channel_id": "UC1lp4VZCFux64_RVuBVH1AA",
+     "verified_title": "Ministerul Afacerilor Externe, Republica Moldova",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC1lp4VZCFux64_RVuBVH1AA",
+     "last_upload_seen": "2026-10-08",
+     "note": "WEAKER: self-described 'Contul oficial al Ministerului Afacerilor Externe'; small channel, no header link"
+    }
+   ],
+   "source_url": "https://mfa.gov.md/"
+  },
+  {
+   "id": "ee_president",
+   "name": "President of Estonia",
+   "kind": "head_of_state",
+   "country": "EE",
+   "expected_languages": [
+    "et",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@presidendikantselei",
+     "channel_id": "UC7M8n2b_i9R3BOTS91DlZ9g",
+     "verified_title": "Vabariigi Presidendi Kantselei",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC7M8n2b_i9R3BOTS91DlZ9g",
+     "last_upload_seen": "2026-10-21"
+    },
+    {
+     "platform": "x",
+     "handle": "YlleMadise"
+    },
+    {
+     "platform": "instagram",
+     "handle": "president_ylle.madise"
+    }
+   ],
+   "source_url": "https://www.president.ee/"
+  },
+  {
+   "id": "ee_riigikogu",
+   "name": "Riigikogu (Parliament of Estonia)",
+   "kind": "parliament",
+   "country": "EE",
+   "expected_languages": [
+    "et"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@riigikogu",
+     "channel_id": "UCS1xJUQbauo60LJCEbiiJvg",
+     "verified_title": "Riigikogu",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCS1xJUQbauo60LJCEbiiJvg",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "x",
+     "handle": "riigikogu"
+    },
+    {
+     "platform": "instagram",
+     "handle": "meieriigikogu"
+    },
+    {
+     "platform": "facebook",
+     "handle": "riigikogu"
+    }
+   ],
+   "source_url": "https://www.riigikogu.ee/en/"
+  },
+  {
+   "id": "lv_president",
+   "name": "President of Latvia",
+   "kind": "head_of_state",
+   "country": "LV",
+   "expected_languages": [
+    "lv",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@presidentlv",
+     "channel_id": "UChG7C8090M0h6eCU8TM-vGQ",
+     "verified_title": "Valsts prezidents",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UChG7C8090M0h6eCU8TM-vGQ",
+     "last_upload_seen": "2026-10-23"
+    }
+   ],
+   "source_url": "https://www.president.lv/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (president.lv)"
+  },
+  {
+   "id": "lv_saeima",
+   "name": "Saeima (Parliament of Latvia)",
+   "kind": "parliament",
+   "country": "LV",
+   "expected_languages": [
+    "lv"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@Jekaba11",
+     "channel_id": "UCdQ1YxaZG3i7ygGCdU8mPKQ",
+     "verified_title": "Saeima",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCdQ1YxaZG3i7ygGCdU8mPKQ",
+     "last_upload_seen": "2026-10-24"
+    },
+    {
+     "platform": "x",
+     "handle": "Jekaba11"
+    },
+    {
+     "platform": "instagram",
+     "handle": "jekaba11"
+    },
+    {
+     "platform": "facebook",
+     "handle": "Jekaba11"
+    }
+   ],
+   "source_url": "https://www.saeima.lv/en"
+  },
+  {
+   "id": "lt_president",
+   "name": "President of Lithuania",
+   "kind": "head_of_state",
+   "country": "LT",
+   "expected_languages": [
+    "lt",
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@PresidentofLithuania",
+     "channel_id": "UCSw6Wej1m5A0Lf5u7JKuodw",
+     "verified_title": "Lietuvos Respublikos Prezidentas",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCSw6Wej1m5A0Lf5u7JKuodw",
+     "last_upload_seen": "2023-07-11",
+     "note": "STALE: last upload 2023"
+    }
+   ],
+   "source_url": "https://www.lrp.lt/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (lrp.lt)"
+  },
+  {
+   "id": "lt_seimas",
+   "name": "Seimas (Parliament of Lithuania)",
+   "kind": "parliament",
+   "country": "LT",
+   "expected_languages": [
+    "lt"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/LTSeimastiesiogiai",
+     "channel_id": "UCN6ZSYI-7pxml6bE_zrTgow",
+     "verified_title": "Atviras Seimas",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCN6ZSYI-7pxml6bE_zrTgow",
+     "last_upload_seen": "2026-10-23",
+     "note": "'Atviras Seimas' live channel"
+    },
+    {
+     "platform": "x",
+     "handle": "LRSeimas"
+    },
+    {
+     "platform": "instagram",
+     "handle": "seimaslt"
+    },
+    {
+     "platform": "facebook",
+     "handle": "LRSeimas"
+    }
+   ],
+   "source_url": "https://www.lrs.lt/"
+  },
+  {
+   "id": "un",
+   "name": "United Nations",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en",
+    "fr"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@unitednations",
+     "channel_id": "UC5O114-PQNYkurlTg6hekZw",
+     "verified_title": "United Nations",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC5O114-PQNYkurlTg6hekZw",
+     "last_upload_seen": "2026-10-24",
+     "note": "also the channel linked by UN News (English) and UN Web TV"
+    },
+    {
+     "platform": "x",
+     "handle": "UN"
+    },
+    {
+     "platform": "instagram",
+     "handle": "unitednations"
+    },
+    {
+     "platform": "facebook",
+     "handle": "unitednations"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@unitednations"
+    }
+   ],
+   "source_url": "https://www.un.org/en/get-involved/social-media"
+  },
+  {
+   "id": "un_sg",
+   "name": "UN Secretary-General / Spokesperson",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "x",
+     "handle": "antonioguterres"
+    },
+    {
+     "platform": "x",
+     "handle": "UN_Spokesperson"
+    },
+    {
+     "platform": "instagram",
+     "handle": "antonioguterres"
+    },
+    {
+     "platform": "instagram",
+     "handle": "un_spokesperson"
+    }
+   ],
+   "source_url": "https://www.un.org/en/get-involved/social-media",
+   "verification": "no separate YouTube; videos go to the main UN channel"
+  },
+  {
+   "id": "un_news",
+   "name": "UN News (English)",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "x",
+     "handle": "UN_News_Centre"
+    },
+    {
+     "platform": "facebook",
+     "handle": "UN.News.Centre"
+    }
+   ],
+   "source_url": "https://news.un.org/en/",
+   "verification": "YouTube link on news.un.org is the main UN channel (see id 'un')"
+  },
+  {
+   "id": "un_news_ru",
+   "name": "UN News — Russian service (Служба новостей ООН)",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "ru"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@unradioru",
+     "channel_id": "UCO1Sb-zzUPe4RGOT_3NIJyQ",
+     "verified_title": "Служба новостей ООН",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCO1Sb-zzUPe4RGOT_3NIJyQ",
+     "last_upload_seen": "2026-09-28"
+    },
+    {
+     "platform": "x",
+     "handle": "UN_News_RU"
+    },
+    {
+     "platform": "vk",
+     "handle": "un.news"
+    },
+    {
+     "platform": "facebook",
+     "handle": "UNNewsRU"
+    }
+   ],
+   "source_url": "https://news.un.org/ru/",
+   "verification": "no Telegram channel linked"
+  },
+  {
+   "id": "un_webtv",
+   "name": "UN Web TV",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "x",
+     "handle": "UNWebTV"
+    },
+    {
+     "platform": "facebook",
+     "handle": "UNWebTV"
+    }
+   ],
+   "source_url": "https://webtv.un.org/en",
+   "verification": "webtv.un.org links the main UN YouTube channel (id 'un'); meetings themselves stream on webtv.un.org, not YouTube"
+  },
+  {
+   "id": "un_ocha",
+   "name": "UN OCHA (Humanitarian Affairs)",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/ochafilms",
+     "channel_id": "UCxaxByoDuEdGqFIwTgG0XYw",
+     "verified_title": "UN Humanitarian",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCxaxByoDuEdGqFIwTgG0XYw",
+     "last_upload_seen": "2026-10-14"
+    },
+    {
+     "platform": "x",
+     "handle": "UNOCHA"
+    },
+    {
+     "platform": "instagram",
+     "handle": "un_ocha"
+    },
+    {
+     "platform": "facebook",
+     "handle": "UNOCHA"
+    }
+   ],
+   "source_url": "https://www.un.org/en/get-involved/social-media"
+  },
+  {
+   "id": "unicef",
+   "name": "UNICEF",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@unicef",
+     "channel_id": "UCZceliiH71OLw4t4HcvKKjw",
+     "verified_title": "UNICEF",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCZceliiH71OLw4t4HcvKKjw",
+     "last_upload_seen": "2026-10-09"
+    },
+    {
+     "platform": "x",
+     "handle": "UNICEF"
+    },
+    {
+     "platform": "instagram",
+     "handle": "unicef"
+    },
+    {
+     "platform": "facebook",
+     "handle": "unicef"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@unicef"
+    }
+   ],
+   "source_url": "https://www.unicef.org/"
+  },
+  {
+   "id": "unhcr",
+   "name": "UNHCR, the UN Refugee Agency",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@UNHCR",
+     "channel_id": "UC2ZDAoIMGP3m9tAgnniNEYw",
+     "verified_title": "UNHCR, the UN Refugee Agency",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC2ZDAoIMGP3m9tAgnniNEYw",
+     "last_upload_seen": "2026-10-22"
+    }
+   ],
+   "source_url": "https://www.unhcr.org/",
+   "verification": "unhcr.org renders social links with JavaScript; channel verified by header link to unhcr.org"
+  },
+  {
+   "id": "who",
+   "name": "World Health Organization",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/who",
+     "channel_id": "UC07-dOwgza1IguKA86jqxNA",
+     "verified_title": "World Health Organization (WHO)",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC07-dOwgza1IguKA86jqxNA",
+     "last_upload_seen": "2026-10-24"
+    },
+    {
+     "platform": "instagram",
+     "handle": "who"
+    },
+    {
+     "platform": "facebook",
+     "handle": "WHO"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@who"
+    }
+   ],
+   "source_url": "https://www.who.int/"
+  },
+  {
+   "id": "wfp",
+   "name": "World Food Programme",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/WORLDFOODPROGRAM",
+     "channel_id": "UCT-FJ4sgZ-0OCTmyf1tmKwQ",
+     "verified_title": "World Food Programme",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCT-FJ4sgZ-0OCTmyf1tmKwQ",
+     "last_upload_seen": "2026-09-30"
+    },
+    {
+     "platform": "x",
+     "handle": "WFP"
+    },
+    {
+     "platform": "instagram",
+     "handle": "Worldfoodprogramme"
+    },
+    {
+     "platform": "facebook",
+     "handle": "WorldFoodProgramme"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@worldfoodprogramme"
+    }
+   ],
+   "source_url": "https://www.wfp.org/"
+  },
+  {
+   "id": "unesco",
+   "name": "UNESCO",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en",
+    "fr"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@UNESCO",
+     "channel_id": "UCkD7gm3Am3M3k156lk46t3A",
+     "verified_title": "UNESCO",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCkD7gm3Am3M3k156lk46t3A",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "x",
+     "handle": "UNESCO"
+    },
+    {
+     "platform": "instagram",
+     "handle": "unesco"
+    },
+    {
+     "platform": "facebook",
+     "handle": "unesco"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@unesco"
+    }
+   ],
+   "source_url": "https://www.unesco.org/en"
+  },
+  {
+   "id": "undp",
+   "name": "UN Development Programme",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@UNDP",
+     "channel_id": "UCagCOAfZBpsTOlAJq_vcWbw",
+     "verified_title": "United Nations Development Programme (UNDP)",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCagCOAfZBpsTOlAJq_vcWbw",
+     "last_upload_seen": "2026-10-23"
+    }
+   ],
+   "source_url": "https://www.undp.org/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (undp.org)"
+  },
+  {
+   "id": "iaea",
+   "name": "International Atomic Energy Agency",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@IAEAvideo",
+     "channel_id": "UCJjzF7cdxa0jZv_fDE_wm4A",
+     "verified_title": "IAEAvideo",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCJjzF7cdxa0jZv_fDE_wm4A",
+     "last_upload_seen": "2026-10-20",
+     "note": "header links facebook.com/iaeaorg"
+    }
+   ],
+   "source_url": "https://www.iaea.org/",
+   "verification": "iaea.org blocks automated fetches; WEAKER reverse link (via its Facebook page)"
+  },
+  {
+   "id": "ilo",
+   "name": "International Labour Organization",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en",
+    "fr",
+    "es"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@ILO",
+     "channel_id": "UCrlcu5KChYyHwXlIeD7oLUg",
+     "verified_title": "International Labour Organization",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCrlcu5KChYyHwXlIeD7oLUg",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "instagram",
+     "handle": "ilo.org"
+    },
+    {
+     "platform": "facebook",
+     "handle": "ilo.org"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@ilo"
+    }
+   ],
+   "source_url": "https://www.ilo.org/"
+  },
+  {
+   "id": "fao",
+   "name": "Food and Agriculture Organization",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/FAOoftheUN",
+     "channel_id": "UCtu8MkufmVgxS8_Ocl7mMig",
+     "verified_title": "Food and Agriculture Organization of the United Nations",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCtu8MkufmVgxS8_Ocl7mMig",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "x",
+     "handle": "FAO"
+    },
+    {
+     "platform": "instagram",
+     "handle": "fao"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@fao"
+    }
+   ],
+   "source_url": "https://www.fao.org/home/en"
+  },
+  {
+   "id": "ohchr",
+   "name": "UN Human Rights (OHCHR)",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@UNOHCHR",
+     "channel_id": "UC3L8u5qG07djPUwWo6VQVLA",
+     "verified_title": "UN Human Rights",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC3L8u5qG07djPUwWo6VQVLA",
+     "last_upload_seen": "2026-10-09",
+     "note": "header links donatenow.ohchr.org"
+    },
+    {
+     "platform": "x",
+     "handle": "UNHumanRights",
+     "note": "listed on un.org social-media page"
+    }
+   ],
+   "source_url": "https://www.un.org/en/get-involved/social-media",
+   "verification": "ohchr.org blocks automated fetches"
+  },
+  {
+   "id": "un_geneva",
+   "name": "UN Geneva",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en",
+    "fr"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/UninformationGeneva",
+     "channel_id": "UCAoJPISq-JRlgL9_6pvd0GQ",
+     "verified_title": "UN Geneva",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCAoJPISq-JRlgL9_6pvd0GQ",
+     "last_upload_seen": "2026-10-23"
+    },
+    {
+     "platform": "x",
+     "handle": "UNGeneva"
+    },
+    {
+     "platform": "instagram",
+     "handle": "UNGeneva"
+    },
+    {
+     "platform": "facebook",
+     "handle": "UN.Geneva"
+    }
+   ],
+   "source_url": "https://www.ungeneva.org/en"
+  },
+  {
+   "id": "eu_commission",
+   "name": "European Commission",
+   "kind": "eu_institution",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@EuropeanCommission",
+     "channel_id": "UCMPaviJxybo1RTdzvYcU91A",
+     "verified_title": "European Commission",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCMPaviJxybo1RTdzvYcU91A",
+     "last_upload_seen": "2026-10-23",
+     "note": "linked as youtube.com/user/eutube"
+    },
+    {
+     "platform": "facebook",
+     "handle": "EuropeanCommission"
+    },
+    {
+     "platform": "x",
+     "handle": "EU_Commission",
+     "note": "from YouTube channel header"
+    },
+    {
+     "platform": "instagram",
+     "handle": "europeancommission",
+     "note": "from YouTube channel header"
+    }
+   ],
+   "source_url": "https://commission.europa.eu/index_en",
+   "verification": "EU institutions publish many language versions; main channel is mostly English"
+  },
+  {
+   "id": "eu_council",
+   "name": "Council of the EU / European Council",
+   "kind": "eu_institution",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@eucouncil",
+     "channel_id": "UCLPG_xkgSWeWnOhBsi-jxCA",
+     "verified_title": "Council of the EU",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCLPG_xkgSWeWnOhBsi-jxCA",
+     "last_upload_seen": "2026-10-19"
+    }
+   ],
+   "source_url": "https://www.consilium.europa.eu/en/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (consilium.europa.eu)"
+  },
+  {
+   "id": "eu_eeas",
+   "name": "European External Action Service (EEAS)",
+   "kind": "eu_institution",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/EUExternalAction",
+     "channel_id": "UCw6E9hgCbubPf_IsofVkiqg",
+     "verified_title": "European External Action Service (EEAS)",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCw6E9hgCbubPf_IsofVkiqg",
+     "last_upload_seen": "2026-10-06"
+    },
+    {
+     "platform": "x",
+     "handle": "eu_eeas"
+    },
+    {
+     "platform": "x",
+     "handle": "kajakallas",
+     "note": "High Representative"
+    },
+    {
+     "platform": "instagram",
+     "handle": "eudiplomacy"
+    },
+    {
+     "platform": "facebook",
+     "handle": "EuropeanExternalActionService"
+    }
+   ],
+   "source_url": "https://www.eeas.europa.eu/"
+  },
+  {
+   "id": "eu_parliament",
+   "name": "European Parliament",
+   "kind": "eu_institution",
+   "country": null,
+   "expected_languages": [
+    "en",
+    "fr",
+    "de"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "user/EuropeanParliament",
+     "channel_id": "UCvU4p_w08osQsrNi_I4ZtDA",
+     "verified_title": "European Parliament",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCvU4p_w08osQsrNi_I4ZtDA",
+     "last_upload_seen": "2026-10-22"
+    },
+    {
+     "platform": "x",
+     "handle": "Europarl_EN"
+    },
+    {
+     "platform": "instagram",
+     "handle": "europeanparliament"
+    },
+    {
+     "platform": "facebook",
+     "handle": "europeanparliament"
+    },
+    {
+     "platform": "telegram",
+     "handle": "europeanparliament",
+     "verified_title": "European Parliament",
+     "note": "og:title checked"
+    }
+   ],
+   "source_url": "https://www.europarl.europa.eu/portal/en"
+  },
+  {
+   "id": "nato",
+   "name": "NATO",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en",
+    "fr"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@NATO",
+     "channel_id": "UCHlEaKbepQ_S9iIoZPKVQew",
+     "verified_title": "NATO",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCHlEaKbepQ_S9iIoZPKVQew",
+     "last_upload_seen": "2026-10-22"
+    },
+    {
+     "platform": "x",
+     "handle": "NATO"
+    },
+    {
+     "platform": "instagram",
+     "handle": "nato"
+    },
+    {
+     "platform": "facebook",
+     "handle": "NATO"
+    }
+   ],
+   "source_url": "https://www.nato.int/"
+  },
+  {
+   "id": "osce",
+   "name": "OSCE",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en",
+    "ru"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@osce",
+     "channel_id": "UCubFTvPe-ScfgiM6Zmtp5vg",
+     "verified_title": "The Organization for Security and Co-operation in Europe (OSCE)",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCubFTvPe-ScfgiM6Zmtp5vg",
+     "last_upload_seen": "2026-08-21",
+     "note": "last upload Aug 2026"
+    },
+    {
+     "platform": "x",
+     "handle": "OSCE"
+    },
+    {
+     "platform": "instagram",
+     "handle": "osceorg"
+    },
+    {
+     "platform": "facebook",
+     "handle": "osce.org"
+    }
+   ],
+   "source_url": "https://www.osce.org/"
+  },
+  {
+   "id": "coe",
+   "name": "Council of Europe",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en",
+    "fr"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@CouncilofEuropeEn",
+     "channel_id": "UCq4KIoyvZXuA7wJJQ2sqv3A",
+     "verified_title": "Council of Europe",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCq4KIoyvZXuA7wJJQ2sqv3A",
+     "last_upload_seen": "2026-10-10",
+     "note": "header links x.com/coe and instagram.com/councilofeurope"
+    },
+    {
+     "platform": "x",
+     "handle": "coe",
+     "note": "from YouTube channel header"
+    }
+   ],
+   "source_url": "https://www.coe.int/",
+   "verification": "coe.int blocks automated fetches"
+  },
+  {
+   "id": "imf",
+   "name": "International Monetary Fund",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@imf",
+     "channel_id": "UCIYhr3JsLYfKkCM7-W5B6DA",
+     "verified_title": "IMF",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCIYhr3JsLYfKkCM7-W5B6DA",
+     "last_upload_seen": "2026-10-22"
+    }
+   ],
+   "source_url": "https://www.imf.org/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (imf.org)"
+  },
+  {
+   "id": "worldbank",
+   "name": "World Bank Group",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@WorldBankGroup",
+     "channel_id": "UCE9mrcoX-oE-2f1BL-iPPoQ",
+     "verified_title": "World Bank Group",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCE9mrcoX-oE-2f1BL-iPPoQ",
+     "last_upload_seen": "2026-10-21"
+    },
+    {
+     "platform": "x",
+     "handle": "WorldBank"
+    },
+    {
+     "platform": "instagram",
+     "handle": "worldbank"
+    },
+    {
+     "platform": "facebook",
+     "handle": "worldbank"
+    }
+   ],
+   "source_url": "https://www.worldbank.org/en/home"
+  },
+  {
+   "id": "wto",
+   "name": "World Trade Organization",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en",
+    "fr",
+    "es"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@WTO",
+     "channel_id": "UCS3LJf8IInqTB0fjJeZpSFw",
+     "verified_title": "World Trade Organization",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCS3LJf8IInqTB0fjJeZpSFw",
+     "last_upload_seen": "2026-10-22"
+    }
+   ],
+   "source_url": "https://www.wto.org/",
+   "verification": "wto.org renders social links with JavaScript; channel header links wto.org"
+  },
+  {
+   "id": "oecd",
+   "name": "OECD",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en",
+    "fr"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@oecd",
+     "channel_id": "UCR-Ja1yBcjkhuQblxnroZJg",
+     "verified_title": "OECD",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCR-Ja1yBcjkhuQblxnroZJg",
+     "last_upload_seen": "2026-10-23"
+    }
+   ],
+   "source_url": "https://www.oecd.org/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (oecd.org)"
+  },
+  {
+   "id": "african_union",
+   "name": "African Union",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en",
+    "fr"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@AUCommission",
+     "channel_id": "UC7kpOE_iT6Py70xa65Kiabg",
+     "verified_title": "African Union",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC7kpOE_iT6Py70xa65Kiabg",
+     "last_upload_seen": "2026-10-16"
+    },
+    {
+     "platform": "x",
+     "handle": "_AfricanUnion"
+    },
+    {
+     "platform": "instagram",
+     "handle": "africanunion_official"
+    },
+    {
+     "platform": "facebook",
+     "handle": "AfricanUnionCommission"
+    }
+   ],
+   "source_url": "https://au.int/"
+  },
+  {
+   "id": "asean",
+   "name": "ASEAN Secretariat",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@aseansecretariatofficial",
+     "channel_id": "UCOp9ttykdbVr6MEkLJ4ZaJQ",
+     "verified_title": "asean secretariat",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCOp9ttykdbVr6MEkLJ4ZaJQ",
+     "last_upload_seen": "2026-10-20",
+     "note": "header links asean.org; beware the dormant @ASEANSecretariat channel"
+    }
+   ],
+   "source_url": "https://asean.org/",
+   "verification": "official site blocks automated fetches; YouTube channel verified by its own header link back to the official domain (reverse link) (asean.org)"
+  },
+  {
+   "id": "icrc",
+   "name": "International Committee of the Red Cross",
+   "kind": "intl_org",
+   "country": null,
+   "expected_languages": [
+    "en"
+   ],
+   "accounts": [
+    {
+     "platform": "youtube",
+     "handle": "@ICRC",
+     "channel_id": "UCZyACOXbNnPs2RXA_Iv9pxA",
+     "verified_title": "International Committee of the Red Cross (ICRC)",
+     "feed_url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCZyACOXbNnPs2RXA_Iv9pxA",
+     "last_upload_seen": "2026-10-20"
+    },
+    {
+     "platform": "x",
+     "handle": "ICRC"
+    },
+    {
+     "platform": "instagram",
+     "handle": "ICRC"
+    },
+    {
+     "platform": "facebook",
+     "handle": "icrc"
+    },
+    {
+     "platform": "tiktok",
+     "handle": "@icrc"
+    }
+   ],
+   "source_url": "https://www.icrc.org/en"
+  }
+ ],
+ "unverified": [
+  "US House / US Senate: no official chamber-level YouTube or Telegram account found; house.gov and senate.gov list none (senate.gov blocks automated fetches). Committees and members have their own channels — out of scope.",
+  "China (State Council / MFA spokesperson): fmprc.gov.cn links no social accounts; X accounts @MFA_China and @SpokespersonCHN exist but are not linked from an official page fetched here. YouTube search turned up no official channel. CGTN/CCTV excluded by request.",
+  "Republic of Korea presidential office: no official YouTube found (search shows personal channels of presidents and @thebluehousekr for the former Moon administration); eng.president.go.kr refused the connection.",
+  "Brazil: gov.br/planalto links youtube.com/@Presidencia_do_Brasil, which does not resolve to a channel (broken or renamed). CanalGov (UCjaWLFTNqLkq3ZY2BJ4NYRg, 1.68M subs, header links agenciagov.ebc.com.br) looks like the federal government channel but no gov.br page linking it was found.",
+  "Indonesia: 'Sekretariat Presiden' YouTube (UC_m_NBgf7ieJBHzb6vvJC5A) is the presidential channel by name and size, but presidenri.go.id was not fetchable and the channel has no header link. Only the Kemensetneg channel linked from setneg.go.id is included.",
+  "Belarus president: president.gov.by returned no social links in the one successful fetch and later timed out. Telegram 'pul_1' (Пул Первого, 261K) is a pro-government pool channel, not an official account — excluded.",
+  "Ukraine Cabinet and MFA Telegram: tried KabminUA_official, Kabmin_UA_official, KabminUA, MFA_Ukraine, mfa_ukraine, MFAUkraine, ukrainemfa — none exist publicly; kmu.gov.ua and mfa.gov.ua block automated fetches, so the real handles could not be found.",
+  "Russia: Ministry of Defence Telegram 'mod_russia' (Минобороны России, 652K) is almost certainly official but no official page linking it was fetched. Russian MFA spokesperson (Zakharova) channel not checked.",
+  "Japan: kantei.go.jp and mofa.go.jp render social links client-side or block bots, so X/Instagram handles for the Kantei and MOFA are not recorded.",
+  "Saudi Arabia royal court / SPA: spa.gov.sa listed no social links; not included.",
+  "Iran MFA: en.mfa.ir not fetchable; not included. Iran's Supreme Leader (leader.ir) page listed no social links.",
+  "Georgia government / president / parliament: gov.ge, president.gov.ge and parliament.ge not fetchable. 'Parliament of Georgia' YouTube (@geoparliament, UCidFouPFxyvJee3iFrFukTg, 18.8K) has no header link — not included.",
+  "G20: youtube.com/@G20ORG (UCvZR2g6Uquh9Sr4fU1Psvag) links g20.org but last upload is 2018. G7: g7italy.it links youtube.com/@G7Italy2024 and X @G7 — the G7/G20 web presence rotates with each presidency, so neither is a stable source.",
+  "UN family without Telegram: none of UN, UN News, UNICEF, WHO, NATO, EU institutions, OSCE or CoE link a Telegram channel from their sites; handles probed directly (UN, UNnews, unicef, WHO, nato, europarliament, eu_eeas, osce, coe) do not exist as public channels or are not the org ('EU_Commission' is a 90-subscriber stub).",
+  "Lithuania president YouTube (@PresidentofLithuania) and Kazakhstan MFA YouTube (@foreignministry) are verified but stale (last uploads 2023 / 2024); kept with a STALE note."
+ ]
+}

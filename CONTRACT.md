@@ -13,6 +13,7 @@ account detail is ever committed; they live in AWS Secrets Manager.
 | `collector/` | the headless browser in AWS that reads the account and feeds the API |
 | `web/` | the site at `empire.earth` - a static app over the API, every browser and screen size |
 | `ios/` | the iOS app Earth Empire (`com.oeaio.earthempire`) over the API |
+| `monitor/` | the monitor: public videos of official (and followed, reposted, recommended) accounts, transcribed on the box and searched for the owner's phrases and out-of-place Ukrainian/Russian; its API under `/v1/monitor/` and `/v1/published` |
 
 Each part changes only its own folder. This file is shared; change it only together with every
 part that reads it.
@@ -255,6 +256,93 @@ backoff without blocking other items. Every transition is logged.
 
 `GET /v1/admin/pipeline` (admin or ingest token) returns the counts in each state and the latest
 failures; `GET /v1/status` shows the same publicly, scrubbed.
+
+## Monitor
+
+The apps' main mode. `monitor/` watches public videos, transcribes them on the box (faster-whisper,
+language identified per chunk) and flags two kinds of **hit**:
+
+- `name`: a word or words that sound like one of the owner's **phrases** (any grammatical form,
+  transliteration or likely mishearing, fuzzy and phonetic, Latin and Cyrillic);
+- `language`: Ukrainian or Russian speech (a few seconds or more) in a source whose expected
+  languages do not include it.
+
+No hit is ever certain. Low-confidence hits are kept (recall over precision), labelled, and always
+carry the excerpt so a person can judge. The monitor is its own service on the box
+(`ee-monitor-api` on 127.0.0.1:8010, `ee-monitor-worker`); nginx routes `/v1/monitor/` and
+`/v1/published` to it behind the same CloudFront. State: `/var/lib/earth-empire/monitor/`.
+
+Sources have a `source_kind`: `official` (the registry `monitor/sources.json`, and accounts the
+owner adds), `followed` (accounts tapacuk93 follows), `reposted_author` / `reposted` (the owner's
+Instagram reposts and their authors) and `recommended` (what a platform suggests next to a seed;
+`via` names the seed: a hit id or a backend item id, at most `rec.max_hops` hops away).
+
+```jsonc
+// Hit
+{
+  "id": "h_…",
+  "kind": "name" | "language",
+  "phrase": "тарас маслов" | null,          // name hits: which phrase matched
+  "matched": "Тарасом Масловим",            // the words as transcribed; for language hits "uk" | "ru"
+  "confidence": 0.62,                       // 0..1, sort key by default
+  "confidence_label": "likely" | "possible" | "low confidence",   // >=0.7, >=0.4, below; never "certain"
+  "scores": {"sound": 0.9, "asr": 0.8, "name": 0.85},   // name: how it sounds, Whisper's word probability,
+                                            // name-vs-common-word; language: {"language", "script", "duration", "speech_s"}
+  "notes": ["a form of 'тарас'", "may be a quoted clip…"],   // why, and why it may be a coincidence
+  "judge": {"by": "claude", "name_probability": 0.7, "reason": "…"} | null,
+  "language": "ru",                         // the language of the speech around it
+  "expected_languages": ["en"],
+  "platform": "telegram" | "youtube" | "facebook" | "instagram" | "x" | "web",
+  "source_kind": "official" | "followed" | "reposted_author" | "reposted" | "recommended",
+  "via": "h_…" | "ig_…" | null, "hop": 0,
+  "source": {"id": "ru_mid", "name": "Ministry of Foreign Affairs of Russia", "kind": "ministry",
+             "country": "RU", "source_kind": "official"},
+  "account": "MID_Russia",
+  "video": {"id": "tg:MID_Russia/94660", "url": "https://t.me/MID_Russia/94660", "title": "…",
+            "posted_at": "…", "duration": 83.0, "thumbnail": "…" | null},
+  "start": 12.4, "end": 13.1,               // seconds into the video
+  "at_url": "https://t.me/MID_Russia/94660?t=10",   // opens near the moment where the platform supports it
+  "excerpt": {"text": "…", "start": 6.4, "end": 19.1, "language": "ru", "en": "…" | null},
+  "clip": "https://media.empire.earth/monitor/clips/h_….mp3" | null,    // <= 20 s around the hit
+  "frame": "https://media.empire.earth/monitor/frames/h_….jpg" | null,
+  "model": "faster-whisper small int8", "found_at": "…",
+  "published_at": "…" | null                // set by the owner's publish
+}
+```
+
+Public (CORS open for GET and POST):
+
+- `GET /v1/monitor/hits?kind=name|language&platform=&source_kind=&phrase=&min_confidence=&published=true|false&sort=confidence|recent|posted&before=<cursor>&limit=`
+  → `{"hits": [Hit], "next": "<cursor>" | null}`; by confidence (highest first) unless `sort` says otherwise.
+- `GET /v1/monitor/hits/{id}` → Hit
+- `POST /v1/monitor/fetch {"n": 10, "platform"?: "…", "source_kind"?: "…"}` → `{"request_id", "n",
+  "queued", "to_discover"}`: queue at least `n` (max 50) more videos to scan, newest unscanned first,
+  spread over sources; what is not yet discovered is looked for further back. Within the daily caps;
+  `429` when the queue is full.
+- `GET /v1/monitor/sources?platform=&source_kind=` → `{"sources": [{"id", "name", "kind", "country",
+  "source_kind", "origin", "source_url", "expected_languages", "languages_inferred", "accounts":
+  [{"id", "platform", "handle", "platform_id", "enabled", "last_polled_at", "last_error", "videos", "scanned"}]}]}`
+- `GET /v1/monitor/phrases` → `{"phrases": [{"text", "variants": ["…"], "mishearings": ["…"],
+  "claude_variants": ["…"], "updated_at"}]}`
+- `GET /v1/monitor/videos?state=&platform=&limit=` → recent videos and their scan state
+  (`new | queued | running | done | failed | blocked | skipped`, with `error`, `languages`, `hits`).
+- `GET /v1/monitor/status` → queue by platform and state, totals, throughput (`cpu_per_audio`),
+  today's usage against the caps, open fetch requests, and `stops` (a platform paused by a
+  checkpoint, warning, login or billing refusal, with the reason).
+- `GET /v1/published` → `{"hits": [Hit], "next"}`: the hits the owner published, newest first, for the
+  apps' main page.
+
+Owner only (`Authorization: Bearer <earth-empire/admin-token>`):
+
+- `POST /v1/monitor/hits/{id}/publish`, `POST /v1/monitor/hits/{id}/unpublish` → Hit
+- `PUT /v1/monitor/phrases {"phrases": ["тарас", "тарас маслов", "маслов"], "claude"?: true, "rescan"?: true}`
+  → as GET. Replaces the list; variants are generated by rule, Claude adds spellings once per new
+  phrase (cached), and stored transcripts are matched again (`rescan`).
+- `POST /v1/monitor/rescan` → `{"ok", "videos"}`: detection again over every stored transcript.
+- `POST /v1/monitor/sources {"name", "platform", "handle", "expected_languages"?, "kind"?, "country"?, "channel_id"?}`
+  → `{"source_id", "account_id"}`
+
+The monitor reports itself with `POST /v1/ingest/heartbeat` (`component: "monitor"`).
 
 ## Rules every part follows
 

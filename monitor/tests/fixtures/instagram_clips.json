@@ -1,0 +1,8 @@
+{"_note": "Synthetic, in the shape of /api/v1/clips/user/ (v1 media). Values are made up.",
+ "items": [{"media": {"pk": "3456789012345678901", "id": "3456789012345678901_42", "code": "C9xYz12AbCd",
+   "taken_at": 1759312800, "media_type": 2, "product_type": "clips", "video_duration": 30.2,
+   "user": {"pk": "42", "username": "un", "full_name": "United Nations", "is_verified": true},
+   "caption": {"text": "Statement at the Security Council"},
+   "image_versions2": {"candidates": [{"url": "https://scontent.cdninstagram.com/v/t51/thumb.jpg?oe=6900AAAA", "width": 640, "height": 1136}]},
+   "video_versions": [{"url": "https://scontent.cdninstagram.com/o1/v/t16/clip.mp4?oe=6900AAAA", "width": 720, "height": 1280, "type": 101}]}}],
+ "paging_info": {"max_id": "QVFE", "more_available": true}}

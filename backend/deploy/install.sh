@@ -40,6 +40,8 @@ server {
     listen [::]:80 default_server;
     server_name _;
     client_max_body_size 50m;
+    # other parts' routes (e.g. monitor/deploy/install.sh: /v1/monitor/, /v1/published)
+    include /etc/nginx/earth-empire.d/*.conf;
     location / {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
@@ -49,6 +51,7 @@ server {
     }
 }
 NGINX
+install -d /etc/nginx/earth-empire.d
 ln -sf /etc/nginx/sites-available/earth-empire /etc/nginx/sites-enabled/earth-empire
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx || systemctl restart nginx

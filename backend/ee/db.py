@@ -167,6 +167,8 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
         conn.execute("ALTER TABLE items ADD COLUMN importance REAL")
     if "detection" not in cols:    # added 2026-10-25: the monitor's scan of the item (the public gate)
         conn.execute("ALTER TABLE items ADD COLUMN detection TEXT")
+    if "priority" not in cols:     # 1 = new (just appeared), 0 = backfill: new items go first everywhere
+        conn.execute("ALTER TABLE items ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
     if "importance_version" not in cols:   # which rubric version scored it
         conn.execute("ALTER TABLE items ADD COLUMN importance_version INTEGER")
     if "curation" not in cols:     # added 2026-10-25: 0-1, how the owner curated it (home.curation)

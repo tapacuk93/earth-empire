@@ -142,7 +142,10 @@ def importance_once(c) -> bool:
     if setting(c, "analysis.enabled") != "1":
         return False
     if c.execute("SELECT 1 FROM steps WHERE step='analyze' AND state IN ('pending','running') LIMIT 1").fetchone():
-        return False
+        return False   # the lowest priority: only when nothing waits for analysis
+    if c.execute("""SELECT 1 FROM items i JOIN steps s ON s.item_id = i.id WHERE i.priority = 1 AND
+                    ((s.step = 'site' AND s.state = 'pending') OR i.thumbs IS NULL) LIMIT 1""").fetchone():
+        return False   # and never while a new item is still on its way
     from . import importance
     day = utcnow()[:10]
     done = c.execute("SELECT COUNT(*) n FROM costs WHERE purpose='importance' AND at >= ?", (day,)).fetchone()["n"]

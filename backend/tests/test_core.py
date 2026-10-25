@@ -70,6 +70,15 @@ class StoreTest(unittest.TestCase):
         st = self.c.execute("SELECT state FROM steps WHERE item_id=? AND step='analyze'", (iid,)).fetchone()
         self.assertEqual(st["state"], "pending")
 
+    def test_new_items_go_first_newest_first_then_backlog_oldest_first(self):
+        items = [dict(i) for i in FIXTURES["items"][:3]]
+        items[0]["priority"] = "new"; items[0]["taken_at"] = "2020-01-01T00:00:00Z"
+        items[1]["priority"] = "new"; items[1]["taken_at"] = "2021-01-01T00:00:00Z"
+        items[2]["priority"] = "backfill"; items[2]["taken_at"] = "2019-01-01T00:00:00Z"
+        store.upsert_items(self.c, items)
+        order = [store.claim_next(self.c, "analyze") for _ in range(3)]
+        self.assertEqual(order, [items[1]["id"], items[0]["id"], items[2]["id"]])
+
     def test_failure_backs_off_and_never_reposts(self):
         store.upsert_items(self.c, FIXTURES["items"])
         iid = FIXTURES["items"][0]["id"]

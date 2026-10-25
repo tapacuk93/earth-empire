@@ -159,23 +159,25 @@ def upsert_items(c: sqlite3.Connection, items: list[dict]) -> dict:
     for raw in items:
         if not isinstance(raw, dict) or not raw.get("id") or not raw.get("kind") or not raw.get("taken_at"):
             raise ValueError("every item needs id, kind and taken_at")
-        item = {k: v for k, v in raw.items() if k not in BACKEND_FIELDS and k != "updated_at"}
+        item = {k: v for k, v in raw.items() if k not in BACKEND_FIELDS and k not in ("updated_at", "priority")}
+        prio = 1 if raw.get("priority") == "new" or (raw.get("priority") is None and _recent(raw.get("taken_at"))) else 0
         _map_media(item, to_key)
         h = content_hash(item)
         ts = now()
         with tx(c):
             old = c.execute("SELECT content_hash, data FROM items WHERE id = ?", (item["id"],)).fetchone()
             if old is None:
-                c.execute("""INSERT INTO items(id, kind, taken_at, data, content_hash, collected_at, updated_at)
-                             VALUES (?,?,?,?,?,?,?)""",
-                          (item["id"], item["kind"], item["taken_at"], j(item), h, item.get("collected_at") or ts, ts))
+                c.execute("""INSERT INTO items(id, kind, taken_at, data, content_hash, collected_at, updated_at, priority)
+                             VALUES (?,?,?,?,?,?,?,?)""",
+                          (item["id"], item["kind"], item["taken_at"], j(item), h, item.get("collected_at") or ts, ts, prio))
                 for step in STEPS:
                     _set_step(c, item["id"], step, "pending", note="downloaded")
                 counts["inserted"] += 1
             else:
                 same = old["data"] == j(item)
-                c.execute("UPDATE items SET kind=?, taken_at=?, data=?, content_hash=?, updated_at=? WHERE id=?",
-                          (item["kind"], item["taken_at"], j(item), h, ts if not same else ts, item["id"]))
+                c.execute("UPDATE items SET kind=?, taken_at=?, data=?, content_hash=?, updated_at=?, "
+                          "priority=MAX(priority, ?) WHERE id=?",
+                          (item["kind"], item["taken_at"], j(item), h, ts, prio, item["id"]))
                 if old["content_hash"] != h:
                     # Caption or media changed: the old categories no longer describe it.
                     c.execute("""UPDATE items SET categories='[]', summary=NULL, description=NULL, analysis=NULL,
@@ -385,15 +387,27 @@ def fail_step(c, item_id, step, error: str, *, permanent=False):
         _set_step(c, item_id, step, "failed", error=error[:4000], attempts=attempts, next_at=next_at)
 
 
+PRIORITY_ORDER = ("i.priority DESC, CASE WHEN i.priority = 1 THEN i.taken_at END DESC, "
+                  "i.taken_at ASC, i.id ASC")
+
+
+def _recent(taken_at, days: int = 3) -> bool:
+    try:
+        return (datetime.now(timezone.utc) - datetime.strptime(taken_at[:19], "%Y-%m-%dT%H:%M:%S")
+                .replace(tzinfo=timezone.utc)).days < days
+    except (TypeError, ValueError):
+        return False
+
+
 def claim_next(c, step: str, *, requires_analysis: bool = False, newest_first: bool = False):
-    """The oldest item whose step is due, marked running. None when nothing is due."""
+    """The next item whose step is due, marked running: new items first (newest first), then the
+    backlog (oldest first). Each call is a step boundary, so a newly arrived item goes next."""
     ts = now()
-    order = "DESC" if newest_first else "ASC"
     need = "AND i.published_at IS NOT NULL" if requires_analysis else ""
     with tx(c):
         row = c.execute(f"""SELECT s.item_id FROM steps s JOIN items i ON i.id = s.item_id
             WHERE s.step=? AND (s.state='pending' OR (s.state='failed' AND s.next_at IS NOT NULL AND s.next_at <= ?))
-            {need} ORDER BY i.taken_at {order}, i.id {order} LIMIT 1""", (step, ts)).fetchone()
+            {need} ORDER BY {PRIORITY_ORDER} LIMIT 1""", (step, ts)).fetchone()
         if not row:
             return None
         _set_step(c, row["item_id"], step, "running", note="started")

@@ -58,5 +58,5 @@ def thumbs_for(c, item_id: str) -> dict:
 
 
 def next_without(c) -> str | None:
-    r = c.execute("SELECT id FROM items WHERE thumbs IS NULL ORDER BY taken_at DESC LIMIT 1").fetchone()
+    r = c.execute("SELECT id FROM items i WHERE thumbs IS NULL ORDER BY i.priority DESC, i.taken_at DESC LIMIT 1").fetchone()
     return r["id"] if r else None

@@ -195,7 +195,12 @@ Ingest, for the collector only (`Authorization: Bearer <earth-empire/ingest-toke
   `{"upload_url": "<presigned PUT>", "public_url": "https://media.empire.earth/…", "headers":
   {"Content-Type": "video/mp4"}, "exists": bool}`. PUT the bytes to `upload_url` with exactly the
   `Content-Type` that was asked for (it is signed); `exists` says the key is already there.
-- `PUT /v1/ingest/items` `{"items": [Item without categories/summary]}`: an upsert by id. A
+- `PUT /v1/ingest/items` `{"items": [Item without categories/summary]}`: an upsert by id. An item
+  may carry `"priority": "new"` (it just appeared on the profile) or `"backfill"`; without it, an
+  item taken in the last 3 days counts as new. **New items go first in every step** (analysis,
+  thumbnails, layout, site, X, Facebook): new ones newest first, then the backlog oldest first. A new
+  arrival goes next at the following step boundary. Re-scoring for a new importance rubric comes
+  last of all. A
   repeated item updates its fields and keeps its categories unless its caption or media changed.
 - `PUT /v1/ingest/highlights` `{"highlights": [Highlight]}`: the upsert.
 - `PUT /v1/ingest/profile` Profile

@@ -103,4 +103,4 @@ systemctl daemon-reload
 systemctl enable ee-monitor-api ee-monitor-worker
 systemctl restart ee-monitor-api ee-monitor-worker
 sleep 4
-curl -fsS http://127.0.0.1:8010/v1/monitor/status | head -c 300; echo
+curl -fsS http://127.0.0.1:8010/v1/published | head -c 300; echo

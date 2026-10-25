@@ -6,7 +6,7 @@ export AWS_REGION=us-east-1
 ID=$(aws ec2 describe-instances --filters Name=tag:Name,Values=earth-empire Name=instance-state-name,Values=running \
   --query 'Reservations[0].Instances[0].InstanceId' --output text)
 CMD=$(aws ssm send-command --instance-ids "$ID" --document-name AWS-RunShellScript --timeout-seconds 600 \
-  --parameters "$(jq -n --arg s "$*" '{commands: ["cat > /tmp/ee-run.sh <<'"'"'EE_RUN_EOF'"'"'\n" + $s + "\nEE_RUN_EOF", "cd /tmp && bash /tmp/ee-run.sh"], executionTimeout: ["3600"]}')" \
+  --parameters "$(jq -n --arg s "$*" --arg f "/tmp/ee-run-$$-$RANDOM.sh" '{commands: ["cat > " + $f + " <<'"'"'EE_RUN_EOF'"'"'\n" + $s + "\nEE_RUN_EOF", "cd /tmp && bash " + $f + "; rc=$?; rm -f " + $f + "; exit $rc"], executionTimeout: ["3600"]}')" \
   --query Command.CommandId --output text)
 while :; do
   sleep 3

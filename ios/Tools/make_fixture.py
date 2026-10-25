@@ -70,8 +70,16 @@ def media_list(item_id, specs):
             key = f"items/{item_id}/{n}.mp4"
             video(key, (w // 2) // 2 * 2, (h // 2) // 2 * 2, colors, seed, secs)
         image(thumb_key, 360, int(360 * h / w), colors, seed)
-        out.append({"type": kind, "url": MEDIA + key, "thumbnail": MEDIA + thumb_key,
-                    "width": w, "height": h, "duration": secs})
+        entry = {"type": kind, "url": MEDIA + key, "thumbnail": MEDIA + thumb_key,
+                 "width": w, "height": h, "duration": secs}
+        if kind == "video":
+            # The backend's pick of the best-looking frame, saved at full size.
+            at = round(secs * 0.6, 1)
+            cover_key = f"items/{item_id}/{n}.cover.jpg"
+            ffmpeg("-ss", str(at), "-i", os.path.join(OUT, "media", key), "-frames:v", "1", "-q:v", "6",
+                   os.path.join(OUT, "media", cover_key))
+            entry.update({"cover": MEDIA + cover_key, "cover_at": at})
+        out.append(entry)
     return out
 
 
@@ -102,8 +110,11 @@ def item(pk, kind, taken_at, caption, media, *, shortcode=None, categories=(), s
         "tagged_users": list(tagged), "location": location, "music": music, "alt_text": alt_text,
         "stickers": list(stickers), "counts": counts or {}, "media": media,
         "highlights": list(highlights), "repost_of": repost_of,
-        "categories": list(categories), "summary": summary, "analysis": an,
+        "categories": list(categories), "summary": summary,
+        "description": " ".join(x for x in (an and an["what"], an and an["context"]) if x) or summary,
+        "analysis": an,
         "extra": {}, "collected_at": "2026-10-20T08:00:00Z", "updated_at": "2026-10-20T09:00:00Z",
+        "published_at": "2026-10-20T09:00:00Z",
     }
 
 
@@ -157,13 +168,13 @@ def main():
 
     repost_media = media_list("ig_3400000000000000011", [("image", 1080, 1920, None)])
     original_media = media_list("ig_3400000000000000011_orig", [("video", 1080, 1920, 6.0)])
-    for m in original_media:  # the original is re-hosted beside the item that shares it
-        m["url"] = m["url"].replace("ig_3400000000000000011_orig/0", "ig_3400000000000000011/orig.0")
-        m["thumbnail"] = m["thumbnail"].replace("ig_3400000000000000011_orig/0", "ig_3400000000000000011/orig.0")
+    for m in original_media:  # the original is re-hosted beside the item that shares it, as r<n>
+        for k in ("url", "thumbnail", "cover"):
+            m[k] = m[k].replace("ig_3400000000000000011_orig/0", "ig_3400000000000000011/r0")
     os.makedirs(os.path.join(OUT, "media/items/ig_3400000000000000011"), exist_ok=True)
-    for ext in ("mp4", "thumb.jpg"):
+    for ext in ("mp4", "thumb.jpg", "cover.jpg"):
         os.replace(os.path.join(OUT, f"media/items/ig_3400000000000000011_orig/0.{ext}"),
-                   os.path.join(OUT, f"media/items/ig_3400000000000000011/orig.0.{ext}"))
+                   os.path.join(OUT, f"media/items/ig_3400000000000000011/r0.{ext}"))
     os.rmdir(os.path.join(OUT, "media/items/ig_3400000000000000011_orig"))
     items.append(item(
         "3400000000000000011", "story", "2026-10-17T19:05:00Z", None, repost_media,

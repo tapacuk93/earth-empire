@@ -8,9 +8,11 @@ struct ItemQuery: Hashable, Sendable {
     var kind: ItemKind?
     var category: String?
     var highlight: String?
+    /// A tag from the cloud (`tag=`, any kind, case-insensitive).
+    var tag: String?
     var q: String?
 
-    var isEmpty: Bool { kind == nil && category == nil && highlight == nil && (q ?? "").isEmpty }
+    var isEmpty: Bool { kind == nil && category == nil && highlight == nil && tag == nil && (q ?? "").isEmpty }
 }
 
 /// The public read API of CONTRACT.md. Two implementations: `LiveAPI` over HTTP, `SampleAPI` over
@@ -21,6 +23,8 @@ protocol ArchiveAPI: Sendable {
     func item(id: String) async throws -> Item
     func highlights() async throws -> [Highlight]
     func categories() async throws -> [Category]
+    /// The tag cloud, by count.
+    func tags(limit: Int) async throws -> [Tag]
 }
 
 enum APIError: LocalizedError {
@@ -61,6 +65,7 @@ final class LiveAPI: ArchiveAPI, @unchecked Sendable {
         if let k = query.kind { q.append(.init(name: "kind", value: k.rawValue)) }
         if let c = query.category { q.append(.init(name: "category", value: c)) }
         if let h = query.highlight { q.append(.init(name: "highlight", value: h)) }
+        if let t = query.tag { q.append(.init(name: "tag", value: t)) }
         if let s = query.q, !s.isEmpty { q.append(.init(name: "q", value: s)) }
         if let b = before { q.append(.init(name: "before", value: b)) }
         q.append(.init(name: "limit", value: String(limit)))
@@ -88,6 +93,25 @@ final class LiveAPI: ArchiveAPI, @unchecked Sendable {
     func categories() async throws -> [Category] {
         let list: CategoryList = try await get("v1/categories")
         return list.categories
+    }
+
+    /// `GET /v1/tags`; where the backend has none yet (404), the cloud is computed here from the
+    /// newest items.
+    func tags(limit: Int) async throws -> [Tag] {
+        do {
+            let list: TagList = try await get("v1/tags", query: [.init(name: "limit", value: String(limit))])
+            return list.tags
+        } catch APIError.notFound {
+            log.notice("no /v1/tags: computing tags from items")
+            var items: [Item] = []
+            var cursor: String?
+            repeat {
+                let page = try await self.items(ItemQuery(), before: cursor, limit: 100)
+                items += page.items
+                cursor = page.next
+            } while cursor != nil && items.count < 1000
+            return Array(TagIndex.cloud(items).prefix(limit))
+        }
     }
 
     func url(_ path: String, query: [URLQueryItem] = []) -> URL {
@@ -205,6 +229,7 @@ final class SampleAPI: ArchiveAPI, @unchecked Sendable {
     func profile() async throws -> Profile { await wait(); return fixture.profile }
     func highlights() async throws -> [Highlight] { await wait(); return fixture.highlights }
     func categories() async throws -> [Category] { await wait(); return fixture.categories }
+    func tags(limit: Int) async throws -> [Tag] { await wait(); return Array(TagIndex.cloud(fixture.items).prefix(limit)) }
 
     func item(id: String) async throws -> Item {
         await wait()
@@ -232,10 +257,11 @@ final class SampleAPI: ArchiveAPI, @unchecked Sendable {
         if let k = query.kind, item.kind != k { return false }
         if let c = query.category, !(item.categories ?? []).contains(c) { return false }
         if let h = query.highlight, !(item.highlights ?? []).contains(where: { $0.id == h }) { return false }
+        if let t = query.tag, !TagIndex.tags(for: item).contains(where: { $0.tag == TagIndex.normalize(t) }) { return false }
         if let q = query.q?.trimmingCharacters(in: .whitespaces).lowercased(), !q.isEmpty {
             let a = item.analysis
             let haystack: [String?] = [
-                item.caption, item.summary, item.location?.name, a?.what, a?.context,
+                item.caption, item.summary, item.description, item.location?.name, a?.what, a?.context,
                 a?.place?.place, a?.speech?.transcript, item.repostOf?.author, item.repostOf?.caption,
             ]
             let lists: [[String]?] = [item.hashtags, item.highlights?.compactMap(\.title), a?.keywords,

@@ -39,7 +39,8 @@ targets:
         CFBundleDisplayName: Earth Empire
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        EEAPIBase: https://api.empire.earth
+        # The backend's CloudFront hostname until empire.earth's DNS moves; then https://api.empire.earth.
+        EEAPIBase: https://dlmlvr97ak287.cloudfront.net
         ITSAppUsesNonExemptEncryption: false
         LSApplicationCategoryType: public.app-category.photography
         UILaunchScreen:

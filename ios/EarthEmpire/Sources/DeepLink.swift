@@ -3,7 +3,7 @@ import Foundation
 /// A place in the archive, from an empire.earth URL (Universal Link) or an `earthempire://` one.
 ///
 /// The paths are the site's routes (web/src/main.tsx):
-///   /                          the profile; `?q=`, `?kind=`, `?category=` filter its grid
+///   /                          the profile; `?q=`, `?kind=`, `?category=`, `?tag=` filter its grid
 ///   /item/<id>                 an item (also /i/<id>, /items/<id>, /p/<id>, /reel/<id>)
 ///   /category/<slug>           a category (also /c/<slug>, /categories/<slug>)
 ///   /highlight/<id>?item=<id>  a highlight in the story viewer, at one story (also /highlight/<id>/<item>)
@@ -39,7 +39,7 @@ enum DeepLink: Equatable {
         let q = param("q")
 
         guard let first = parts.first?.lowercased() else {
-            let grid = ItemQuery(kind: param("kind").flatMap(ItemKind.init(rawValue:)), category: param("category"), q: q)
+            let grid = ItemQuery(kind: param("kind").flatMap(ItemKind.init(rawValue:)), category: param("category"), tag: param("tag"), q: q)
             return grid.isEmpty ? .home : .grid(grid)
         }
         let second = parts.count > 1 ? parts[1] : nil

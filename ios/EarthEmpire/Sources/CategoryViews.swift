@@ -73,6 +73,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var base = AppConfig.apiBase.absoluteString
     @State private var sample = AppConfig.useSample
+    @AppStorage(HomeMode.storageKey) private var mode: HomeMode = .tags
 
     var body: some View {
         NavigationStack {
@@ -91,6 +92,12 @@ struct SettingsView: View {
                     Text("Source")
                 } footer: {
                     Text("The public read API. Before empire.earth moves to AWS, use the backend's AWS hostname. Sample data is the bundled development fixture.")
+                }
+                Section("Home") {
+                    Picker("Show", selection: $mode) {
+                        ForEach(HomeMode.allCases) { Text($0.label).tag($0) }
+                    }
+                    .accessibilityIdentifier("settings.mode")
                 }
                 Section("Cache") {
                     Button("Clear saved items and media", role: .destructive) {

@@ -22,10 +22,11 @@ final class ContractDecodingTests: XCTestCase {
           "counts": {"likes": 10, "plays": 300},
           "media": [{"type": "video", "url": "https://media.empire.earth/items/x/0.mp4",
                      "thumbnail": "https://media.empire.earth/items/x/0.thumb.jpg",
-                     "width": 1080, "height": 1920, "duration": 12.3}],
+                     "width": 1080, "height": 1920, "duration": 12.3,
+                     "cover": "https://media.empire.earth/items/x/0.cover.jpg", "cover_at": 4.5}],
           "highlights": [{"id": "hl_1", "title": "Travel"}],
           "repost_of": null,
-          "categories": ["surf", "travel"], "summary": "One sentence.",
+          "categories": ["surf", "travel"], "summary": "One sentence.", "description": "A few sentences.",
           "analysis": {
             "people": [{"who": "@marta", "description": "surfer", "basis": "tag", "role": "surfer",
                         "appears": [{"media": 0, "from": 1.5, "to": 8.0}]},
@@ -40,7 +41,8 @@ final class ContractDecodingTests: XCTestCase {
             "keywords": ["surf"], "model": "claude", "analyzed_at": "2024-05-02T00:00:00Z"
           },
           "extra": {"anything": [1, "two", true, null]},
-          "collected_at": "2024-05-01T13:00:00Z", "updated_at": "2024-05-02T00:00:00Z"
+          "collected_at": "2024-05-01T13:00:00Z", "updated_at": "2024-05-02T00:00:00Z",
+          "published_at": "2024-05-02T00:00:01Z"
         }
         """)
         XCTAssertEqual(item.kind, .reel)
@@ -49,6 +51,10 @@ final class ContractDecodingTests: XCTestCase {
         XCTAssertEqual(item.media.first?.type, .video)
         XCTAssertEqual(item.media.first?.duration, 12.3)
         XCTAssertEqual(item.media.first?.aspectRatio ?? 0, 1080.0 / 1920.0, accuracy: 0.001)
+        XCTAssertEqual(item.media.first?.coverAt, 4.5)
+        XCTAssertEqual(item.coverURL?.absoluteString, "https://media.empire.earth/items/x/0.cover.jpg", "the chosen frame is the cover")
+        XCTAssertEqual(item.description, "A few sentences.")
+        XCTAssertEqual(item.publishedAt, "2024-05-02T00:00:01Z")
         XCTAssertEqual(item.counts?.plays, 300)
         XCTAssertNil(item.counts?.views)
         XCTAssertNil(item.repostOf)
@@ -87,6 +93,32 @@ final class ContractDecodingTests: XCTestCase {
         XCTAssertEqual(item.repostOf?.author, "nazare.daily")
         XCTAssertEqual(item.repostOf?.media?.first?.type, .video)
         XCTAssertTrue(item.accessibilityDescription.contains("repost of @nazare.daily"))
+    }
+
+    func testCoverFallsBackToThumbnail() throws {
+        let item = try decode(Item.self, """
+        {"id": "ig_3", "kind": "reel", "media": [{"type": "video", "url": "https://m/0.mp4", "thumbnail": "https://m/0.thumb.jpg", "cover": null}]}
+        """)
+        XCTAssertEqual(item.coverURL?.absoluteString, "https://m/0.thumb.jpg")
+    }
+
+    func testTagsShape() throws {
+        let list = try decode(TagList.self, #"{"tags": [{"tag": "beach", "kind": "keyword", "count": 12}]}"#)
+        XCTAssertEqual(list.tags, [Tag(tag: "beach", kind: "keyword", count: 12)])
+    }
+
+    /// Tags computed on the device follow the backend's rules: lowercase, people only when the
+    /// post named them, counted once per item.
+    func testLocalTagCloud() throws {
+        let api = try SampleAPI.bundled()
+        let cloud = TagIndex.cloud(api.fixture.items)
+        XCTAssertTrue(cloud.allSatisfy { $0.tag == $0.tag.lowercased() })
+        XCTAssertEqual(cloud.map(\.count), cloud.map(\.count).sorted(by: >))
+        XCTAssertTrue(cloud.contains { $0.tag == "@marta.waves" && $0.kind == "person" })
+        XCTAssertFalse(cloud.contains { $0.kind == "person" && $0.tag.contains("lifeguard") }, "described people are not tags")
+        let travel = try XCTUnwrap(cloud.first { $0.tag == "travel" && $0.kind == "category" })
+        XCTAssertEqual(travel.count, api.fixture.items.filter { $0.categories?.contains("travel") == true }.count)
+        XCTAssertEqual(TagIndex.normalize("  #Big   Wave "), "big wave")
     }
 
     func testUnknownKindAndMissingMediaStillDecode() throws {

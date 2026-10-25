@@ -7,11 +7,13 @@ struct ProfileView: View {
     @State private var committedSearch = ""
     @State private var kind: ItemKind?
     @State private var category: String?
+    @State private var tag: String?
     @State private var pager: Pager<Item>?
+    @AppStorage(HomeMode.storageKey) private var mode: HomeMode = .tags
     @State private var showSettings = false
 
     private var query: ItemQuery {
-        ItemQuery(kind: kind, category: category, highlight: nil, q: committedSearch.isEmpty ? nil : committedSearch)
+        ItemQuery(kind: kind, category: category, highlight: nil, tag: tag, q: committedSearch.isEmpty ? nil : committedSearch)
     }
 
     var body: some View {
@@ -24,6 +26,31 @@ struct ProfileView: View {
                     HighlightsRow()
                         .padding(.vertical, 12)
                 }
+                Picker("Show", selection: $mode) {
+                    ForEach(HomeMode.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+                .padding(.bottom, 10)
+                .accessibilityIdentifier("home.mode")
+                if mode == .tags && committedSearch.isEmpty {
+                    TagCloud(tags: model.tags, selected: $tag)
+                        .padding(.horizontal)
+                        .padding(.bottom, 10)
+                }
+                if let tag {
+                    Button { self.tag = nil } label: {
+                        Label("#\(tag)", systemImage: "xmark.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Theme.accent.opacity(0.2), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                    .accessibilityLabel("Filtered by \(tag). Clear")
+                    .accessibilityIdentifier("tag.selected")
+                }
                 FilterBar(kind: $kind, category: $category)
                     .padding(.bottom, 8)
                 if let error = model.homeError, model.profile == nil {
@@ -31,7 +58,7 @@ struct ProfileView: View {
                         .padding()
                 }
                 if let pager {
-                    ItemGrid(pager: pager)
+                    if mode == .timeline { TimelineList(pager: pager) } else { ItemGrid(pager: pager) }
                 }
             }
         }
@@ -79,6 +106,7 @@ struct ProfileView: View {
             committedSearch = search
             kind = q.kind
             category = q.category
+            tag = q.tag
             model.pendingQuery = nil
         }
     }

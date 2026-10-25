@@ -142,7 +142,9 @@
      "thumbnail": "https://media.empire.earth/items/ig_3400000000000000012/0.thumb.jpg",
      "width": 1080,
      "height": 1920,
-     "duration": 8.0
+     "duration": 8.0,
+     "cover": "https://media.empire.earth/items/ig_3400000000000000012/0.cover.jpg",
+     "cover_at": 4.8
     }
    ],
    "highlights": [],
@@ -153,6 +155,7 @@
     "friends"
    ],
    "summary": "A dawn surf session at Ribeira d'Ilhas with Marta, from paddle-out to the last wave.",
+   "description": "Two surfers paddle out at sunrise, catch a few waves on a small clean swell and walk back up the beach laughing. Part of a recurring series of dawn sessions in Ericeira; Marta appears in several earlier surf posts.",
    "analysis": {
     "people": [
      {
@@ -261,7 +264,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3400000000000000011",
@@ -310,11 +314,13 @@
     "media": [
      {
       "type": "video",
-      "url": "https://media.empire.earth/items/ig_3400000000000000011/orig.0.mp4",
-      "thumbnail": "https://media.empire.earth/items/ig_3400000000000000011/orig.0.thumb.jpg",
+      "url": "https://media.empire.earth/items/ig_3400000000000000011/r0.mp4",
+      "thumbnail": "https://media.empire.earth/items/ig_3400000000000000011/r0.thumb.jpg",
       "width": 1080,
       "height": 1920,
-      "duration": 6.0
+      "duration": 6.0,
+      "cover": "https://media.empire.earth/items/ig_3400000000000000011/r0.cover.jpg",
+      "cover_at": 3.6
      }
     ]
    },
@@ -323,6 +329,7 @@
     "reposts"
    ],
    "summary": "A shared reel by @nazare.daily of a big-wave set at Nazaré.",
+   "description": "The owner shares a reel of tow-in surfers riding huge waves at Praia do Norte, Nazaré. Shared from @nazare.daily; the owner follows big-wave season every autumn.",
    "analysis": {
     "people": [
      {
@@ -379,7 +386,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3400000000000000010",
@@ -430,7 +438,9 @@
      "thumbnail": "https://media.empire.earth/items/ig_3400000000000000010/2.thumb.jpg",
      "width": 1080,
      "height": 1350,
-     "duration": 5.0
+     "duration": 5.0,
+     "cover": "https://media.empire.earth/items/ig_3400000000000000010/2.cover.jpg",
+     "cover_at": 3.0
     },
     {
      "type": "image",
@@ -449,6 +459,7 @@
     "city"
    ],
    "summary": "A Lisbon weekend in four frames: tiles, a tram, a pastry counter and the view from a miradouro.",
+   "description": "A carousel from a weekend in Lisbon: a tiled façade, a yellow tram climbing a hill, a short clip of pastéis de nata coming out of the oven, and the city at sunset. Third trip to Lisbon in the archive; follows the Ericeira surf series.",
    "analysis": {
     "people": [
      {
@@ -521,7 +532,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3400000000000000008",
@@ -550,7 +562,9 @@
      "thumbnail": "https://media.empire.earth/items/ig_3400000000000000008/0.thumb.jpg",
      "width": 1080,
      "height": 1920,
-     "duration": 5.0
+     "duration": 5.0,
+     "cover": "https://media.empire.earth/items/ig_3400000000000000008/0.cover.jpg",
+     "cover_at": 3.0
     }
    ],
    "highlights": [
@@ -565,6 +579,7 @@
     "city"
    ],
    "summary": "Tram 28 rattling up a hill in Alfama at golden hour.",
+   "description": "A yellow tram climbs a narrow street in Alfama as the sun sets.",
    "analysis": {
     "people": [],
     "what": "A yellow tram climbs a narrow street in Alfama as the sun sets.",
@@ -608,7 +623,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3400000000000000009",
@@ -672,6 +688,7 @@
     "travel"
    ],
    "summary": "Breakfast at a Lisbon café: a bica and two pastéis de nata.",
+   "description": "A close-up of a café table with an espresso and two custard tarts, with a poll asking about cinnamon.",
    "analysis": {
     "people": [],
     "what": "A close-up of a café table with an espresso and two custard tarts, with a poll asking about cinnamon.",
@@ -714,7 +731,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3400000000000000007",
@@ -759,6 +777,7 @@
     "family"
    ],
    "summary": "An autumn afternoon in Kyiv, chestnut trees turning on Khreshchatyk.",
+   "description": "A wide street lined with chestnut trees in autumn colours, people walking on a closed-off avenue. The owner visits Kyiv most autumns; earlier posts show the same street.",
    "analysis": {
     "people": [],
     "what": "A wide street lined with chestnut trees in autumn colours, people walking on a closed-off avenue.",
@@ -798,7 +817,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3400000000000000006",
@@ -826,7 +846,9 @@
      "thumbnail": "https://media.empire.earth/items/ig_3400000000000000006/0.thumb.jpg",
      "width": 1080,
      "height": 1920,
-     "duration": 7.0
+     "duration": 7.0,
+     "cover": "https://media.empire.earth/items/ig_3400000000000000006/0.cover.jpg",
+     "cover_at": 4.2
     }
    ],
    "highlights": [],
@@ -836,6 +858,7 @@
     "family"
    ],
    "summary": "Grandmother shows how she makes varenyky by hand, from dough to boiling.",
+   "description": "An older woman rolls dough, cuts circles with a glass, fills them with potato and folds varenyky, then drops them into boiling water. Named in the caption of an earlier post as the owner's grandmother Halyna.",
    "analysis": {
     "people": [
      {
@@ -916,7 +939,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3400000000000000005",
@@ -969,6 +993,7 @@
     "travel"
    ],
    "summary": "A post sharing @alex.films' summer road-trip reel.",
+   "description": "A shared reel from Alex Moreno's van trip across Europe. Repost; the original is by @alex.films.",
    "analysis": {
     "people": [
      {
@@ -1013,7 +1038,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3300000000000000000",
@@ -1052,6 +1078,7 @@
     "city"
    ],
    "summary": "A sunrise run along the river in Lisbon.",
+   "description": "A sunrise run along the river in Lisbon.",
    "analysis": {
     "people": [],
     "what": "A sunrise run along the river in Lisbon.",
@@ -1087,7 +1114,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3300000000000000001",
@@ -1126,6 +1154,7 @@
     "food"
    ],
    "summary": "A basket of tomatoes from the family garden.",
+   "description": "A basket of tomatoes from the family garden.",
    "analysis": {
     "people": [],
     "what": "A basket of tomatoes from the family garden.",
@@ -1161,7 +1190,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3300000000000000002",
@@ -1204,6 +1234,7 @@
     "travel"
    ],
    "summary": "A flat-lay of a small backpack's contents before a trip.",
+   "description": "A flat-lay of a small backpack's contents before a trip.",
    "analysis": {
     "people": [],
     "what": "A flat-lay of a small backpack's contents before a trip.",
@@ -1238,7 +1269,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3300000000000000003",
@@ -1277,6 +1309,7 @@
     "travel"
    ],
    "summary": "Swimming at sunset on the longest day of the year.",
+   "description": "Swimming at sunset on the longest day of the year.",
    "analysis": {
     "people": [],
     "what": "Swimming at sunset on the longest day of the year.",
@@ -1312,7 +1345,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3300000000000000004",
@@ -1355,6 +1389,7 @@
     "surf"
    ],
    "summary": "Unwrapping a new surfboard.",
+   "description": "Unwrapping a new surfboard.",
    "analysis": {
     "people": [],
     "what": "Unwrapping a new surfboard.",
@@ -1389,7 +1424,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   },
   {
    "id": "ig_3300000000000000005",
@@ -1427,6 +1463,7 @@
     "city"
    ],
    "summary": "Magnolias in bloom by the botanical garden.",
+   "description": "Magnolias in bloom by the botanical garden.",
    "analysis": {
     "people": [],
     "what": "Magnolias in bloom by the botanical garden.",
@@ -1461,7 +1498,8 @@
    },
    "extra": {},
    "collected_at": "2026-10-20T08:00:00Z",
-   "updated_at": "2026-10-20T09:00:00Z"
+   "updated_at": "2026-10-20T09:00:00Z",
+   "published_at": "2026-10-20T09:00:00Z"
   }
  ]
 }

@@ -54,10 +54,13 @@ struct Item: Codable, Identifiable, Hashable, Sendable {
     var repostOf: Repost?
     var categories: [String]?
     var summary: String?
+    /// A few publishable sentences on who, what, when, where and context (the backend's).
+    var description: String?
     var analysis: Analysis?
     var extra: JSONValue?
     var collectedAt: String?
     var updatedAt: String?
+    var publishedAt: String?
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -80,10 +83,12 @@ struct Item: Codable, Identifiable, Hashable, Sendable {
         repostOf = try c.decodeIfPresent(Repost.self, forKey: .repostOf)
         categories = try c.decodeIfPresent([String].self, forKey: .categories)
         summary = try c.decodeIfPresent(String.self, forKey: .summary)
+        description = try c.decodeIfPresent(String.self, forKey: .description)
         analysis = try c.decodeIfPresent(Analysis.self, forKey: .analysis)
         extra = try c.decodeIfPresent(JSONValue.self, forKey: .extra)
         collectedAt = try c.decodeIfPresent(String.self, forKey: .collectedAt)
         updatedAt = try c.decodeIfPresent(String.self, forKey: .updatedAt)
+        publishedAt = try c.decodeIfPresent(String.self, forKey: .publishedAt)
     }
 
     var takenDate: Date? { takenAt.flatMap(ISODate.parse) }
@@ -91,14 +96,14 @@ struct Item: Codable, Identifiable, Hashable, Sendable {
     /// The picture that stands for the item in a grid: its first thumbnail, else the original's.
     var coverURL: URL? {
         let m = media.first ?? repostOf?.media?.first
-        return URL(string: m?.thumbnail ?? m?.url ?? "")
+        return URL(string: m?.poster ?? "")
     }
 
     /// What VoiceOver reads for the item wherever it appears as a tile: kind, what the analysis
     /// saw, and when.
     var accessibilityDescription: String {
         var parts = [isRepost ? "\(kind.label), repost of @\(repostOf?.author ?? "")" : kind.label]
-        if let s = summary ?? analysis?.what ?? altText ?? caption { parts.append(s) }
+        if let s = summary ?? description ?? analysis?.what ?? altText ?? caption { parts.append(s) }
         if let d = takenDate { parts.append(d.formatted(date: .long, time: .omitted)) }
         return parts.joined(separator: ". ")
     }
@@ -144,6 +149,9 @@ struct Media: Codable, Hashable, Sendable {
     var width: Double?
     var height: Double?
     var duration: Double?
+    /// Video only: the frame Claude picked as the best-looking, at full size, and its time.
+    var cover: String?
+    var coverAt: Double?
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -153,7 +161,13 @@ struct Media: Codable, Hashable, Sendable {
         width = try c.decodeIfPresent(Double.self, forKey: .width)
         height = try c.decodeIfPresent(Double.self, forKey: .height)
         duration = try c.decodeIfPresent(Double.self, forKey: .duration)
+        cover = try c.decodeIfPresent(String.self, forKey: .cover)
+        coverAt = try c.decodeIfPresent(Double.self, forKey: .coverAt)
     }
+
+    /// The picture that stands for this media: a video's chosen cover, else its thumbnail; an
+    /// image's thumbnail, else the image.
+    var poster: String { cover ?? thumbnail ?? url }
 
     var aspectRatio: CGFloat {
         guard let w = width, let h = height, w > 0, h > 0 else { return 1 }
@@ -297,6 +311,15 @@ struct ItemPage: Codable, Sendable {
 }
 
 struct HighlightList: Codable, Sendable { var highlights: [Highlight] }
+struct TagList: Codable, Sendable { var tags: [Tag] }
+
+/// A tag-cloud entry (`GET /v1/tags`): lowercase, of one kind, with how many items have it.
+struct Tag: Codable, Hashable, Identifiable, Sendable {
+    var tag: String
+    var kind: String
+    var count: Int
+    var id: String { kind + ":" + tag }
+}
 struct CategoryList: Codable, Sendable { var categories: [Category] }
 
 /// Any JSON, for `extra` and sticker payloads the contract leaves open.

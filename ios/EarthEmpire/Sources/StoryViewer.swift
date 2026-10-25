@@ -192,7 +192,7 @@ struct StoryViewer: View {
                 if m.type == .video, let player {
                     StoryPlayerView(player: player)
                 } else {
-                    RemoteImage(m.type == .video ? m.thumbnail : m.url, contentMode: .fit)
+                    RemoteImage(m.type == .video ? m.poster : m.url, contentMode: .fit)
                 }
             }
         }

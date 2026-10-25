@@ -95,6 +95,10 @@ struct ItemDetailView: View {
                     .background(Theme.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
                     .accessibilityLabel("Summary: \(summary)")
             }
+            if let d = item.description, !d.isEmpty {
+                Text(d).font(.callout).foregroundStyle(.secondary)
+                    .accessibilityIdentifier("item.description")
+            }
             CategoryChips(item: item)
             HighlightChips(item: item)
             if let analysis = item.analysis {
@@ -181,7 +185,7 @@ struct VideoPage: View {
                 VideoPlayer(player: player)
                     .accessibilityLabel("Video. \(label)")
             } else {
-                RemoteImage(media.thumbnail, contentMode: .fit, accessibilityLabel: nil)
+                RemoteImage(media.poster, contentMode: .fit, accessibilityLabel: nil)
                 Button {
                     started = true
                     playback.player(index, url: media.url)?.play()
@@ -245,7 +249,7 @@ struct RepostCard: View {
                 .font(.subheadline)
             HStack(alignment: .top, spacing: 10) {
                 if let m = repost.media?.first {
-                    RemoteImage(m.thumbnail ?? m.url)
+                    RemoteImage(m.poster)
                         .frame(width: 64, height: 84)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .accessibilityHidden(true)

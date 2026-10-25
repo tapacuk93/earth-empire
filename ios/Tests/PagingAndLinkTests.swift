@@ -143,6 +143,9 @@ final class PagerTests: XCTestCase {
         XCTAssertTrue(food.items.allSatisfy { $0.categories?.contains("food") == true })
         let search = try await api.items(ItemQuery(q: "varenyky"), before: nil, limit: 50)
         XCTAssertEqual(search.items.count, 1)
+        let tagged = try await api.items(ItemQuery(tag: "Surf"), before: nil, limit: 50)
+        XCTAssertFalse(tagged.items.isEmpty)
+        XCTAssertTrue(tagged.items.allSatisfy { TagIndex.tags(for: $0).contains { $0.tag == "surf" } })
         let byPerson = try await api.items(ItemQuery(q: "marta"), before: nil, limit: 50)
         XCTAssertFalse(byPerson.items.isEmpty)
     }
@@ -174,6 +177,7 @@ final class DeepLinkTests: XCTestCase {
         XCTAssertEqual(parse("https://empire.earth/?q=lisbon"), .grid(ItemQuery(q: "lisbon")))
         XCTAssertEqual(parse("https://empire.earth/?kind=reel&category=food"), .grid(ItemQuery(kind: .reel, category: "food")))
         XCTAssertEqual(parse("https://empire.earth/?q="), .home)
+        XCTAssertEqual(parse("https://empire.earth/?tag=beach"), .grid(ItemQuery(tag: "beach")))
         XCTAssertEqual(parse("https://empire.earth/#/item/ig_7"), .item("ig_7"))
     }
 

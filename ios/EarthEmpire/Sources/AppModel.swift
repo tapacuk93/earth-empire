@@ -2,6 +2,14 @@ import Foundation
 import Observation
 import SwiftUI
 
+/// What the home screen shows under the highlights, remembered in settings.
+enum HomeMode: String, CaseIterable, Identifiable {
+    case tags, timeline
+    var id: String { rawValue }
+    var label: String { self == .tags ? "Tag cloud" : "Chronological" }
+    static let storageKey = "EEHomeMode"
+}
+
 enum Route: Hashable {
     case item(String, preview: Item?)
     case category(String)
@@ -30,6 +38,7 @@ final class AppModel {
     var profile: Profile?
     var highlights: [Highlight] = []
     var categories: [Category] = []
+    var tags: [Tag] = []
     var homeError: Error?
     var path = NavigationPath()
     var story: StoryRequest?
@@ -58,6 +67,7 @@ final class AppModel {
         profile = nil
         highlights = []
         categories = []
+        tags = []
         path = NavigationPath()
     }
 
@@ -71,6 +81,9 @@ final class AppModel {
             self.highlights = highlights
             self.categories = categories
             homeError = nil
+            do { tags = try await api.tags(limit: 300) } catch {
+                log.error("tags failed: \(error.localizedDescription, privacy: .public)")
+            }
         } catch {
             log.error("home failed: \(error.localizedDescription, privacy: .public)")
             #if DEBUG

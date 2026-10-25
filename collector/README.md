@@ -56,7 +56,7 @@ tries an automatic login again until someone logs in by hand.
 aws ssm start-session --target <instance id>          # then, on the box:
 ee-collector status                                   # items so far, cursors, login state
 ee-collector incremental                              # one run now (as earth; the wrapper sudoes)
-ee-collector sample                                   # gentlest run: the profile and the newest video only
+ee-collector sample                                   # gentlest run: one profile page view, then its newest video
 sudo systemctl enable --now ee-collector-incremental.timer   # every ~45 min
 sudo systemctl start ee-collector-backfill            # the whole account in one go, resumable
 journalctl -u ee-collector-incremental -u ee-collector-backfill -f
@@ -82,30 +82,17 @@ ls /var/log/earth-empire/collector/                   # one log file per run
   backups. Screenshots there and the browser profile are not backed up; logs are in
   `/var/log/earth-empire/collector/`.
 
-## Running on the Mac instead
+## Where it runs
 
-Instagram throttles the box's AWS address (429 on the first request), and the session was created
-on the owner's Mac, so the collector can run there instead:
-
-```sh
-collector/deploy/mac/install.sh              # venv, launchd agents (every 45 min + heartbeat), runner=mac
-collector/deploy/mac/install.sh --run --budget 15   # one run now, in the foreground
-collector/deploy/mac/install.sh --uninstall  # back to the box (runner=box)
-tail -f ~/Library/Application\ Support/earth-empire/collector/logs/*.log
-```
-
-It keeps everything in `~/Library/Application Support/earth-empire/collector` (mode 700), uses
-the Playwright Chromium in `~/Library/Caches/ms-playwright`, ingests to `https://api.empire.earth`
-with the token from Secrets Manager, and imports the session from `earth-empire/instagram-session`.
-The SSM parameter `/earth-empire/collector/runner` (`mac` or `box`) decides which machine may touch
-Instagram; the other one's runs and heartbeats exit at once, so the two never share the session.
-Same pacing, cool-down and stop-on-challenge rules as on the box.
+On the box only. The SSM parameter `/earth-empire/collector/runner` names the machine allowed to
+touch Instagram (`box`); a runner with another `EE_RUNNER` exits at once.
 
 ## Rate limits
 
 12-30 s between Instagram requests, at most 80 an hour, a pause every ~20. The profile comes from
-opening the profile page as a person would (its own responses carry the user and the newest posts),
-not from `web_profile_info`, which is used once at most when nothing else gives the user id. The
+opening the profile page as a person would (its own responses and embedded data carry the user and
+the newest posts). `web_profile_info` is never called; if the page yields no profile, the run stops
+(`STOPPED (profile page gave nothing)`) without any API request. The
 first 429 or "please wait" ends the run at once; then no run touches Instagram for 2 h, 4 h, 8 h, up
 to 12 h after repeated ones (`ratelimit.until` in the state; `--force` overrides). A good run resets it.
 

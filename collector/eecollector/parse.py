@@ -624,7 +624,7 @@ def reels(resp: dict) -> dict[str, dict]:
 # ---------------------------------------------------------------- profile
 
 def profile(resp: dict) -> dict:
-    """The contract's Profile (avatar under `_avatar_src`) plus `_id`, from web_profile_info or users/<id>/info."""
+    """The contract's Profile (avatar under `_avatar_src`) plus `_id`, from a user record (the profile page's data)."""
     u = (resp.get("data") or {}).get("user") or resp.get("user") or resp
     links = []
     for bl in u.get("bio_links") or []:

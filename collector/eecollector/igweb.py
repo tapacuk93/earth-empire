@@ -443,9 +443,6 @@ class IGBrowser:
 
     # ------------------------------------------------------------ the client interface
 
-    def profile(self, username: str) -> dict:
-        return self.api(f"/api/v1/users/web_profile_info/?username={username}")
-
     def feed(self, user_id: str, cursor: str | None) -> dict:
         q = {"count": 12}
         if cursor:

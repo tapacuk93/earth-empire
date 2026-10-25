@@ -102,18 +102,13 @@ class Collector:
         return False
 
     def run_sample(self) -> dict:
-        """The gentlest useful run: the profile and the newest video only (a page view, at most
-        one more request)."""
+        """The gentlest useful run: one view of the profile page, then the newest video on it."""
         log.info("run sample: the profile and the newest video")
         self.do_profile()
         videos = [m for m in self.harvested if parse.is_video(m) or m.get("media_type") == 2]
         if not videos:
-            log.info("sample: no video on the profile page; reading the first Reels page")
-            media, _ = parse.clips_page(self.ig.clips(self.uid, None))
-            videos = [m for m in media if parse.is_video(m)]
-        if not videos:
-            log.warning("sample: no video found")
-            return self.counts
+            raise IGStop("page", f"the profile page showed {len(self.harvested)} posts and no video; "
+                                 "stopping without any API request")
         newest = max(videos, key=lambda m: m.get("taken_at") or 0)
         self.beat("posts 0/1 (downloads)", 0.0, force=True)
         self.take(newest)
@@ -133,9 +128,9 @@ class Collector:
         uid = self.state.get("profile.uid")
         due = not uid or time.time() - self.state.get("profile.at", 0) > PROFILE_EVERY
         p = None
-        if hasattr(self.ig, "browse"):
-            # the profile page as a person opens it; its own requests carry the profile and the
-            # newest posts, so web_profile_info is not needed
+        if True:
+            # the profile page as a person opens it: its own requests and embedded data carry the
+            # profile and the newest posts. Never web_profile_info (throttled; looks like a bot).
             bodies = self.ig.browse(f"https://www.instagram.com/{self.target}/", scrolls=1)
             shown = self.ig.page_text() if hasattr(self.ig, "page_text") else ""
             if "isn't available" in shown or "Sorry, this page" in shown:
@@ -157,11 +152,8 @@ class Collector:
             self.total_posts = self.state.get("profile.posts")
             log.info("profile: fresh enough, not fetched")
             return
-        if p is None:
-            log.info("profile: fetching web_profile_info (no cached user id)")
-            p = parse.profile(self.ig.profile(self.target))
-        if not p["_id"]:
-            raise IGError("profile response had no user id")
+        if p is None or not p["_id"]:
+            raise IGStop("page", "the profile page did not yield the profile; stopping without any API request")
         self.uid = p.pop("_id")
         self.state.set("profile.uid", self.uid)
         self.state.set("profile.at", time.time())

@@ -9,6 +9,7 @@ import pytest
 from PIL import Image
 
 from eecollector.backend import Backend
+from eecollector.igweb import IGStop
 from eecollector.pipeline import Collector
 from eecollector.state import State
 from mock_backend import serve
@@ -29,9 +30,12 @@ class FakeIG:
             ("info", "media_info_original.json"), ("clips", "clips_user.json"))}
         self.fail_feed_after = None
 
-    def profile(self, u):
-        self.calls.append("profile")
-        return self.data["profile"]
+    def browse(self, url, scrolls=1):
+        """The profile page: the user record only (its posts come from the feed fixture)."""
+        self.calls.append("browse:" + url)
+        if url.endswith("/reposts/"):
+            return []
+        return [self.data["profile"]]
 
     def feed(self, uid, cursor):
         self.calls.append(f"feed:{cursor}")
@@ -208,8 +212,6 @@ class BrowsingIG(FakeIG):
         timeline = fx("graphql_timeline.json")
         return [{"data": {"user": u}}, timeline]
 
-    def profile(self, u):
-        raise AssertionError("web_profile_info must not be called when the profile page has the user")
 
 
 def test_profile_page_instead_of_web_profile_info(env):
@@ -227,8 +229,13 @@ def test_profile_page_instead_of_web_profile_info(env):
 def test_sample_newest_video_only(env):
     store, backend, state = env
     ig = BrowsingIG()
+    # the profile page shows a photo and a carousel, no video: stop, with no API request
+    with pytest.raises(IGStop) as e:
+        Collector(ig, backend, state, FakeDL(), "example.owner").run("sample")
+    assert e.value.kind == "page" and ig.calls == ["browse:https://www.instagram.com/example.owner/"]
+    # with a reel on the page, the newest video is the only item sent
+    reel = fx("feed_user_page2.json")["items"][0]
+    ig.browse = lambda url, scrolls=1: [{"data": {"user": fx("web_profile_info.json")["data"]["user"]}},
+                                        fx("graphql_timeline.json"), {"items": [reel]}]
     Collector(ig, backend, state, FakeDL(), "example.owner").run("sample")
-    # the profile page shows a photo and a carousel (no video item), so it reads one Reels page
-    assert store.profile["username"] == "example.owner"
-    assert list(store.items) == ["ig_3300000000000000003"]   # the newest reel
-    assert "clips" in ig.calls and not any(c.startswith(("feed:", "reels:", "tray")) for c in ig.calls)
+    assert list(store.items) == ["ig_3300000000000000003"]

@@ -1,0 +1,40 @@
+{
+ "data": {
+  "user": {
+   "id": "1000000001",
+   "username": "example.owner",
+   "full_name": "Example Owner",
+   "biography": "Somewhere on Earth 🌍",
+   "bio_links": [
+    {
+     "title": "site",
+     "url": "https://example.com/",
+     "link_type": "external"
+    }
+   ],
+   "external_url": "https://example.com/",
+   "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s150.jpg",
+   "profile_pic_url_hd": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s320.jpg?stp=dst-jpg_s320x320&oh=00_A&oe=6A000000",
+   "edge_owner_to_timeline_media": {
+    "count": 3,
+    "page_info": {
+     "has_next_page": true,
+     "end_cursor": "x"
+    },
+    "edges": []
+   },
+   "edge_followed_by": {
+    "count": 1234
+   },
+   "edge_follow": {
+    "count": 321
+   },
+   "is_private": false,
+   "is_verified": false,
+   "highlight_reel_count": 2,
+   "category_name": "Photographer",
+   "is_business_account": false
+  }
+ },
+ "status": "ok"
+}

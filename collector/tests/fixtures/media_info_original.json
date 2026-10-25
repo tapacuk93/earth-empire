@@ -1,0 +1,82 @@
+{
+ "items": [
+  {
+   "pk": "3400000000000000009",
+   "id": "3400000000000000009_2000000002",
+   "code": "DBzzzzzzzzz",
+   "taken_at": 1713900000,
+   "media_type": 2,
+   "product_type": "clips",
+   "user": {
+    "pk": "2000000002",
+    "id": "2000000002",
+    "username": "other.author",
+    "full_name": "Other Author",
+    "is_verified": true,
+    "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/other.jpg"
+   },
+   "caption": {
+    "text": "The original reel #original"
+   },
+   "image_versions2": {
+    "candidates": [
+     {
+      "width": 720,
+      "height": 1280,
+      "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/orig_1080.jpg?stp=dst-jpg_e35&oh=00_A&oe=6A000000"
+     },
+     {
+      "width": 640,
+      "height": 1137,
+      "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/orig_640.jpg?stp=dst-jpg_e35_p640x640&oh=00_A"
+     },
+     {
+      "width": 320,
+      "height": 568,
+      "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/orig_320.jpg"
+     }
+    ]
+   },
+   "video_versions": [
+    {
+     "type": 101,
+     "width": 720,
+     "height": 1280,
+     "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/orig_720.mp4?efg=x&oh=00_A&oe=6A000000",
+     "id": "1"
+    },
+    {
+     "type": 102,
+     "width": 480,
+     "height": 854,
+     "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/orig_480.mp4",
+     "id": "2"
+    },
+    {
+     "type": 103,
+     "width": 480,
+     "height": 854,
+     "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/orig_480b.mp4",
+     "id": "3"
+    }
+   ],
+   "video_duration": 20.0,
+   "like_count": 50000,
+   "comment_count": 800,
+   "play_count": 1200000,
+   "clips_metadata": {
+    "music_info": null,
+    "original_sound_info": {
+     "original_audio_title": "Original audio",
+     "ig_artist": {
+      "username": "other.author"
+     }
+    }
+   }
+  }
+ ],
+ "num_results": 1,
+ "more_available": false,
+ "auto_load_more_enabled": false,
+ "status": "ok"
+}

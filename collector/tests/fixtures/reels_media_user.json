@@ -1,0 +1,136 @@
+{
+ "reels": {
+  "1000000001": {
+   "id": "1000000001",
+   "reel_type": "user_reel",
+   "user": {
+    "pk": "1000000001",
+    "pk_id": "1000000001",
+    "id": "1000000001",
+    "username": "example.owner",
+    "full_name": "Example Owner",
+    "is_private": false,
+    "is_verified": false,
+    "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s150.jpg?stp=dst-jpg_s150x150&_nc_ht=x&oh=00_A&oe=6A000000"
+   },
+   "items": [
+    {
+     "pk": "3300000000000000201",
+     "id": "3300000000000000201_1000000001",
+     "taken_at": 1714600000,
+     "expiring_at": 1714686400,
+     "media_type": 1,
+     "product_type": "story",
+     "user": {
+      "pk": "1000000001",
+      "pk_id": "1000000001",
+      "id": "1000000001",
+      "username": "example.owner",
+      "full_name": "Example Owner",
+      "is_private": false,
+      "is_verified": false,
+      "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s150.jpg?stp=dst-jpg_s150x150&_nc_ht=x&oh=00_A&oe=6A000000"
+     },
+     "image_versions2": {
+      "candidates": [
+       {
+        "width": 1080,
+        "height": 1920,
+        "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/story3_1080.jpg?stp=dst-jpg_e35&oh=00_A&oe=6A000000"
+       },
+       {
+        "width": 640,
+        "height": 1137,
+        "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/story3_640.jpg?stp=dst-jpg_e35_p640x640&oh=00_A"
+       },
+       {
+        "width": 320,
+        "height": 568,
+        "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/story3_320.jpg"
+       }
+      ]
+     },
+     "story_link_stickers": [
+      {
+       "x": 0.5,
+       "y": 0.8,
+       "story_link": {
+        "url": "https://example.com/post",
+        "link_title": "Read more",
+        "display_url": "example.com/post"
+       }
+      }
+     ]
+    }
+   ],
+   "latest_reel_media": 1714600000
+  }
+ },
+ "reels_media": [
+  {
+   "id": "1000000001",
+   "reel_type": "user_reel",
+   "user": {
+    "pk": "1000000001",
+    "pk_id": "1000000001",
+    "id": "1000000001",
+    "username": "example.owner",
+    "full_name": "Example Owner",
+    "is_private": false,
+    "is_verified": false,
+    "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s150.jpg?stp=dst-jpg_s150x150&_nc_ht=x&oh=00_A&oe=6A000000"
+   },
+   "items": [
+    {
+     "pk": "3300000000000000201",
+     "id": "3300000000000000201_1000000001",
+     "taken_at": 1714600000,
+     "expiring_at": 1714686400,
+     "media_type": 1,
+     "product_type": "story",
+     "user": {
+      "pk": "1000000001",
+      "pk_id": "1000000001",
+      "id": "1000000001",
+      "username": "example.owner",
+      "full_name": "Example Owner",
+      "is_private": false,
+      "is_verified": false,
+      "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s150.jpg?stp=dst-jpg_s150x150&_nc_ht=x&oh=00_A&oe=6A000000"
+     },
+     "image_versions2": {
+      "candidates": [
+       {
+        "width": 1080,
+        "height": 1920,
+        "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/story3_1080.jpg?stp=dst-jpg_e35&oh=00_A&oe=6A000000"
+       },
+       {
+        "width": 640,
+        "height": 1137,
+        "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/story3_640.jpg?stp=dst-jpg_e35_p640x640&oh=00_A"
+       },
+       {
+        "width": 320,
+        "height": 568,
+        "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/story3_320.jpg"
+       }
+      ]
+     },
+     "story_link_stickers": [
+      {
+       "x": 0.5,
+       "y": 0.8,
+       "story_link": {
+        "url": "https://example.com/post",
+        "link_title": "Read more",
+        "display_url": "example.com/post"
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "status": "ok"
+}

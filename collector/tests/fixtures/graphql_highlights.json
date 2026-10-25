@@ -1,0 +1,27 @@
+{
+ "data": {
+  "highlights": {
+   "edges": [
+    {
+     "node": {
+      "__typename": "XDTReelDict",
+      "id": "highlight:17900000000000001",
+      "title": "Travel",
+      "cover_media": {
+       "cropped_image_version": {
+        "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/hl1_cover.jpg"
+       }
+      },
+      "user": {
+       "username": "example.owner"
+      }
+     }
+    }
+   ],
+   "page_info": {
+    "has_next_page": false,
+    "end_cursor": null
+   }
+  }
+ }
+}

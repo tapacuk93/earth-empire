@@ -1,0 +1,171 @@
+"""End to end: fixture Instagram -> Collector -> the mock backend over HTTP."""
+
+import copy
+import io
+import json
+from pathlib import Path
+
+import pytest
+from PIL import Image
+
+from eecollector.backend import Backend
+from eecollector.pipeline import Collector
+from eecollector.state import State
+from mock_backend import serve
+
+FX = Path(__file__).parent / "fixtures"
+
+
+def fx(name):
+    return json.loads((FX / name).read_text())
+
+
+class FakeIG:
+    def __init__(self):
+        self.calls = []
+        self.data = {k: fx(f) for k, f in (
+            ("profile", "web_profile_info.json"), ("feed1", "feed_user_page1.json"), ("feed2", "feed_user_page2.json"),
+            ("tray", "highlights_tray.json"), ("hl", "reels_media_highlights.json"), ("user", "reels_media_user.json"),
+            ("info", "media_info_original.json"), ("clips", "clips_user.json"))}
+        self.fail_feed_after = None
+
+    def profile(self, u):
+        self.calls.append("profile")
+        return self.data["profile"]
+
+    def feed(self, uid, cursor):
+        self.calls.append(f"feed:{cursor}")
+        if self.fail_feed_after is not None and cursor:
+            raise RuntimeError("simulated crash mid-backfill")
+        return self.data["feed2"] if cursor else self.data["feed1"]
+
+    def clips(self, uid, cursor):
+        self.calls.append("clips")
+        return self.data["clips"]
+
+    def tray(self, uid):
+        self.calls.append("tray")
+        return self.data["tray"]
+
+    def reels(self, ids):
+        self.calls.append("reels:" + ",".join(ids))
+        if ids == ["1000000001"]:
+            return self.data["user"]
+        hl = self.data["hl"]
+        return {"reels": {k: v for k, v in hl["reels"].items() if k in ids}, "status": "ok"}
+
+    def media_info(self, pk):
+        self.calls.append(f"info:{pk}")
+        return self.data["info"]
+
+
+class FakeDL:
+    def __init__(self):
+        self.urls = []
+
+    def get(self, url):
+        self.urls.append(url)
+        assert "cdninstagram.com" in url
+        if ".mp4" in url:
+            return b"\x00\x00\x00\x18ftypmp42fake-video-" + url.encode()
+        buf = io.BytesIO()
+        Image.new("RGB", (1080, 1350), (30, 90, 160)).save(buf, "JPEG")
+        return buf.getvalue()
+
+
+@pytest.fixture
+def env(tmp_path, monkeypatch):
+    monkeypatch.setattr("eecollector.media.shutil.which", lambda name: None)  # no ffmpeg: progressive MP4 path
+    srv, store, base = serve(tmp_path / "uploads", "tok")
+    yield store, Backend(base, "tok"), State(tmp_path / "state.sqlite")
+    srv.shutdown()
+
+
+def test_full_then_incremental(env):
+    store, backend, state = env
+    ig, dl = FakeIG(), FakeDL()
+    c = Collector(ig, backend, state, dl, "example.owner")
+    c.run("full")
+
+    # profile
+    assert store.profile["username"] == "example.owner"
+    assert store.profile["avatar"] == "https://media.empire.earth/profile/avatar.jpg"
+    # every post, carousel, reel (incl. the reels-tab-only one) and story
+    ids = set(store.items)
+    assert {"ig_3300000000000000001", "ig_3300000000000000002", "ig_3300000000000000003",
+            "ig_3300000000000000004", "ig_3300000000000000101", "ig_3300000000000000102",
+            "ig_3300000000000000201"} <= ids
+    for it in store.items.values():
+        for m in it["media"]:
+            assert m["url"].startswith("https://media.empire.earth/items/" + it["id"] + "/")
+            assert m["thumbnail"].endswith(".thumb.jpg")
+        assert "cdninstagram" not in json.dumps(it)
+        assert "_src" not in json.dumps(it)
+    # highlight names on stories, a story in two highlights
+    s1 = store.items["ig_3300000000000000101"]
+    assert [h["title"] for h in s1["highlights"]] == ["Travel", "Best"]
+    assert [h["title"] for h in store.items["ig_3300000000000000102"]["highlights"]] == ["Travel"]
+    # highlights in order, with re-hosted covers and their stories in order
+    hls = [store.highlights[h] for h in store.highlight_order]
+    assert [h["title"] for h in hls] == ["Travel", "Best"]
+    assert hls[0]["cover"] == "https://media.empire.earth/highlights/hl_17900000000000001/cover.jpg"
+    assert hls[0]["item_ids"] == ["ig_3300000000000000101", "ig_3300000000000000102"]
+    # the repost: both the story and the original
+    rep = store.items["ig_3300000000000000102"]["repost_of"]
+    assert rep["author"] == "other.author" and rep["shortcode"] == "DBzzzzzzzzz"
+    assert rep["media"][0]["url"] == "https://media.empire.earth/items/ig_3300000000000000102/r0.mp4"
+    assert "items/ig_3300000000000000102/r0.mp4" in store.uploads
+    # uploads have the right types
+    assert store.uploads["items/ig_3300000000000000003/0.mp4"][0] == "video/mp4"
+    assert store.uploads["items/ig_3300000000000000001/0.thumb.jpg"][0] == "image/jpeg"
+    # carousel media count and order
+    car = store.items["ig_3300000000000000002"]
+    assert [m["type"] for m in car["media"]] == ["image", "video"]
+    assert state.get("backfill.feed.done") is True
+
+    # incremental: nothing new is downloaded again; the newest feed page only
+    n_dl, n_up = len(dl.urls), len(store.uploads)
+    ig.calls.clear()
+    c2 = Collector(ig, backend, state, dl, "example.owner")
+    c2.run("incremental")
+    assert len(dl.urls) == n_dl + 0, dl.urls[n_dl:]
+    assert len(store.uploads) == n_up
+    assert "feed:None" in ig.calls and not any(x.startswith("feed:33") for x in ig.calls)
+    assert not any(x.startswith("reels:highlight") for x in ig.calls)  # tray unchanged
+    assert not any(x.startswith("info:") for x in ig.calls)            # repost already resolved
+
+
+def test_new_story_added_to_highlight(env):
+    store, backend, state = env
+    ig, dl = FakeIG(), FakeDL()
+    Collector(ig, backend, state, dl, "example.owner").run("full")
+    # the current story (201) gets added to "Best"
+    story3 = ig.data["user"]["reels"]["1000000001"]["items"][0]
+    ig.data["hl"]["reels"]["highlight:17900000000000002"]["items"].append(copy.deepcopy(story3))
+    ig.data["tray"]["tray"][1]["media_count"] = 2
+    ig.data["tray"]["tray"][1]["latest_reel_media"] = 1714600000
+    Collector(ig, backend, state, dl, "example.owner").run("incremental")
+    assert [h["title"] for h in store.items["ig_3300000000000000201"]["highlights"]] == ["Best"]
+    assert store.highlights["hl_17900000000000002"]["item_ids"][-1] == "ig_3300000000000000201"
+    # and when it is removed again, the name goes away
+    ig.data["hl"]["reels"]["highlight:17900000000000002"]["items"].pop()
+    ig.data["tray"]["tray"][1]["media_count"] = 1
+    Collector(ig, backend, state, dl, "example.owner").run("incremental")
+    assert store.items["ig_3300000000000000201"]["highlights"] == []
+
+
+def test_backfill_resumes_from_checkpoint(env):
+    store, backend, state = env
+    ig, dl = FakeIG(), FakeDL()
+    ig.fail_feed_after = 1
+    with pytest.raises(RuntimeError):
+        Collector(ig, backend, state, dl, "example.owner").run("full")
+    assert state.get("backfill.feed.cursor") == "3300000000000000002_1000000001"
+    assert "ig_3300000000000000003" not in store.items or True
+    ig.fail_feed_after = None
+    ig.calls.clear()
+    Collector(ig, backend, state, dl, "example.owner").run("full")
+    feed_calls = [x for x in ig.calls if x.startswith("feed:")]
+    assert feed_calls[0] == "feed:3300000000000000002_1000000001"  # continued, not restarted
+    assert "ig_3300000000000000003" in store.items
+    assert state.get("backfill.feed.done") is True

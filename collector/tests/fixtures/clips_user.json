@@ -1,0 +1,175 @@
+{
+ "items": [
+  {
+   "media": {
+    "pk": "3300000000000000003",
+    "id": "3300000000000000003_1000000001",
+    "code": "DAccccccccc",
+    "taken_at": 1714392000,
+    "media_type": 2,
+    "product_type": "clips",
+    "user": {
+     "pk": "1000000001",
+     "pk_id": "1000000001",
+     "id": "1000000001",
+     "username": "example.owner",
+     "full_name": "Example Owner",
+     "is_private": false,
+     "is_verified": false,
+     "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s150.jpg?stp=dst-jpg_s150x150&_nc_ht=x&oh=00_A&oe=6A000000"
+    },
+    "caption": {
+     "text": "Dance @other.author #reels"
+    },
+    "image_versions2": {
+     "candidates": [
+      {
+       "width": 720,
+       "height": 1280,
+       "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/reel1_1080.jpg?stp=dst-jpg_e35&oh=00_A&oe=6A000000"
+      },
+      {
+       "width": 640,
+       "height": 1137,
+       "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/reel1_640.jpg?stp=dst-jpg_e35_p640x640&oh=00_A"
+      },
+      {
+       "width": 320,
+       "height": 568,
+       "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/reel1_320.jpg"
+      }
+     ]
+    },
+    "video_versions": [
+     {
+      "type": 101,
+      "width": 720,
+      "height": 1280,
+      "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/reel1_720.mp4?efg=x&oh=00_A&oe=6A000000",
+      "id": "1"
+     },
+     {
+      "type": 102,
+      "width": 480,
+      "height": 854,
+      "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/reel1_480.mp4",
+      "id": "2"
+     },
+     {
+      "type": 103,
+      "width": 480,
+      "height": 854,
+      "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/reel1_480b.mp4",
+      "id": "3"
+     }
+    ],
+    "video_duration": 15.2,
+    "video_dash_manifest": "<?xml version=\"1.0\"?><MPD xmlns=\"urn:mpeg:dash:schema:mpd:2011\"><Period><AdaptationSet contentType=\"video\" mimeType=\"video/mp4\"><Representation id=\"v1\" width=\"1080\" height=\"1920\" bandwidth=\"4000000\"><BaseURL>https://scontent-iad3-1.cdninstagram.com/o1/v/reel1_1080_dash.mp4</BaseURL></Representation><Representation id=\"v2\" width=\"720\" height=\"1280\" bandwidth=\"1500000\"><BaseURL>https://scontent-iad3-1.cdninstagram.com/o1/v/reel1_720_dash.mp4</BaseURL></Representation></AdaptationSet><AdaptationSet contentType=\"audio\" mimeType=\"audio/mp4\"><Representation id=\"a1\" bandwidth=\"128000\"><BaseURL>https://scontent-iad3-1.cdninstagram.com/o1/v/reel1_audio.mp4</BaseURL></Representation></AdaptationSet></Period></MPD>",
+    "has_audio": true,
+    "clips_metadata": {
+     "music_info": {
+      "music_asset_info": {
+       "title": "Beat Track",
+       "display_artist": "DJ Example",
+       "audio_cluster_id": "991"
+      }
+     },
+     "original_sound_info": null
+    },
+    "like_count": 300,
+    "comment_count": 12,
+    "play_count": 9000,
+    "ig_play_count": 9000,
+    "view_count": null
+   }
+  },
+  {
+   "media": {
+    "pk": "3300000000000000004",
+    "id": "3300000000000000004_1000000001",
+    "code": "DAddddddddd",
+    "taken_at": 1714300000,
+    "media_type": 2,
+    "product_type": "clips",
+    "user": {
+     "pk": "1000000001",
+     "pk_id": "1000000001",
+     "id": "1000000001",
+     "username": "example.owner",
+     "full_name": "Example Owner",
+     "is_private": false,
+     "is_verified": false,
+     "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s150.jpg?stp=dst-jpg_s150x150&_nc_ht=x&oh=00_A&oe=6A000000"
+    },
+    "caption": {
+     "text": "Reels tab only"
+    },
+    "image_versions2": {
+     "candidates": [
+      {
+       "width": 720,
+       "height": 1280,
+       "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/reel1_1080.jpg?stp=dst-jpg_e35&oh=00_A&oe=6A000000"
+      },
+      {
+       "width": 640,
+       "height": 1137,
+       "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/reel1_640.jpg?stp=dst-jpg_e35_p640x640&oh=00_A"
+      },
+      {
+       "width": 320,
+       "height": 568,
+       "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/reel1_320.jpg"
+      }
+     ]
+    },
+    "video_versions": [
+     {
+      "type": 101,
+      "width": 720,
+      "height": 1280,
+      "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/reel1_720.mp4?efg=x&oh=00_A&oe=6A000000",
+      "id": "1"
+     },
+     {
+      "type": 102,
+      "width": 480,
+      "height": 854,
+      "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/reel1_480.mp4",
+      "id": "2"
+     },
+     {
+      "type": 103,
+      "width": 480,
+      "height": 854,
+      "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/reel1_480b.mp4",
+      "id": "3"
+     }
+    ],
+    "video_duration": 15.2,
+    "video_dash_manifest": null,
+    "has_audio": true,
+    "clips_metadata": {
+     "music_info": {
+      "music_asset_info": {
+       "title": "Beat Track",
+       "display_artist": "DJ Example",
+       "audio_cluster_id": "991"
+      }
+     },
+     "original_sound_info": null
+    },
+    "like_count": 300,
+    "comment_count": 12,
+    "play_count": 9000,
+    "ig_play_count": 9000,
+    "view_count": null
+   }
+  }
+ ],
+ "paging_info": {
+  "max_id": null,
+  "more_available": false
+ },
+ "status": "ok"
+}

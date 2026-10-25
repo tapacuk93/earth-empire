@@ -1,0 +1,58 @@
+{
+ "tray": [
+  {
+   "id": "highlight:17900000000000001",
+   "title": "Travel",
+   "media_count": 2,
+   "latest_reel_media": 1714000500,
+   "created_at": 1713000000,
+   "reel_type": "highlight_reel",
+   "cover_media": {
+    "media_id": "3300000000000000101_1000000001",
+    "cropped_image_version": {
+     "width": 150,
+     "height": 150,
+     "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/hl1_cover.jpg?stp=c0.248.640.640a_dst-jpg_s150x150"
+    }
+   },
+   "user": {
+    "pk": "1000000001",
+    "pk_id": "1000000001",
+    "id": "1000000001",
+    "username": "example.owner",
+    "full_name": "Example Owner",
+    "is_private": false,
+    "is_verified": false,
+    "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s150.jpg?stp=dst-jpg_s150x150&_nc_ht=x&oh=00_A&oe=6A000000"
+   }
+  },
+  {
+   "id": "highlight:17900000000000002",
+   "title": "Best",
+   "media_count": 1,
+   "latest_reel_media": 1714000000,
+   "created_at": 1713100000,
+   "reel_type": "highlight_reel",
+   "cover_media": {
+    "media_id": "3300000000000000101_1000000001",
+    "cropped_image_version": {
+     "width": 150,
+     "height": 150,
+     "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/hl2_cover.jpg"
+    }
+   },
+   "user": {
+    "pk": "1000000001",
+    "pk_id": "1000000001",
+    "id": "1000000001",
+    "username": "example.owner",
+    "full_name": "Example Owner",
+    "is_private": false,
+    "is_verified": false,
+    "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s150.jpg?stp=dst-jpg_s150x150&_nc_ht=x&oh=00_A&oe=6A000000"
+   }
+  }
+ ],
+ "show_empty_state": false,
+ "status": "ok"
+}

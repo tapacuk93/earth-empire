@@ -1,0 +1,258 @@
+{
+ "data": {
+  "xdt_api__v1__feed__user_timeline_graphql_connection": {
+   "edges": [
+    {
+     "node": {
+      "pk": "3300000000000000001",
+      "id": "3300000000000000001_1000000001",
+      "code": "DAaaaaaaaaa",
+      "taken_at": 1714564800,
+      "media_type": 1,
+      "product_type": "feed",
+      "user": {
+       "pk": "1000000001",
+       "pk_id": "1000000001",
+       "id": "1000000001",
+       "username": "example.owner",
+       "full_name": "Example Owner",
+       "is_private": false,
+       "is_verified": false,
+       "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s150.jpg?stp=dst-jpg_s150x150&_nc_ht=x&oh=00_A&oe=6A000000"
+      },
+      "owner": {
+       "pk": "1000000001",
+       "pk_id": "1000000001",
+       "id": "1000000001",
+       "username": "example.owner",
+       "full_name": "Example Owner",
+       "is_private": false,
+       "is_verified": false,
+       "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s150.jpg?stp=dst-jpg_s150x150&_nc_ht=x&oh=00_A&oe=6A000000"
+      },
+      "caption": {
+       "pk": "1",
+       "text": "Sunrise over the bay #sunrise #travel with @friend.one.",
+       "created_at": 1714564800
+      },
+      "caption_is_edited": true,
+      "image_versions2": {
+       "candidates": [
+        {
+         "width": 1080,
+         "height": 1350,
+         "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/photo1_1080.jpg?stp=dst-jpg_e35&oh=00_A&oe=6A000000"
+        },
+        {
+         "width": 640,
+         "height": 800,
+         "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/photo1_640.jpg?stp=dst-jpg_e35_p640x640&oh=00_A"
+        },
+        {
+         "width": 320,
+         "height": 400,
+         "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/photo1_320.jpg"
+        }
+       ]
+      },
+      "original_width": 1080,
+      "original_height": 1350,
+      "accessibility_caption": "Photo by Example Owner on May 01, 2024. May be an image of ocean and sky.",
+      "usertags": {
+       "in": [
+        {
+         "user": {
+          "pk": "5",
+          "username": "friend.one",
+          "full_name": "Friend One"
+         },
+         "position": [
+          0.42,
+          0.61
+         ],
+         "start_time_in_video_in_sec": null,
+         "duration_in_video_in_sec": null
+        }
+       ]
+      },
+      "location": {
+       "pk": 213385402,
+       "name": "Lisbon, Portugal",
+       "lat": 38.7223,
+       "lng": -9.1393,
+       "short_name": "Lisbon",
+       "address": "",
+       "city": "Lisbon"
+      },
+      "music_metadata": {
+       "music_canonical_id": "0",
+       "music_info": {
+        "music_asset_info": {
+         "audio_cluster_id": "771",
+         "title": "Ocean Song",
+         "display_artist": "Sea Band"
+        }
+       }
+      },
+      "like_count": 120,
+      "comment_count": 7,
+      "timeline_pinned_user_ids": [
+       "1000000001"
+      ],
+      "is_paid_partnership": false,
+      "comments_disabled": false,
+      "like_and_view_counts_disabled": false
+     },
+     "cursor": "c1"
+    },
+    {
+     "node": {
+      "pk": "3300000000000000002",
+      "id": "3300000000000000002_1000000001",
+      "code": "DAbbbbbbbbb",
+      "taken_at": 1714478400,
+      "media_type": 8,
+      "product_type": "carousel_container",
+      "user": {
+       "pk": "1000000001",
+       "pk_id": "1000000001",
+       "id": "1000000001",
+       "username": "example.owner",
+       "full_name": "Example Owner",
+       "is_private": false,
+       "is_verified": false,
+       "profile_pic_url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/owner_s150.jpg?stp=dst-jpg_s150x150&_nc_ht=x&oh=00_A&oe=6A000000"
+      },
+      "carousel_media_count": 2,
+      "caption": {
+       "text": "Two views 🌊 #beach"
+      },
+      "like_count": 55,
+      "comment_count": 2,
+      "coauthor_producers": [
+       {
+        "pk": "5",
+        "username": "friend.one",
+        "full_name": "Friend One"
+       }
+      ],
+      "sponsor_tags": [
+       {
+        "sponsor": {
+         "pk": "9",
+         "username": "brand.co"
+        }
+       }
+      ],
+      "is_paid_partnership": true,
+      "carousel_media": [
+       {
+        "pk": "3300000000000000011",
+        "id": "3300000000000000011_1000000001",
+        "media_type": 1,
+        "image_versions2": {
+         "candidates": [
+          {
+           "width": 1080,
+           "height": 1080,
+           "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/car1_1080.jpg?stp=dst-jpg_e35&oh=00_A&oe=6A000000"
+          },
+          {
+           "width": 640,
+           "height": 640,
+           "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/car1_640.jpg?stp=dst-jpg_e35_p640x640&oh=00_A"
+          },
+          {
+           "width": 320,
+           "height": 320,
+           "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/car1_320.jpg"
+          }
+         ]
+        },
+        "original_width": 1080,
+        "original_height": 1080,
+        "accessibility_caption": "May be an image of a beach.",
+        "usertags": {
+         "in": [
+          {
+           "user": {
+            "username": "friend.two"
+           },
+           "position": [
+            0.1,
+            0.2
+           ]
+          }
+         ]
+        },
+        "carousel_parent_id": "3300000000000000002_1000000001"
+       },
+       {
+        "pk": "3300000000000000012",
+        "id": "3300000000000000012_1000000001",
+        "media_type": 2,
+        "image_versions2": {
+         "candidates": [
+          {
+           "width": 720,
+           "height": 1280,
+           "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/car2_1080.jpg?stp=dst-jpg_e35&oh=00_A&oe=6A000000"
+          },
+          {
+           "width": 640,
+           "height": 1137,
+           "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/car2_640.jpg?stp=dst-jpg_e35_p640x640&oh=00_A"
+          },
+          {
+           "width": 320,
+           "height": 568,
+           "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/car2_320.jpg"
+          }
+         ]
+        },
+        "video_versions": [
+         {
+          "type": 101,
+          "width": 720,
+          "height": 1280,
+          "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/car2_720.mp4?efg=x&oh=00_A&oe=6A000000",
+          "id": "1"
+         },
+         {
+          "type": 102,
+          "width": 480,
+          "height": 854,
+          "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/car2_480.mp4",
+          "id": "2"
+         },
+         {
+          "type": 103,
+          "width": 480,
+          "height": 854,
+          "url": "https://scontent-iad3-1.cdninstagram.com/v/t51.2885-15/car2_480b.mp4",
+          "id": "3"
+         }
+        ],
+        "video_duration": 9.5,
+        "original_width": 720,
+        "original_height": 1280,
+        "accessibility_caption": null,
+        "carousel_parent_id": "3300000000000000002_1000000001"
+       }
+      ]
+     },
+     "cursor": "c2"
+    }
+   ],
+   "page_info": {
+    "end_cursor": "3300000000000000002_1000000001",
+    "has_next_page": true,
+    "has_previous_page": false,
+    "start_cursor": null
+   }
+  }
+ },
+ "extensions": {
+  "is_final": true
+ }
+}

@@ -40,10 +40,12 @@ def model(name: str = "small"):
         return _model
 
 
-def chunks_of(audio, max_chunk: float = 20.0) -> list[tuple[int, int, float]]:
-    """(start sample, end sample, seconds of speech) for each chunk of speech."""
+def chunks_of(audio, max_chunk: float = 12.0, join_gap: float = 0.5) -> list[tuple[int, int, float]]:
+    """(start sample, end sample, seconds of speech) for each chunk of speech. A chunk ends at any
+    pause longer than `join_gap` once it holds 4 s of speech, and at `max_chunk` seconds: short
+    enough that a change of language mid-speech starts a new chunk with its own language."""
     from faster_whisper.vad import VadOptions, get_speech_timestamps
-    regions = get_speech_timestamps(audio, VadOptions(min_silence_duration_ms=400, speech_pad_ms=200))
+    regions = get_speech_timestamps(audio, VadOptions(min_silence_duration_ms=300, speech_pad_ms=150))
     out: list[list] = []
     lim = int(max_chunk * SR)
     for r in regions:
@@ -51,7 +53,8 @@ def chunks_of(audio, max_chunk: float = 20.0) -> list[tuple[int, int, float]]:
         while e - s > lim:   # a long stretch without a pause
             out.append([s, s + lim, lim / SR])
             s += lim
-        if out and e - out[-1][0] <= lim and s - out[-1][1] < 2 * SR:
+        if out and e - out[-1][0] <= lim and (s - out[-1][1] < join_gap * SR or out[-1][2] < 4.0) \
+                and s - out[-1][1] < 2 * SR:
             out[-1][1] = e
             out[-1][2] += (e - s) / SR
         else:
@@ -59,7 +62,7 @@ def chunks_of(audio, max_chunk: float = 20.0) -> list[tuple[int, int, float]]:
     return [tuple(x) for x in out]
 
 
-def transcribe(path: str, model_name: str = "small", beam_size: int = 1, max_chunk: float = 20.0) -> dict:
+def transcribe(path: str, model_name: str = "small", beam_size: int = 1, max_chunk: float = 12.0) -> dict:
     t0 = time.process_time()
     w0 = time.time()
     audio = decode(path)

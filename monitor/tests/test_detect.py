@@ -49,7 +49,7 @@ def test_fuzzy_and_split_and_surname():
 
 def test_unrelated_words_do_not_match():
     hits = detect.find_name({"chunks": [tr("the tariff on Texas trade has risen; tears tars tiaras")]})
-    assert [h["matched"] for h in hits] == ["tiaras"] and hits[0]["confidence"] < 0.2
+    assert [h["matched"] for h in hits] == ["tars", "tiaras"] and all(h["confidence"] < 0.2 for h in hits)
 
 
 def test_low_asr_probability_lowers_confidence():
@@ -123,3 +123,8 @@ def test_full_phrase_beats_single_words():
 def test_mishearing_is_low_but_kept():
     hits = detect.find_name({"chunks": [tr("a man called Toras|0.4 came")]}, phrases=phr())
     assert hits and hits[0]["confidence"] < 0.4 and detect.label(hits[0]["confidence"]) == "low confidence"
+
+
+def test_dropped_vowel_in_full_phrase():
+    hits = detect.find_name({"chunks": [tr("including Tars Maslov, who spoke")]}, phrases=phr())
+    assert hits[0]["phrase"] == "тарас маслов" and hits[0]["matched"] == "Tars Maslov,"

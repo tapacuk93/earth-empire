@@ -130,6 +130,8 @@ class Matcher:
             return 0.5, f"{hint} built on '{base}' ({token.strip()})"
         if len(bare) >= 5 and any(lev(bare, w) == 1 for w, (sc, kind) in self.pos[p].items() if kind == "form"):
             return 0.5, f"one letter from a form of '{self.text.split()[p]}' ({token.strip()})"
+        if len(bare) == 4 and lev(bare, base) == 1:   # "Tars" for Taras: speech recognition drops a vowel
+            return 0.3, f"one letter short of '{self.text.split()[p]}' ({token.strip()})"
         if len(bare) <= len(base) + 3 and phonetic(bare) in self.phon[p]:
             return 0.35, f"sounds similar to '{self.text.split()[p]}' ({token.strip()})"
         return None
@@ -168,13 +170,16 @@ def find_name(transcript: dict, min_confidence: float = 0.03, phrases: list[dict
             span_end = i + mt.k - 1
             scores = [mt.word(p, words[i + p][1][0]) for p in range(mt.k)]
             found = None
-            if all(scores):
-                found = (sum(s[0] for s in scores) / mt.k, "; ".join(dict.fromkeys(s[1] for s in scores)))
-            elif mt.k == 1 and i + 1 < len(words) and i + 1 not in taken:   # "Tara s": two tokens that join
+            if all(scores) and min(s[0] for s in scores) >= 0.5 or not (mt.k == 1 and i + 1 < len(words)):
+                pass
+            elif i + 1 not in taken:   # "Tara s": two tokens that join into a form
                 joined = (clean(words[i][1][0]) + clean(words[i + 1][1][0])).replace("'", "")
                 if joined in mt.pos[0] and mt.pos[0][joined][1] in ("form", "translit"):
                     found, span_end = (0.4, f"two words that join into '{mt.text}' "
                                             f"('{words[i][1][0].strip()}{words[i + 1][1][0]}')"), i + 1
+                    scores = [None]
+            if not found and all(scores):
+                found = (sum(s[0] for s in scores) / mt.k, "; ".join(dict.fromkeys(s[1] for s in scores)))
             if not found:
                 i += 1
                 continue

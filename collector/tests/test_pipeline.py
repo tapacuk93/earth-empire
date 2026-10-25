@@ -193,3 +193,32 @@ def test_heartbeats(env):
     posts = [j for h in store.heartbeats for j in h.get("jobs") or [] if j["what"].startswith("posts ")]
     assert posts and posts[0]["what"].endswith("/3 (downloads)") and 0 <= posts[0]["progress"] <= 1
     assert all("example.owner" not in json.dumps(h) for h in store.heartbeats)
+
+
+class BrowsingIG(FakeIG):
+    """Like the live client: the profile page's own responses carry the user and newest posts."""
+
+    def browse(self, url, scrolls=1):
+        self.calls.append("browse:" + url)
+        if url.endswith("/reposts/"):
+            return []
+        u = dict(self.data["profile"]["data"]["user"])
+        u.pop("edge_followed_by")
+        u["follower_count"] = 1500
+        timeline = fx("graphql_timeline.json")
+        return [{"data": {"user": u}}, timeline]
+
+    def profile(self, u):
+        raise AssertionError("web_profile_info must not be called when the profile page has the user")
+
+
+def test_profile_page_instead_of_web_profile_info(env):
+    store, backend, state = env
+    ig, dl = BrowsingIG(), FakeDL()
+    Collector(ig, backend, state, dl, "example.owner").run("full")
+    assert store.profile["counts"]["followers"] == 1500
+    assert state.get("profile.uid") == "1000000001"
+    ig.calls.clear()
+    Collector(ig, backend, state, dl, "example.owner").run("incremental")
+    # the profile page's posts were all known: no REST feed request at all
+    assert not any(c.startswith("feed:") for c in ig.calls), ig.calls

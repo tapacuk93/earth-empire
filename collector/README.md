@@ -34,8 +34,7 @@ instagram.com page so they carry the session's cookies, CSRF token and app id, p
 intercepted while browsing (the Reposts tab). The parsers (`eecollector/parse.py`) take the v1 media
 shape, which both the REST and the GraphQL (`xdt_api__v1__*`) responses carry.
 
-Pacing: 7-18 s between Instagram requests, a 1-2.5 minute pause every ~20, at most 150 an hour;
-on 429 / "please wait" it backs off 15, 30, then 60 minutes and then stops. A stable user agent
+Pacing and rate limits: see "Rate limits" below. A stable user agent
 (the browser's own, without "HeadlessChrome") is stored in the profile, viewport 1366x900.
 
 **Login.** Order: the saved profile; a Playwright `storageState` in the secret
@@ -81,6 +80,33 @@ ls /var/log/earth-empire/collector/                   # one log file per run
   uploaded, highlight membership, cursors, login state, last run), covered by the backend's hourly
   backups. Screenshots there and the browser profile are not backed up; logs are in
   `/var/log/earth-empire/collector/`.
+
+## Running on the Mac instead
+
+Instagram throttles the box's AWS address (429 on the first request), and the session was created
+on the owner's Mac, so the collector can run there instead:
+
+```sh
+collector/deploy/mac/install.sh              # venv, launchd agents (every 45 min + heartbeat), runner=mac
+collector/deploy/mac/install.sh --run --budget 15   # one run now, in the foreground
+collector/deploy/mac/install.sh --uninstall  # back to the box (runner=box)
+tail -f ~/Library/Application\ Support/earth-empire/collector/logs/*.log
+```
+
+It keeps everything in `~/Library/Application Support/earth-empire/collector` (mode 700), uses
+the Playwright Chromium in `~/Library/Caches/ms-playwright`, ingests to `https://api.empire.earth`
+with the token from Secrets Manager, and imports the session from `earth-empire/instagram-session`.
+The SSM parameter `/earth-empire/collector/runner` (`mac` or `box`) decides which machine may touch
+Instagram; the other one's runs and heartbeats exit at once, so the two never share the session.
+Same pacing, cool-down and stop-on-challenge rules as on the box.
+
+## Rate limits
+
+12-30 s between Instagram requests, at most 80 an hour, a pause every ~20. The profile comes from
+opening the profile page as a person would (its own responses carry the user and the newest posts),
+not from `web_profile_info`, which is used once at most when nothing else gives the user id. The
+first 429 or "please wait" ends the run at once; then no run touches Instagram for 2 h, 4 h, 8 h, up
+to 12 h after repeated ones (`ratelimit.until` in the state; `--force` overrides). A good run resets it.
 
 ## Logging in by hand (the remote view)
 

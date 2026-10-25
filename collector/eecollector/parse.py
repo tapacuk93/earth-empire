@@ -658,3 +658,18 @@ def profile(resp: dict) -> dict:
                                          "is_professional_account", "pronouns", "highlight_reel_count",
                                          "is_private") if u.get(k) not in (None, "", [])},
     }
+
+
+def find_user(bodies: list, username: str) -> dict | None:
+    """The fullest user record for `username` among responses the profile page loaded."""
+    best, score = None, 0
+    for body in bodies:
+        for d in walk(body):
+            if d.get("username") != username or not (d.get("id") or d.get("pk")):
+                continue
+            sc = sum(k in d for k in ("biography", "follower_count", "edge_followed_by", "media_count",
+                                      "edge_owner_to_timeline_media", "full_name", "bio_links",
+                                      "hd_profile_pic_url_info", "profile_pic_url_hd"))
+            if sc > score and ("biography" in d or "follower_count" in d or "edge_followed_by" in d):
+                best, score = d, sc
+    return best

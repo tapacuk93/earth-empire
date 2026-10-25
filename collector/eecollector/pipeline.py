@@ -21,6 +21,7 @@ log = logging.getLogger("ee.run")
 
 BATCH = 12
 STORY_EVERY = 45 * 60
+PROFILE_EVERY = 6 * 3600
 
 
 class Collector:
@@ -35,6 +36,7 @@ class Collector:
         self.total_posts: int | None = None
         self._beat_at = 0.0
         self._beat_what = ""
+        self.harvested: list[dict] = []
         self.uid: str | None = None
         self.counts: dict[str, int] = {}
         self.pending: list[dict] = []
@@ -104,10 +106,37 @@ class Collector:
 
     def do_profile(self) -> None:
         self.beat("profile", force=True)
-        p = parse.profile(self.ig.profile(self.target))
+        uid = self.state.get("profile.uid")
+        due = not uid or time.time() - self.state.get("profile.at", 0) > PROFILE_EVERY
+        p = None
+        if hasattr(self.ig, "browse"):
+            # the profile page as a person opens it; its own requests carry the profile and the
+            # newest posts, so web_profile_info is not needed
+            bodies = self.ig.browse(f"https://www.instagram.com/{self.target}/", scrolls=1)
+            user = parse.find_user(bodies, self.target)
+            if user:
+                p = parse.profile({"user": user})
+                uid = p["_id"]
+            if uid:
+                self.harvested = [m for m in parse.find_media(bodies)
+                                  if str((m.get("user") or m.get("owner") or {}).get("pk")
+                                         or (m.get("user") or m.get("owner") or {}).get("id") or "") == str(uid)
+                                  and m.get("product_type") != "story"]
+                log.info("profile page: user %s, %d recent posts", "found" if user else "not found", len(self.harvested))
+        if p is None and uid and not due:
+            self.uid = uid
+            self.total_posts = self.state.get("profile.posts")
+            log.info("profile: fresh enough, not fetched")
+            return
+        if p is None:
+            log.info("profile: fetching web_profile_info (no cached user id)")
+            p = parse.profile(self.ig.profile(self.target))
         if not p["_id"]:
             raise IGError("profile response had no user id")
         self.uid = p.pop("_id")
+        self.state.set("profile.uid", self.uid)
+        self.state.set("profile.at", time.time())
+        self.state.set("profile.posts", p["counts"].get("posts"))
         src = p.pop("_avatar_src")
         sig = (src or "").split("?")[0].rsplit("/", 1)[-1]
         known = self.state.media("profile/avatar.jpg")
@@ -208,6 +237,16 @@ class Collector:
     # ------------------------------------------------------------ posts and reels
 
     def do_feed(self, full: bool) -> None:
+        if not full or self.state.get("backfill.feed.done"):
+            if self.harvested:
+                new = sum(not self.state.has_item(f"ig_{parse.media_pk(m)}") for m in self.harvested)
+                for m in self.harvested:
+                    self.beat_posts("feed")
+                    self.take(m)
+                self.flush()
+                log.info("feed: %d posts from the profile page, %d new", len(self.harvested), new)
+                if new < len(self.harvested):
+                    return  # caught up without another request
         self._paged("feed", self.ig.feed, parse.feed_page, full)
 
     def do_clips(self, full: bool) -> None:

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from . import parse
 from .backend import Backend
-from .config import Secrets, Settings, is_placeholder
+from .config import Secrets, Settings, active_runner, is_placeholder
 from .igweb import IGBrowser, IGStop
 from .media import Downloader
 from .pipeline import Collector, summarize
@@ -24,6 +24,8 @@ from .state import State
 
 log = logging.getLogger("ee")
 
+COOLDOWN_FIRST = 2 * 3600   # after a 429: 2 h, then 4, 8, at most 12 h; reset by a good run
+COOLDOWN_MAX = 12 * 3600
 EXIT = {"config": 2, "checkpoint": 3, "login": 4, "rate_limit": 5}
 
 
@@ -67,11 +69,27 @@ def cmd_run(args, s: Settings, secrets: Secrets) -> int:
         mode = "full"
         budget = budget or 40 * 60
     setup_logging(s, mode)
+    who = active_runner(s)
+    if who and who != s.runner:
+        log.info("the collector runs on %r (SSM %s); this runner (%r) stays off Instagram", who, s.runner_param, s.runner)
+        return 0
     lk = lock(s)
     if not lk:
         log.info("another collector run (or a login) holds the lock; skipping this %s run", mode)
         return 6
     started = parse.now_iso()
+    until = State(s.state_db).get("ratelimit.until", 0)
+    if time.time() < until and not args.force:
+        when = time.strftime("%H:%M UTC", time.gmtime(until))
+        log.info("cooling down after Instagram's 429 until %s; not touching Instagram", when)
+        try:
+            Backend(s.api, secrets.ingest_token()).heartbeat(
+                ok=False, jobs=[], detail=_detail(State(s.state_db), State(s.state_db).get("last_run")),
+                error=f"rate-limited by Instagram; cooling down until {when}")
+        except Exception as e:  # noqa: BLE001
+            log.warning("heartbeat: %s", e)
+        lk.close()
+        return 0
     state = State(s.state_db)
     counts: dict = {}
     ok, code = False, 1
@@ -105,9 +123,16 @@ def cmd_run(args, s: Settings, secrets: Secrets) -> int:
                 except Exception as e:  # noqa: BLE001
                     log.error("final flush failed: %s", e)
         ok, code = True, 0
+        state.set("ratelimit.strikes", 0)
         log.info("run %s finished: %s", mode, summarize(counts))
     except IGStop as e:
         code = EXIT.get(e.kind, 1)
+        if e.kind == "rate_limit":
+            strikes = int(state.get("ratelimit.strikes", 0)) + 1
+            pause = min(COOLDOWN_MAX, COOLDOWN_FIRST * 2 ** (strikes - 1)) * (1 + 0.2 * (time.time() % 1))
+            state.set("ratelimit.strikes", strikes)
+            state.set("ratelimit.until", time.time() + pause)
+            log.warning("rate limit #%d in a row: no Instagram requests for %.1f h", strikes, pause / 3600)
         counts[f"stopped_{e.kind}"] = 1
         log.error("STOPPED (%s): %s", e.kind.upper(), e)
         stop_text = f"STOPPED ({_stop_label(e)})"
@@ -161,6 +186,9 @@ def cmd_heartbeat(args, s: Settings, secrets: Secrets) -> int:
     """Between runs: report the last run's outcome so /v1/status never shows the collector as down
     while it is only waiting for its timer. Touches nothing on Instagram."""
     logging.basicConfig(level=logging.WARNING)
+    who = active_runner(s)
+    if who and who != s.runner:
+        return 0  # the active runner reports
     lk = lock(s)
     if not lk:
         return 0  # a run is going; it sends its own heartbeats
@@ -251,6 +279,7 @@ def main(argv: list[str] | None = None) -> int:
         p = sub.add_parser(name)
         p.add_argument("--target", help="override earth-empire/target (testing)")
         p.add_argument("--limit", type=int, help="stop paging after about this many items (testing)")
+        p.add_argument("--force", action="store_true", help="run even during a rate-limit cool-down")
         p.add_argument("--budget", type=float, help="minutes; a backfill stops at its checkpoint after this")
     p = sub.add_parser("login", help="headed login on the remote display (noVNC)")
     p.add_argument("--wait", type=int, default=30, help="minutes to wait")

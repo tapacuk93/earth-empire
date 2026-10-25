@@ -35,9 +35,14 @@ class Settings:
     auto_login: bool = field(default_factory=lambda: env("EE_AUTO_LOGIN", "0") == "1")
     headless: bool = field(default_factory=lambda: env("EE_HEADLESS", "1") != "0")
     # Pacing of Instagram requests (seconds) and a hard cap per hour.
-    min_gap: float = field(default_factory=lambda: float(env("EE_MIN_GAP", "7")))
-    max_gap: float = field(default_factory=lambda: float(env("EE_MAX_GAP", "18")))
-    per_hour: int = field(default_factory=lambda: int(env("EE_MAX_PER_HOUR", "150")))
+    min_gap: float = field(default_factory=lambda: float(env("EE_MIN_GAP", "12")))
+    max_gap: float = field(default_factory=lambda: float(env("EE_MAX_GAP", "30")))
+    per_hour: int = field(default_factory=lambda: int(env("EE_MAX_PER_HOUR", "80")))
+
+    # Which machine runs the collector: the SSM parameter /earth-empire/collector/runner names it
+    # ("box" or "mac"); a runner whose EE_RUNNER differs stays off Instagram. Missing = anyone.
+    runner: str = field(default_factory=lambda: env("EE_RUNNER", "box"))
+    runner_param: str = "/earth-empire/collector/runner"
 
     @property
     def profile_lock(self) -> Path:
@@ -118,3 +123,17 @@ def is_placeholder(v: str | None) -> bool:
     low = str(v).strip().lower()
     return low.startswith("<") or any(m in low for m in ("placeholder", "changeme", "change-me")) \
         or low in ("todo", "tbd", "xxx", "username", "password", "example")
+
+
+def active_runner(s: Settings) -> str | None:
+    """The runner named in SSM, or None when unset or unreadable (then this runner may run)."""
+    if env("EE_RUNNER_CHECK", "1") == "0":
+        return None
+    try:
+        import boto3
+        r = boto3.client("ssm", region_name=s.region).get_parameter(Name=s.runner_param)
+        return r["Parameter"]["Value"].strip() or None
+    except Exception as e:  # noqa: BLE001
+        if "ParameterNotFound" in type(e).__name__ or "ParameterNotFound" in str(e):
+            return None
+        raise

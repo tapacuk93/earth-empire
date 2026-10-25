@@ -89,8 +89,6 @@ def classify(status: int, body: Any, url: str = "") -> IGStop | None:
 class IGBrowser:
     """The live client. Same interface as tests' FakeIG: profile, feed, clips, tray, reels, media_info."""
 
-    BACKOFF = (15 * 60, 30 * 60, 60 * 60)
-
     def __init__(self, settings: Settings, creds: Callable[[], dict] | None = None,
                  session_state: Callable[[], dict | None] | None = None, state=None):
         self.s = settings
@@ -400,34 +398,30 @@ class IGBrowser:
         return self.page.evaluate(js, [method, path, form, csrf, APP_ID])
 
     def api(self, path: str, method: str = "GET", form: dict | None = None) -> dict:
+        """One request the web app makes. A 429 / "please wait" ends the run at once (IGStop
+        rate_limit); the CLI then keeps every run off Instagram for a growing cool-down."""
         if not self.page.url.startswith(IG):
             self.goto(IG + "/")
-        for attempt in range(len(self.BACKOFF) + 1):
-            self.pacer.wait()
-            r = self._fetch(method, path, form)
-            try:
-                body = json.loads(r["text"])
-            except json.JSONDecodeError:
-                body = None
-            stop = classify(r["status"], body, r.get("url", ""))
-            if stop and stop.kind == "rate_limit" and attempt < len(self.BACKOFF):
-                pause = self.BACKOFF[attempt] * random.uniform(1.0, 1.3)
-                log.warning("%s on %s; backing off %.0f min", stop, path.split("?")[0], pause / 60)
-                time.sleep(pause)
-                continue
-            if stop:
-                raise stop
-            if r["status"] >= 400 or body is None:
-                log.warning("IG %s %s -> %d %s", method, path.split("?")[0], r["status"], r["text"][:200])
-                raise IGError(f"{path.split('?')[0]} -> {r['status']}")
-            log.debug("IG %s %s -> %d", method, path.split("?")[0], r["status"])
-            rec = os.environ.get("EE_RECORD_DIR")
-            if rec:  # raw responses for building fixtures; local only, never committed
-                Path(rec).mkdir(parents=True, exist_ok=True)
-                name = path.split("?")[0].strip("/").replace("/", "_")
-                Path(rec, f"{int(time.time()*1000)}_{name}.json").write_text(json.dumps(body))
-            return body
-        raise IGStop("rate_limit", "still rate-limited after backing off")
+        self.pacer.wait()
+        r = self._fetch(method, path, form)
+        try:
+            body = json.loads(r["text"])
+        except json.JSONDecodeError:
+            body = None
+        stop = classify(r["status"], body, r.get("url", ""))
+        if stop:
+            log.warning("IG %s %s -> %d: %s", method, path.split("?")[0], r["status"], stop)
+            raise stop
+        if r["status"] >= 400 or body is None:
+            log.warning("IG %s %s -> %d %s", method, path.split("?")[0], r["status"], r["text"][:200])
+            raise IGError(f"{path.split('?')[0]} -> {r['status']}")
+        log.info("IG %s %s -> %d", method, path.split("?")[0], r["status"])
+        rec = os.environ.get("EE_RECORD_DIR")
+        if rec:  # raw responses for building fixtures; local only, never committed
+            Path(rec).mkdir(parents=True, exist_ok=True)
+            name = path.split("?")[0].strip("/").replace("/", "_")
+            Path(rec, f"{int(time.time()*1000)}_{name}.json").write_text(json.dumps(body))
+        return body
 
     # ------------------------------------------------------------ the client interface
 
@@ -466,10 +460,17 @@ class IGBrowser:
                 self.page.wait_for_timeout(random.randint(2500, 5000))
         finally:
             self.harvest = False
+        rec = os.environ.get("EE_RECORD_DIR")
         for s in self.seen:
             stop = classify(s["status"], s["body"])
-            if stop and stop.kind != "rate_limit":
-                raise stop
+            if stop:
+                log.warning("browsing %s: %s answered %d: %s", url, s["url"], s["status"], stop)
+                if stop.kind != "rate_limit" or "/api/v1/" in s["url"]:
+                    raise stop
+            if rec:
+                Path(rec).mkdir(parents=True, exist_ok=True)
+                Path(rec, f"{int(time.time()*1000)}_browse.json").write_text(json.dumps(s))
+        log.info("browsed %s: %d JSON responses", url.split("?")[0], len(self.seen))
         return [s["body"] for s in self.seen]
 
 

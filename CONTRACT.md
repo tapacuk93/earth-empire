@@ -135,8 +135,8 @@ store it in `extra`.
               "confidence": 0.62, "excerpt": "…", "translation": "…" | null}],
     "model": "…", "scanned_at": "…"
   },
-  "curation": 0.5 | null, "curation_reason": "…" | null,   // set by the backend: how the owner curated
-                                           // it (see "Home layout"); recomputed as highlights change
+  "placement": 1 | 0.5 | 0.25 | 0.125 | null, "placement_reason": "…" | null,  // set by the backend: where the
+                                           // item lives (see "Home layout"); also as curation/curation_reason
   "description": "…" | null,               // set by the backend: a few sentences on who, what, when,
                                            // where and context, written to be published and shown
                                            // by the site and the app; for a repost it covers the original too

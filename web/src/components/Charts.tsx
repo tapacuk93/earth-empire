@@ -4,9 +4,7 @@ import type { ComponentChildren } from 'preact';
 import type { Month, Place } from '../stats';
 import type { Item, Tag } from '../types';
 import { itemHref } from '../context';
-import { cover, fmtShort, KIND_LABEL } from '../util';
-
-export const KIND_ORDER = ['reel', 'post', 'carousel', 'story'];
+import { cover, fmtShort } from '../util';
 
 export function Kpis({ items }: { items: { label: string; value: string | number; hint?: string }[] }) {
   return (
@@ -15,14 +13,6 @@ export function Kpis({ items }: { items: { label: string; value: string | number
         <div key={k.label} class="kpi"><dt>{k.label}</dt><dd>{k.value}</dd>{k.hint && <span class="kpi-hint">{k.hint}</span>}</div>
       ))}
     </dl>
-  );
-}
-
-export function Legend() {
-  return (
-    <ul class="legend" aria-label="Kinds">
-      {KIND_ORDER.map((k) => <li key={k}><span class={`sw k-${k}`} aria-hidden="true" />{KIND_LABEL[k]}</li>)}
-    </ul>
   );
 }
 
@@ -42,9 +32,7 @@ export function MonthBand({ months, active, onPick }: { months: Month[]; active?
               <button class="band-bar" aria-pressed={active === m.key} disabled={!m.total}
                 aria-label={`${m.label}: ${m.total} item${m.total === 1 ? '' : 's'}`} title={`${m.label}: ${m.total}`}
                 onClick={() => onPick(active === m.key ? undefined : m.key)}>
-                <span class="stack" style={{ height: `${(m.total / max) * 100}%` }}>
-                  {KIND_ORDER.filter((k) => m.byKind[k]).map((k) => <span key={k} class={`seg k-${k}`} style={{ flexGrow: m.byKind[k] }} />)}
-                </span>
+                <span class="stack" style={{ height: `${(m.total / max) * 100}%` }}><span class="seg" style={{ flexGrow: 1 }} /></span>
               </button>
               <span class="band-label" aria-hidden="true">{newYear ? m.label : m.label.slice(0, 3)}</span>
             </li>
@@ -168,12 +156,11 @@ export function MediaStrip({ items: all, ctx, label, max = 24, videosFirst }: { 
     <ul class="strip" aria-label={label}>
       {items.slice(0, max).map((it) => {
         const src = cover(it);
-        const video = (it.media[0] || it.repost_of?.media?.[0])?.type === 'video';
         return (
           <li key={it.id}>
-            <a href={itemHref(it.id, ctx)} aria-label={`${KIND_LABEL[it.kind]}, ${fmtShort(it.taken_at)}: ${it.summary || it.caption || ''}`.slice(0, 200)}>
+            <a href={itemHref(it.id, ctx)} aria-label={`${fmtShort(it.taken_at)}: ${it.summary || it.caption || ''}`.slice(0, 200)}>
               {src ? <img src={src} alt="" loading="lazy" decoding="async" width={120} height={160} /> : <span class="strip-ph">{it.summary}</span>}
-              <span class="strip-meta" aria-hidden="true">{video ? '▶ ' : ''}{fmtShort(it.taken_at)}</span>
+              <span class="strip-meta" aria-hidden="true">{fmtShort(it.taken_at)}</span>
             </a>
           </li>
         );

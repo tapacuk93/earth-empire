@@ -3,7 +3,6 @@
 import type { Category, Highlight, Item } from './types';
 import { hasTag } from './tags';
 import { SECTION_TITLE, sectionItems, type SectionId } from './sections';
-import { KIND_PLURAL } from './util';
 
 export const itemHref = (id: string, ctx = 'all') => `/item/${encodeURIComponent(id)}${ctx && ctx !== 'all' ? `?ctx=${encodeURIComponent(ctx)}` : ''}`;
 
@@ -42,7 +41,6 @@ export function ctxLabel(ctx: string, cats: Category[] = [], highlights: Highlig
     case 'place': return v;
     case 'cat': return cats.find((c) => c.slug === v)?.name || v;
     case 'person': return v;
-    case 'kind': return KIND_PLURAL[v] || v;
     case 'q': return `“${v}”`;
     case 'hl': return highlights.find((h) => h.id === v)?.title || 'Highlight';
     default: return 'Everything';

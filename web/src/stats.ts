@@ -2,7 +2,7 @@
 import { computeTags } from './tags';
 import type { Category, Item, Tag } from './types';
 
-export interface Month { key: string; label: string; date: Date; total: number; byKind: Record<string, number> }
+export interface Month { key: string; label: string; date: Date; total: number }
 export interface Place { name: string; country?: string; lat?: number; lng?: number; count: number; items: string[] }
 export interface PersonStat { who: string; count: number; basis?: string; items: string[] }
 export interface Moment { item: Item; at?: number; media?: number; text: string }
@@ -16,9 +16,8 @@ export function months(items: Item[]): Month[] {
     const k = monthKey(it.taken_at);
     if (!/^\d{4}-\d{2}$/.test(k)) continue;
     let m = map.get(k);
-    if (!m) { const d = new Date(k + '-01T00:00:00Z'); m = { key: k, label: monthFmt.format(d), date: d, total: 0, byKind: {} }; map.set(k, m); }
+    if (!m) { const d = new Date(k + '-01T00:00:00Z'); m = { key: k, label: monthFmt.format(d), date: d, total: 0 }; map.set(k, m); }
     m.total++;
-    m.byKind[it.kind] = (m.byKind[it.kind] || 0) + 1;
   }
   const list = [...map.values()].sort((a, b) => a.key.localeCompare(b.key));
   if (list.length < 2) return list;
@@ -28,7 +27,7 @@ export function months(items: Item[]): Month[] {
   const end = list[list.length - 1].date;
   while (d <= end) {
     const k = d.toISOString().slice(0, 7);
-    out.push(map.get(k) || { key: k, label: monthFmt.format(d), date: new Date(d), total: 0, byKind: {} });
+    out.push(map.get(k) || { key: k, label: monthFmt.format(d), date: new Date(d), total: 0 });
     d.setUTCMonth(d.getUTCMonth() + 1);
   }
   return out;
@@ -78,12 +77,6 @@ export function moments(items: Item[], max = 8): Moment[] {
     else if (it.summary) out.push({ item: it, text: it.summary });
     if (out.length >= max) break;
   }
-  return out;
-}
-
-export function kinds(items: Item[]): Record<string, number> {
-  const out: Record<string, number> = {};
-  items.forEach((it) => { out[it.kind] = (out[it.kind] || 0) + 1; });
   return out;
 }
 

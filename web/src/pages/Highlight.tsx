@@ -152,7 +152,7 @@ export function HighlightPage({ id, route }: { id: string; route: Route }) {
 
   const r = item?.repost_of;
   return (
-    <section class="story-viewer" ref={root} tabIndex={-1} aria-roledescription="story viewer" aria-label={h ? `Highlight: ${h.title}` : 'Highlight'}>
+    <section class="story-viewer" ref={root} tabIndex={-1} aria-roledescription="viewer" aria-label={h ? `Highlight: ${h.title}` : 'Highlight'}>
       {media && <div class="story-backdrop" aria-hidden="true" style={{ backgroundImage: `url("${posterOf(media) || media.url}")` }} />}
       <div class="story-stage" onPointerDown={onDown} onPointerUp={onUp} onPointerCancel={() => { ptr.current = null; setHeld(false); }}
         onContextMenu={(e) => e.preventDefault()}>
@@ -174,7 +174,7 @@ export function HighlightPage({ id, route }: { id: string; route: Route }) {
           <button class="icon-btn" onClick={() => setPaused(!paused)} aria-label={paused ? 'Play' : 'Pause'}><Icon name={paused ? 'play' : 'pause'} /></button>
           <button class="icon-btn" onClick={close} aria-label="Close"><Icon name="close" /></button>
         </header>
-        <p class="sr-only" role="status" aria-live="polite">{items && item ? `Story ${i + 1} of ${items.length}, ${fmtShort(item.taken_at)}${paused ? ', paused' : ''}` : 'Loading…'}</p>
+        <p class="sr-only" role="status" aria-live="polite">{items && item ? `${i + 1} of ${items.length}, ${fmtShort(item.taken_at)}${paused ? ', paused' : ''}` : 'Loading…'}</p>
         <div class="story-media">
           {item && media && (media.type === 'video'
             ? <video key={item.id} ref={video} src={media.url} poster={posterOf(media)} muted={muted} playsinline autoplay
@@ -184,13 +184,13 @@ export function HighlightPage({ id, route }: { id: string; route: Route }) {
         </div>
         {item && (
           <footer class="story-bottom">
-            {r && <p class="credit">{r.source_url?.includes('/reel/') ? 'Reel' : 'Post'} by <a href={r.source_url || igProfile(r.author)} rel="external noopener">@{r.author}</a></p>}
+            {r && <p class="credit">Original by <a href={r.source_url || igProfile(r.author)} rel="external noopener">@{r.author}</a></p>}
             {item.summary && <p class="story-sum">{item.summary}</p>}
             <a class="btn small" href={`/item/${encodeURIComponent(item.id)}`}>Details</a>
           </footer>
         )}
-        <button class="story-nav prev" onClick={() => go(-1)} aria-label="Previous story"><Icon name="left" /></button>
-        <button class="story-nav next" onClick={() => go(1)} aria-label="Next story"><Icon name="right" /></button>
+        <button class="story-nav prev" onClick={() => go(-1)} aria-label="Previous"><Icon name="left" /></button>
+        <button class="story-nav next" onClick={() => go(1)} aria-label="Next"><Icon name="right" /></button>
       </div>
       {all && all.length > 1 && (
         <nav class="story-others" aria-label="Other highlights">

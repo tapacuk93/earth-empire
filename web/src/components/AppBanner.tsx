@@ -47,7 +47,7 @@ export function AppBanner({ route }: { route: Route }) {
   const [p] = useState(platform);
   const [hidden, setHidden] = useState(dismissed);
   const ownBannerOnly = p === 'ios' && IOS_APP_ID && isIosSafari();
-  if (!p || hidden || ownBannerOnly || route.path.startsWith('/highlight/')) return null;
+  if (!p || hidden || ownBannerOnly || route.path.startsWith('/highlight/') || route.path.startsWith('/item/') || route.query.has('watch')) return null; // never over a fullscreen viewer
 
   const open = (e: Event) => {
     if (p !== 'ios') return; // the intent URL falls back to the store by itself
@@ -62,7 +62,7 @@ export function AppBanner({ route }: { route: Route }) {
   };
 
   return (
-    <aside class={`app-banner ${route.path.startsWith('/item/') ? 'on-feed' : ''}`} aria-label="Open in the app">
+    <aside class="app-banner" aria-label="Open in the app">
       <span class="logo" aria-hidden="true" />
       <span class="app-banner-text"><b>{SITE_NAME}</b><span>Open this page in the app</span></span>
       <a class="btn small" href={appUrl(p)} onClick={open}>Open</a>

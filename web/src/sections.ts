@@ -7,7 +7,7 @@ import type { Highlight, Item } from './types';
 import type { Hit } from './monitor';
 
 export type SectionId = 'dedicated' | 'common';
-export const SECTION_TITLE: Record<SectionId, string> = { dedicated: 'Posts and short highlights', common: 'Long highlights' };
+export const SECTION_TITLE: Record<SectionId, string> = { dedicated: 'Short highlights and the feed', common: 'Long highlights' };
 export const SECTION_SHORT: Record<SectionId, string> = { dedicated: 'upper', common: 'lower' };
 export const SECTIONS: SectionId[] = ['dedicated', 'common'];
 

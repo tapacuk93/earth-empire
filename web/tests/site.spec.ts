@@ -26,7 +26,7 @@ test('home: infographics, not a profile; no sideways scroll; every image describ
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Earth Empire, in data');
   await expect(page.locator('.hero .kpi').first()).toContainText('28');
-  for (const name of ['Posts and short highlights', 'Long highlights', 'Timeline', 'Places', 'Themes', 'Everything, newest first']) {
+  for (const name of ['Short highlights and the feed', 'Long highlights', 'Timeline', 'Places', 'Themes', 'Everything, newest first']) {
     await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
   }
   // No profile header, follower counts, highlight bubbles or square grid.
@@ -40,7 +40,7 @@ test('home: infographics, not a profile; no sideways scroll; every image describ
 
 test('home: two sections split by highlight size, as panels with counts, people, places and media', async ({ page }) => {
   await page.goto('/');
-  const up = page.getByRole('region', { name: 'Posts and short highlights' });
+  const up = page.getByRole('region', { name: 'Short highlights and the feed' });
   const low = page.getByRole('region', { name: 'Long highlights' });
   expect((await up.boundingBox())!.y).toBeLessThan((await low.boundingBox())!.y);
   // Median highlight size is 2: Food (2) and Ocean (1) are short, Travel (4) is long.
@@ -58,7 +58,7 @@ test('home: two sections split by highlight size, as panels with counts, people,
 
 test('home: the split threshold is configurable', async ({ page }) => {
   await page.goto('/?split=5');
-  await expect(page.getByRole('region', { name: 'Posts and short highlights' }).getByRole('link', { name: /^Travel/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Short highlights and the feed' }).getByRole('link', { name: /^Travel/ })).toBeVisible();
   // Only the published hit keeps the lower section on screen.
   await expect(page.getByRole('region', { name: 'Long highlights' }).getByRole('link', { name: /^Travel/ })).toHaveCount(0);
 });
@@ -87,13 +87,11 @@ test('home: timeline, map and themes pick a context and show its items', async (
   await expect(theme.locator('.selection')).toBeVisible();
 });
 
-test('home: search and kind filter the list of everything', async ({ page }) => {
+test('home: one flow of video, no kinds; search narrows it', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('group', { name: 'Kind' }).getByRole('button', { name: 'Reels' }).click();
-  await expect(rows(page)).toHaveCount(2);
-  await page.getByRole('group', { name: 'Kind' }).getByRole('button', { name: 'Stories' }).click();
-  await expect(rows(page)).toHaveCount(4);
-  await page.getByRole('group', { name: 'Kind' }).getByRole('button', { name: 'All' }).click();
+  await expect(page.getByRole('group', { name: 'Kind' })).toHaveCount(0);
+  await expect(page.locator('main').getByText(/\b(Reels?|Stories|Story|Carousels?|Posts)\b/)).toHaveCount(0);
+  await expect(page.locator('.hero .kpi').first()).toHaveText(/Videos\s*28/);
   const box = page.getByRole('searchbox');
   await box.fill('lighthouse');
   await expect(page).toHaveURL(/q=lighthouse/);
@@ -163,10 +161,10 @@ test('feed: carousels swipe sideways; reposts credit the original', async ({ pag
   await expect(slide.locator('.idots span').nth(2)).toHaveClass('on');
   await page.goto(`/item/${STORY_REPOST}`);
   const r = feed(page).locator('.islide[data-i="3"]');
-  await expect(r.locator('.imeta')).toContainText('Reel by @oceanlab');
+  await expect(r.locator('.imeta')).toContainText('Original by @oceanlab');
   await expect(r.getByRole('link', { name: '@oceanlab' })).toHaveAttribute('href', 'https://www.instagram.com/reel/DMockOrig1/');
   await page.goto(`/item/${POST_REPOST}`);
-  await expect(feed(page).locator('.islide[data-i="6"] .imeta')).toContainText('Post by @mountainclub');
+  await expect(feed(page).locator('.islide[data-i="6"] .imeta')).toContainText('Original by @mountainclub');
 });
 
 test('feed: a highlight context from a section panel opens the story viewer', async ({ page }) => {
@@ -181,22 +179,22 @@ test('highlight: story viewer with progress bars, taps, keys and close', async (
   const viewer = page.getByRole('region', { name: 'Highlight: Travel' });
   await expect(viewer).toBeVisible();
   await expect(viewer.locator('.bar')).toHaveCount(4);
-  await expect(viewer.getByRole('status')).toContainText('Story 1 of 4');
+  await expect(viewer.getByRole('status')).toContainText(/^1 of 4/);
   await expect.poll(() => viewer.locator('.bar').first().locator('.bar-fill').evaluate((e) => getComputedStyle(e).transform), { timeout: 4000 }).not.toBe('matrix(0, 0, 0, 1, 0, 0)');
   await page.keyboard.press(' ');
   await expect(viewer.getByRole('button', { name: 'Play' })).toBeVisible();
   const box = (await viewer.locator('.story-stage').boundingBox())!;
   await page.mouse.click(box.x + box.width * 0.8, box.y + box.height * 0.5);
-  await expect(viewer.getByRole('status')).toContainText('Story 2 of 4');
+  await expect(viewer.getByRole('status')).toContainText(/^2 of 4/);
   await page.keyboard.press('ArrowLeft');
-  await expect(viewer.getByRole('status')).toContainText('Story 1 of 4');
+  await expect(viewer.getByRole('status')).toContainText(/^1 of 4/);
   await page.keyboard.press('Escape');
   await expect(page).toHaveURL(/\/$/);
 });
 
 test('highlight: images advance on their own, then the next highlight', async ({ page }) => {
   await page.goto('/highlight/hl_9002?item=ig_3400000000000000010');
-  await expect(page.getByRole('status')).toContainText('Story 2 of 2');
+  await expect(page.getByRole('status')).toContainText(/^2 of 2/);
   await page.waitForTimeout(5600);
   await expect(page).toHaveURL(/\/highlight\/hl_9003/);
 });
@@ -206,8 +204,7 @@ test('category page as a panel', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Food');
   await expect(page.locator('.hero .kpi').first()).toContainText('4');
   await expect(rows(page)).toHaveCount(4);
-  await page.getByRole('group', { name: 'Kind' }).getByRole('button', { name: 'Reels' }).click();
-  await expect(rows(page)).toHaveCount(1);
+  await expect(page.getByRole('group', { name: 'Kind' })).toHaveCount(0);
   await noHorizontalScroll(page);
 });
 
@@ -283,12 +280,15 @@ test('app banner: never on desktop', async ({ page, isMobile }) => {
 
 test.describe('app banner on Android', () => {
   test.use({ userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36' });
-  test('opens the same page in the app, falls back to the store, and can be dismissed for good', async ({ page }) => {
+  test('opens the same page in the app, falls back to the store, can be dismissed, and never covers the wheel', async ({ page }) => {
     await page.goto('/item/ig_3400000000000000001');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Open in the app' })).toHaveCount(0);
+    await page.goto('/category/food');
     const banner = page.getByRole('complementary', { name: 'Open in the app' });
     await expect(banner).toBeVisible();
     const href = await banner.getByRole('link', { name: 'Open' }).getAttribute('href');
-    expect(href).toMatch(/^intent:\/\/[^/]+\/item\/ig_3400000000000000001#Intent;scheme=https;package=com\.oeaio\.earthempire;S\.browser_fallback_url=https%3A%2F%2Fplay\.google\.com/);
+    expect(href).toMatch(/^intent:\/\/[^/]+\/category\/food#Intent;scheme=https;package=com\.oeaio\.earthempire;S\.browser_fallback_url=https%3A%2F%2Fplay\.google\.com/);
     await banner.getByRole('button', { name: 'Stay on the web' }).click();
     await expect(banner).toHaveCount(0);
     await page.reload();
@@ -453,9 +453,8 @@ test('home: everything mirrored comes first, newest at the top', async ({ page }
 
 test('home: the upper section leads with a video that opens the reel wheel', async ({ page }) => {
   await page.goto('/');
-  const up = page.getByRole('region', { name: 'Posts and short highlights' });
+  const up = page.getByRole('region', { name: 'Short highlights and the feed' });
   const first = up.getByRole('list', { name: /^Media:/ }).getByRole('link').first();
-  await expect(first).toContainText('▶');
   await first.click();
   await expect(feed(page)).toBeVisible();
   await expect(page).toHaveURL(/\/item\/.+\?ctx=section%3Adedicated/);

@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { getAllItems } from '../api';
-import { Bars, DotMap, Kpis, Legend, MediaStrip, MonthBand, Treemap } from '../components/Charts';
+import { Bars, DotMap, Kpis, MediaStrip, MonthBand, Treemap } from '../components/Charts';
 import { Feed } from '../components/Feed';
 import { Icon } from '../components/icons';
 import { hitSlide } from '../components/MonitorCard';
-import { KindTabs, useCategories, useData, useHighlights, useProfile } from '../components/Profile';
+import { useCategories, useData, useHighlights, useProfile } from '../components/Profile';
 import { VideoFeed } from '../components/VideoFeed';
 import { SITE_NAME } from '../config';
 import { ctxItems, itemHref } from '../context';
 import { getPublished, titleOf, whatOf, type Hit } from '../monitor';
 import { navigate, settleScroll, type Route } from '../router';
 import { hitSection, SECTION_TITLE, SECTIONS, sectionHighlights, sectionItems, type SectionId } from '../sections';
-import { categoryCounts, kinds, moments, months, people, places, tagsOf } from '../stats';
+import { categoryCounts, moments, months, people, places, tagsOf } from '../stats';
 import type { Highlight, Item } from '../types';
 import { fmtShort, fmtTime, setMeta } from '../util';
 
@@ -38,6 +38,11 @@ export function SearchBox({ route }: { route: Route }) {
         onInput={(e) => { const val = (e.target as HTMLInputElement).value; setV(val); clearTimeout(timer.current); timer.current = window.setTimeout(() => commit(val), 350); }} />
     </form>
   );
+}
+
+function spanOf(a: string, b: string): string {
+  const days = Math.max(0, (Date.parse(b) - Date.parse(a)) / 864e5);
+  return days >= 730 ? `${Math.round(days / 365)} years` : days >= 60 ? `${Math.round(days / 30.4)} months` : `${Math.max(1, Math.round(days))} days`;
 }
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -68,14 +73,11 @@ function SectionPanel({ id, items, highlights, hits, onHit }: { id: SectionId; i
   const ppl = people(items).slice(0, 8);
   const plc = places(items).slice(0, 8);
   const mom = moments(items, 6);
-  const k = kinds(items);
-  const videos = items.filter((it) => (it.media[0] || it.repost_of?.media?.[0])?.type === 'video').length;
   return (
     <Panel id={`sec-${id}`} title={SECTION_TITLE[id]} class={`sec sec-${id}`}
       sub={highlights.length ? `Highlights: ${highlights.map((h) => h.title).join(', ')}` : undefined}>
       <Kpis items={[
-        { label: 'Items', value: items.length }, { label: 'Videos', value: videos },
-        { label: 'Stories', value: k.story || 0 }, { label: 'Places', value: plc.length }, { label: 'People named', value: ppl.length },
+        { label: 'Videos', value: items.length }, { label: 'Places', value: plc.length }, { label: 'People named', value: ppl.length },
         ...(hits.length ? [{ label: 'Detected', value: hits.length }] : []),
       ]} />
       <div class="sec-cols">
@@ -131,13 +133,12 @@ export function Home({ route }: { route: Route }) {
   const all = useData(getAllItems);
   const published = useData(getPublished);
   const sel = { m: route.query.get('m') || undefined, p: route.query.get('p') || undefined, t: route.query.get('t') || undefined, c: route.query.get('c') || undefined };
-  const kind = route.query.get('kind') || undefined;
   const q = route.query.get('q') || undefined;
   const watch = route.query.get('watch') || undefined;
 
   useEffect(() => {
     const p = profile.data;
-    setMeta(SITE_NAME, p ? `The archive of @${p.username} as data: when, where, who and what, from every post, reel, story and highlight.` : undefined, p?.avatar || undefined);
+    setMeta(SITE_NAME, p ? `The archive of @${p.username} as data: when, where, who and what, from every video and highlight.` : undefined, p?.avatar || undefined);
   }, [profile.data]);
   useEffect(() => { if (all.data) settleScroll(); }, [!!all.data]);
 
@@ -147,7 +148,6 @@ export function Home({ route }: { route: Route }) {
   const mo = months(items);
   const pl = places(items);
   const ppl = people(items);
-  const k = kinds(items);
   const tagLabel = (t: { tag: string; kind: string }) => t.kind === 'category' ? categories.data?.find((c) => c.slug === t.tag)?.name || t.tag : t.kind === 'hashtag' ? '#' + t.tag : t.tag;
   const seen = new Set<string>();
   const tags = tagsOf(items).filter((t) => t.kind !== 'category' && t.tag.length <= 32 && !seen.has(t.tag) && seen.add(t.tag)).slice(0, 36).map((t) => ({ ...t, label: tagLabel(t) }));
@@ -165,16 +165,15 @@ export function Home({ route }: { route: Route }) {
         <h1>{SITE_NAME}, in data</h1>
         {all.error ? <p class="error" role="alert">Could not load the archive: {all.error.message}</p> : !all.data ? <div class="kpis skeleton-kpis" aria-hidden="true" /> : (
           <Kpis items={[
-            { label: 'Items', value: items.length, hint: first && last ? `${fmtShort(first.taken_at)} – ${fmtShort(last.taken_at)}` : undefined },
-            { label: 'Reels', value: k.reel || 0 }, { label: 'Posts', value: (k.post || 0) + (k.carousel || 0) }, { label: 'Stories', value: k.story || 0 },
-            { label: 'Places', value: pl.length }, { label: 'People named', value: ppl.length }, { label: 'Months', value: mo.filter((m) => m.total).length },
+            { label: 'Videos', value: items.length },
+            { label: 'Time span', value: first && last ? spanOf(first.taken_at, last.taken_at) : '—', hint: first && last ? `${fmtShort(first.taken_at)} – ${fmtShort(last.taken_at)}` : undefined },
+            { label: 'Places', value: pl.length }, { label: 'People named', value: ppl.length }, { label: 'Active months', value: mo.filter((m) => m.total).length },
           ]} />
         )}
       </header>
 
       {mo.length > 0 && (
         <Panel id="p-time" title="Timeline" sub="Activity by month. Pick a month to see it.">
-          <Legend />
           <MonthBand months={mo} active={sel.m} onPick={pick('m')} />
           <Selection title={sel.m && mo.find((m) => m.key === sel.m)?.label} items={sel.m ? ctxItems(`month:${sel.m}`, items, hl) : []} ctx={`month:${sel.m}`} onClear={() => pick('m')(undefined)} />
         </Panel>
@@ -183,9 +182,8 @@ export function Home({ route }: { route: Route }) {
       <Panel id="p-all" title="Everything, newest first" sub={`Every item mirrored from @${profile.data?.username || "the account"}, by the date it was posted.`}>
         <div class="filters">
           <SearchBox route={route} />
-          <KindTabs active={kind} onPick={(v) => setParam(route, 'kind', v)} />
         </div>
-        <Feed query={{ kind, q }} layout="timeline" ctx={q ? `q:${q}` : kind ? `kind:${kind}` : 'all'} emptyText={q ? `Nothing matches “${q}”.` : 'Nothing here yet.'} />
+        <Feed query={{ q }} layout="timeline" ctx={q ? `q:${q}` : 'all'} emptyText={q ? `Nothing matches “${q}”.` : 'Nothing here yet.'} />
       </Panel>
 
       {sections.map((s) => <SectionPanel key={s.id} id={s.id} items={s.items} highlights={s.hl} hits={s.hits} onHit={openHit} />)}

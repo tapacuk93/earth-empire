@@ -32,7 +32,7 @@ export function altFor(item: Item, i = 0, m?: Media): string {
 }
 
 export function itemTitle(item: Item): string {
-  const t = item.summary || item.caption || `${KIND_LABEL[item.kind] || 'Item'} from ${fmtDate(item.taken_at)}`;
+  const t = item.summary || item.caption || `From ${fmtDate(item.taken_at)}`;
   return t.length > 90 ? t.slice(0, 87).trimEnd() + '…' : t;
 }
 

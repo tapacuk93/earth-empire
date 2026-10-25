@@ -40,9 +40,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const abs = (u) => (!u ? '' : /^https?:\/\//.test(u) ? u : SITE + (u.startsWith('/') ? '' : '/') + u);
 const clip = (s, n = 200) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s; };
 const day = (s) => { const d = new Date(s); return isNaN(d) ? '' : d.toISOString().slice(0, 10); };
-const KIND = { post: 'Post', carousel: 'Carousel', reel: 'Reel', story: 'Story' };
 const coverOf = (it) => { const m = it.media?.[0] || it.repost_of?.media?.[0]; return m ? m.cover || m.thumbnail || (m.type === 'image' ? m.url : '') : ''; };
-const titleOf = (it) => clip(it.summary || it.caption || `${KIND[it.kind] || 'Item'} from ${day(it.taken_at)}`, 90);
+const titleOf = (it) => clip(it.summary || it.caption || `From ${day(it.taken_at)}`, 90);
 
 async function getJSON(path) {
   const r = await fetch(API + path, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(20000) });
@@ -101,12 +100,12 @@ function page(file, meta, body) {
   writeFileSync(out, html);
 }
 
-const itemLink = (it) => `<li><a href="/item/${encodeURIComponent(it.id)}">${esc(titleOf(it))}</a> <small>${esc(KIND[it.kind] || '')} · ${day(it.taken_at)}</small></li>`;
+const itemLink = (it) => `<li><a href="/item/${encodeURIComponent(it.id)}">${esc(titleOf(it))}</a> <small>${day(it.taken_at)}</small></li>`;
 
 let data = null;
 try { data = await loadData(); } catch (e) { console.warn(`prerender: could not load data from ${API} (${e.message}); writing generic shells only`); }
 
-const generic = { title: NAME, description: 'An archive of every post, reel, story and highlight, each one described.', url: SITE + '/' };
+const generic = { title: NAME, description: 'An archive of every video and highlight, each one described.', url: SITE + '/' };
 page('404.html', { ...generic, url: '' }, `<h1>${NAME}</h1><p>Loading…</p>`);
 let count = 1;
 
@@ -115,7 +114,7 @@ if (!data) {
 } else {
   const { profile, highlights, categories, items } = data;
   const catName = Object.fromEntries(categories.map((c) => [c.slug, c.name]));
-  const desc = `The archive of @${profile.username}${profile.full_name ? ` (${profile.full_name})` : ''}: every post, reel, story and highlight, described.`;
+  const desc = `The archive of @${profile.username}${profile.full_name ? ` (${profile.full_name})` : ''}: every video and highlight, described.`;
   page('index.html', { ...generic, description: desc, image: profile.avatar },
     `<h1>${esc(profile.full_name || profile.username)}</h1><p>${esc(profile.bio || '')}</p>` +
     `<h2>Highlights</h2><ul>${highlights.map((h) => `<li><a href="/highlight/${encodeURIComponent(h.id)}">${esc(h.title)}</a></li>`).join('')}</ul>` +
@@ -126,11 +125,11 @@ if (!data) {
     const url = `${SITE}/item/${encodeURIComponent(it.id)}`;
     const m0 = it.media?.[0] || it.repost_of?.media?.[0];
     const a = it.analysis || {};
-    const by = it.repost_of ? ` Sharing a ${it.repost_of.source_url?.includes('/reel/') ? 'reel' : 'post'} by @${it.repost_of.author}.` : '';
-    const description = clip((it.description || it.summary || it.caption || a.what || '') + (it.description ? '' : by) + ` ${KIND[it.kind] || ''}, ${day(it.taken_at)}.`, 280);
+    const by = it.repost_of ? ` Original by @${it.repost_of.author}.` : '';
+    const description = clip((it.description || it.summary || it.caption || a.what || '') + (it.description ? '' : by) + ` ${day(it.taken_at)}.`, 280);
     page(`item/${encodeURIComponent(it.id)}/index.html`,
       { title: titleOf(it), description, image: coverOf(it), url, type: 'article', video: m0?.type === 'video' ? m0 : null },
-      `<article><h1>${esc(titleOf(it))}</h1><p><time datetime="${esc(it.taken_at)}">${day(it.taken_at)}</time> · ${esc(KIND[it.kind] || '')}</p>` +
+      `<article><h1>${esc(titleOf(it))}</h1><p><time datetime="${esc(it.taken_at)}">${day(it.taken_at)}</time></p>` +
       (coverOf(it) ? `<img src="${esc(coverOf(it))}" alt="${esc(clip(it.alt_text || a.what || it.summary || '', 300))}" width="360">` : '') +
       (it.description ? `<p>${esc(it.description)}</p>` : '') + (it.caption ? `<p>${esc(it.caption)}</p>` : '') + (a.what ? `<p>${esc(a.what)}</p>` : '') +
       (it.repost_of ? `<p>Original by <a href="${esc(it.repost_of.source_url || `https://www.instagram.com/${it.repost_of.author}/`)}">@${esc(it.repost_of.author)}</a></p>` : '') +
@@ -144,7 +143,7 @@ if (!data) {
     const first = byId.get(h.item_ids[0]);
     const n = h.item_ids.length;
     page(`highlight/${encodeURIComponent(h.id)}/index.html`,
-      { title: `${h.title} — highlight`, description: `The “${h.title}” highlight of @${profile.username}: ${n} stor${n === 1 ? 'y' : 'ies'}.`, image: h.cover || (first && coverOf(first)), url: `${SITE}/highlight/${encodeURIComponent(h.id)}` },
+      { title: `${h.title} — highlight`, description: `The “${h.title}” highlight of @${profile.username}: ${n} video${n === 1 ? '' : 's'}.`, image: h.cover || (first && coverOf(first)), url: `${SITE}/highlight/${encodeURIComponent(h.id)}` },
       `<h1>${esc(h.title)}</h1><ul>${h.item_ids.map((id) => byId.get(id)).filter(Boolean).map(itemLink).join('')}</ul>`);
     count++;
   }

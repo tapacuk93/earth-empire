@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { getItems } from '../api';
 import type { Item, ItemQuery } from '../types';
 import { settleScroll } from '../router';
-import { altFor, cover, fmtDate, fmtShort, KIND_LABEL } from '../util';
+import { altFor, cover, fmtDate, fmtShort } from '../util';
 import { Icon } from './icons';
 import { itemHref } from '../context';
 
@@ -95,7 +95,7 @@ export function Tile({ item, eager }: { item: Item; eager?: boolean }) {
   const src = cover(item);
   const isVideo = item.media[0]?.type === 'video' || (!item.media.length && item.repost_of?.media?.[0]?.type === 'video');
   const badge = item.repost_of ? 'repost' : item.kind === 'carousel' ? 'carousel' : item.kind === 'reel' ? 'reel' : item.kind === 'story' ? 'story' : isVideo ? 'reel' : null;
-  const label = `${KIND_LABEL[item.kind] || 'Item'}${item.repost_of ? `, sharing @${item.repost_of.author}` : ''}, ${fmtShort(item.taken_at)}`;
+  const label = `${fmtShort(item.taken_at)}${item.repost_of ? `, by @${item.repost_of.author}` : ''}`;
   return (
     <li class="tile">
       <a href={`/item/${encodeURIComponent(item.id)}`} aria-label={`${label}: ${item.summary || item.caption || ''}`.slice(0, 300)}>
@@ -103,7 +103,7 @@ export function Tile({ item, eager }: { item: Item; eager?: boolean }) {
           : <span class="tile-text">{item.caption || item.summary}</span>}
         {badge && <span class="badge"><Icon name={badge as 'repost'} size={18} /></span>}
         <span class="tile-hover" aria-hidden="true">
-          <span class="tile-kind">{KIND_LABEL[item.kind]} · {fmtShort(item.taken_at)}</span>
+          <span class="tile-kind">{fmtShort(item.taken_at)}</span>
           {item.summary && <span class="tile-sum">{item.summary}</span>}
         </span>
       </a>
@@ -136,7 +136,7 @@ function Timeline({ items, ctx }: { items: Item[]; ctx: string }) {
                   <a class="tl-row" href={itemHref(it.id, ctx)}>
                     {src ? <img src={src} alt="" width={72} height={72} loading="lazy" decoding="async" /> : <span class="tl-ph" />}
                     <span class="tl-text">
-                      <span class="tl-meta"><time dateTime={it.taken_at}>{fmtDate(it.taken_at)}</time> · {KIND_LABEL[it.kind]}{it.repost_of ? ` · sharing @${it.repost_of.author}` : ''}</span>
+                      <span class="tl-meta"><time dateTime={it.taken_at}>{fmtDate(it.taken_at)}</time>{it.repost_of ? ` · by @${it.repost_of.author}` : ''}</span>
                       <span class="tl-sum">{it.summary || it.caption || it.description || ''}</span>
                     </span>
                   </a>

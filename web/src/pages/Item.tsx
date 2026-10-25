@@ -6,7 +6,7 @@ import { useCategories, useData, useHighlights } from '../components/Profile';
 import { ctxItems, ctxLabel, itemHref } from '../context';
 import { canGoBack, navigate, type Route } from '../router';
 import type { Item, Media } from '../types';
-import { altFor, cover, fmtCount, fmtDate, fmtDateTime, igProfile, itemTitle, KIND_LABEL, posterOf, prefersReducedMotion, setMeta } from '../util';
+import { altFor, cover, fmtCount, fmtDate, fmtDateTime, igProfile, itemTitle, posterOf, prefersReducedMotion, setMeta } from '../util';
 import { NotFound } from './NotFound';
 
 export function Caption({ text }: { text: string }) {
@@ -212,7 +212,6 @@ function Slide({ item, active, muted, onTapVideo, info, setInfo }: { item: Item;
       void i;
     });
   }, [m, active]);
-  const kindLabel = KIND_LABEL[item.kind] || 'Item';
   const place = item.location?.name || item.analysis?.where?.place;
   return (
     <>
@@ -230,8 +229,8 @@ function Slide({ item, active, muted, onTapVideo, info, setInfo }: { item: Item;
       {media.length > 1 && <div class="idots" aria-hidden="true">{media.map((_, i) => <span key={i} class={i === m ? 'on' : ''} />)}</div>}
       {muted && active && media[m]?.type === 'video' && <button class="unmute" onClick={onTapVideo}><Icon name="mute" size={16} /> Tap to unmute</button>}
       <div class={`ioverlay ${info ? 'open' : ''}`}>
-        <p class="imeta">{kindLabel} · <time dateTime={item.taken_at}>{fmtDate(item.taken_at)}</time>{place && ` · ${place}`}
-          {r && <> · {r.source_url?.includes('/reel/') ? 'Reel' : 'Post'} by <a href={r.source_url || igProfile(r.author)} rel="external noopener">@{r.author}</a></>}</p>
+        <p class="imeta"><time dateTime={item.taken_at}>{fmtDate(item.taken_at)}</time>{place && ` · ${place}`}
+          {r && <> · Original by <a href={r.source_url || igProfile(r.author)} rel="external noopener">@{r.author}</a></>}</p>
         <h2 class="ititle">{item.summary || itemTitle(item)}</h2>
         {!info && (item.description || item.caption) && <p class="idesc">{item.description || item.caption}</p>}
         {!info && item.analysis && <CompactAnalysis item={item} />}
@@ -241,7 +240,7 @@ function Slide({ item, active, muted, onTapVideo, info, setInfo }: { item: Item;
             {item.description && <p class="description">{item.description}</p>}
             {item.caption && <figure class="caption-box"><figcaption class="muted small">Caption</figcaption><Caption text={item.caption} /></figure>}
             {r && (
-              <p class="small">Original {r.source_url?.includes('/reel/') ? 'reel' : 'post'} by <a href={igProfile(r.author)} rel="external noopener">@{r.author}</a>{r.author_name && ` (${r.author_name})`}
+              <p class="small">Original by <a href={igProfile(r.author)} rel="external noopener">@{r.author}</a>{r.author_name && ` (${r.author_name})`}
                 {r.taken_at && `, ${fmtDate(r.taken_at)}`}{r.source_url && <> · <a href={r.source_url} rel="external noopener">View on Instagram</a></>}</p>
             )}
             <Details item={item} />

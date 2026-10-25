@@ -77,15 +77,3 @@ export function CategoryChips({ categories, active, onPick }: { categories?: Cat
     </div>
   );
 }
-
-const KINDS: [string | undefined, string][] = [[undefined, 'All'], ['post', 'Posts'], ['carousel', 'Carousels'], ['reel', 'Reels'], ['story', 'Stories']];
-
-export function KindTabs({ active, onPick }: { active?: string; onPick: (k: string | undefined) => void }) {
-  return (
-    <div class="kinds" role="group" aria-label="Kind">
-      {KINDS.map(([k, label]) => (
-        <button key={label} class="kind" aria-pressed={(active || undefined) === k} onClick={() => onPick(k)}>{label}</button>
-      ))}
-    </div>
-  );
-}

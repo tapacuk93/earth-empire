@@ -168,7 +168,7 @@ OWN_DEFAULT = 0.5
 def curation(d: dict, kind: str, hls: list[str], dedicated: set[str]) -> tuple[float, str]:
     """How the owner curated an item; the highest rule that applies wins."""
     repost = bool(d.get("repost_of"))
-    tab = (d.get("extra") or {}).get("repost_source") == "reposts tab"
+    tab = (d.get("extra") or {}).get("repost_source") == "reposts tab" or str(d.get("id", "")).startswith("ig_repost_")
     in_ded = [h for h in hls if h in dedicated]
     in_large = [h for h in hls if h not in dedicated]
     rules = []

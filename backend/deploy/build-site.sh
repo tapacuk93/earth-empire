@@ -22,5 +22,7 @@ if [ ! -d node_modules ]; then
   mv node_modules "$BUILD/node_modules" && ln -sfn "$BUILD/node_modules" node_modules
   cp package-lock.json "$BUILD/package-lock.installed"
 fi
-VITE_API_BASE=${EE_PUBLIC_API_URL:-https://api.empire.earth} npm run build --silent
+# The real domains; EE_REPO_ROOT lets the build copy the apps' app-link files from ios/ and android/.
+EE_REPO_ROOT=/opt/earth-empire/repo SITE_URL=${EE_SITE_URL:-https://empire.earth} \
+  VITE_API_BASE=${EE_PUBLIC_API_URL:-https://api.empire.earth} npm run build --silent
 bash /opt/earth-empire/repo/backend/deploy/deploy-site.sh "$BUILD/src/dist"

@@ -95,7 +95,7 @@ def upsert_items(c: sqlite3.Connection, items: list[dict]) -> dict:
                 if old["content_hash"] != h:
                     # Caption or media changed: the old categories no longer describe it.
                     c.execute("""UPDATE items SET categories='[]', summary=NULL, description=NULL, analysis=NULL,
-                                 published_at=NULL, covers='{}' WHERE id=?""", (item["id"],))
+                                 published_at=NULL, covers='{}', thumbs=NULL WHERE id=?""", (item["id"],))
                     c.execute("DELETE FROM item_categories WHERE item_id=?", (item["id"],))
                     c.execute("DELETE FROM item_tags WHERE item_id=?", (item["id"],))
                     _set_step(c, item["id"], "analyze", "pending", note="caption or media changed")
@@ -204,8 +204,11 @@ def render_item(c: sqlite3.Connection, row: sqlite3.Row) -> dict:
     d["analysis"] = json.loads(row["analysis"]) if row["analysis"] else None
     d["published_at"] = row["published_at"]
     covers = json.loads(row["covers"] or "{}")
+    thumbs = json.loads(row["thumbs"] or "{}") if "thumbs" in row.keys() else {}
     for prefix, media in (("", d.get("media") or []), ("r", (d.get("repost_of") or {}).get("media") or [])):
         for n, m in enumerate(media):
+            if not m.get("thumbnail") and thumbs.get(f"{prefix}{n}"):
+                m["thumbnail"] = to_url(MEDIA_PREFIX + thumbs[f"{prefix}{n}"])
             if m.get("type") == "video":
                 cv = covers.get(f"{prefix}{n}") or {}
                 m["cover"] = to_url(MEDIA_PREFIX + cv["cover"]) if cv.get("cover") else None

@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS items (
   summary TEXT, description TEXT, analysis TEXT,
   published_at TEXT,             -- when it went public (analysis done)
   covers TEXT NOT NULL DEFAULT '{}',  -- {"0": {"cover": key, "cover_at": s}, "r0": ...} for videos
+  thumbs TEXT,                   -- {"0": key, "r0": key}: generated thumbnails; NULL = not made yet
   collected_at TEXT, updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS items_taken ON items(taken_at DESC, id DESC);
@@ -131,6 +132,9 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(SCHEMA)
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(items)")}
+    if "thumbs" not in cols:   # added 2026-10-25
+        conn.execute("ALTER TABLE items ADD COLUMN thumbs TEXT")
     for k, v in DEFAULT_SETTINGS.items():
         conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)", (k, v))
     return conn

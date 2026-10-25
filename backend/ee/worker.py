@@ -81,6 +81,26 @@ def analyze_once(c) -> bool:
     return True
 
 
+# ------------------------------------------------------------------ thumbnails
+_thumb_failures: dict[str, int] = {}
+
+
+def thumbs_once(c) -> bool:
+    from . import thumbs
+    item_id = thumbs.next_without(c)
+    if not item_id:
+        return False
+    try:
+        thumbs.thumbs_for(c, item_id)
+    except Exception as e:
+        n = _thumb_failures[item_id] = _thumb_failures.get(item_id, 0) + 1
+        event("thumbs.failed", logging.WARNING, item=item_id, error=repr(e)[:300], attempt=n)
+        if n >= 3:   # give up on this one (the original thumbnail stays null)
+            c.execute("UPDATE items SET thumbs='{}' WHERE id=?", (item_id,))
+        stop.wait(30 * n)
+    return True
+
+
 # ------------------------------------------------------------------ X
 def is_test(c, item_id) -> bool:
     """Fixture items (extra.test) are never posted anywhere."""
@@ -244,7 +264,7 @@ def main():
     event("worker.start", requeued=n)
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    threads = [lane("analyze", analyze_once), lane("x", x_once, idle=60),
+    threads = [lane("analyze", analyze_once), lane("thumbs", thumbs_once, idle=20), lane("x", x_once, idle=60),
                lane("facebook", facebook_once, idle=120), lane("house", house_once, idle=30)]
     while not stop.is_set():
         stop.wait(5)

@@ -96,6 +96,8 @@ Resources:
       FunctionCode: |
         function handler(event) {
           var r = event.request;
+          // App-link files are served as they are, on both hosts (no redirect, no rewrite).
+          if (r.uri.indexOf('/.well-known/') === 0) return r;
           var host = r.headers.host && r.headers.host.value;
           if (host === 'www.empire.earth') {
             var qs = Object.keys(r.querystring).map(function (k) { return k + '=' + r.querystring[k].value; }).join('&');

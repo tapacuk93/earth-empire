@@ -14,8 +14,15 @@ DIST_ID=${EE_SITE_DISTRIBUTION_ID:-$(aws cloudformation describe-stacks --stack-
 aws s3 sync "$DIST" "s3://$BUCKET" --exclude '*' --include 'assets/*' \
   --cache-control 'public, max-age=31536000, immutable' --only-show-errors
 # 2. everything else, short cache; delete what the build no longer has
-aws s3 sync "$DIST" "s3://$BUCKET" --exclude 'assets/*' --cache-control 'public, max-age=60' \
-  --delete --only-show-errors
-aws s3 sync "$DIST" "s3://$BUCKET" --delete --only-show-errors   # removes stale assets too
+aws s3 sync "$DIST" "s3://$BUCKET" --exclude 'assets/*' --exclude '.well-known/*' \
+  --cache-control 'public, max-age=60' --delete --only-show-errors
+aws s3 sync "$DIST" "s3://$BUCKET" --exclude '.well-known/*' --delete --only-show-errors   # stale assets
+# 3. app-link files: JSON whatever their name (apple-app-site-association has no extension)
+if [ -d "$DIST/.well-known" ]; then
+  for f in "$DIST"/.well-known/*; do
+    aws s3 cp "$f" "s3://$BUCKET/.well-known/$(basename "$f")" --content-type application/json \
+      --cache-control 'public, max-age=300' --only-show-errors
+  done
+fi
 ID=$(aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths '/*' --query Invalidation.Id --output text)
 echo "synced $DIST -> s3://$BUCKET; invalidation $ID"

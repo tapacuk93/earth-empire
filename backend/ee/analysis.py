@@ -135,7 +135,7 @@ one-off details. 1 to 4 categories per item.
 social posts - who, what, when, where and context, in the caption's language when the caption \
 is not English, otherwise English. For a repost, describe the original and credit its author. \
 Never invent names, never speculate about private matters.
-Answer only by calling record_analysis."""
+Answer with the JSON object the response format asks for."""
 
 APPEARS = {"type": "array", "items": {"type": "object", "properties": {
     "media": {"type": "integer"}, "from": {"type": "number"}, "to": {"type": "number"}}, "required": ["media"]}}
@@ -291,11 +291,42 @@ def build_request(c, item_id: str, work: Path) -> tuple[dict, dict]:
     ctx = earlier_context(c, item_id, row["taken_at"])
     content.append({"type": "text", "text": "What earlier items established (JSON). Category slugs to reuse, nearby "
                                             "items, people the owner named before and how:\n" + j(ctx)})
-    content.append({"type": "text", "text": "Analyze this item now by calling record_analysis."})
-    body = {"max_tokens": 6000, "system": SYSTEM, "tools": [TOOL],
-            "tool_choice": {"type": "tool", "name": "record_analysis"},
+    content.append({"type": "text", "text": "Analyze this item now."})
+    # Structured outputs: the answer is JSON matching the schema (forced tool use is gone on
+    # Sonnet 5.5). Effort medium: this is perception and description, not deep reasoning.
+    body = {"max_tokens": 16000, "system": SYSTEM,
+            "output_config": {"effort": "medium",
+                              "format": {"type": "json_schema", "schema": strict_schema(TOOL["input_schema"])}},
             "messages": [{"role": "user", "content": content}]}
     return body, info
+
+
+def strict_schema(node):
+    """Our schema in the subset structured outputs accept: additionalProperties false on every
+    object, no array/number/string constraints, ["x", "null"] spelled as anyOf."""
+    if isinstance(node, list):
+        return [strict_schema(n) for n in node]
+    if not isinstance(node, dict):
+        return node
+    out = {k: strict_schema(v) for k, v in node.items()
+           if k not in ("minItems", "maxItems", "minimum", "maximum", "minLength", "maxLength", "multipleOf")}
+    t = out.get("type")
+    if isinstance(t, list):
+        rest = {k: v for k, v in out.items() if k not in ("type", "description")}
+        branches = [dict(rest, type=x) if x != "null" else {"type": "null"} for x in t]
+        for b in branches:
+            if b["type"] != "object":
+                b.pop("properties", None)
+                b.pop("required", None)
+            if b["type"] == "object":
+                b["additionalProperties"] = False
+        out = {"anyOf": branches}
+        if node.get("description"):
+            out["description"] = node["description"]
+        return out
+    if t == "object":
+        out["additionalProperties"] = False
+    return out
 
 
 SLUG_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -430,10 +461,15 @@ def analyze(c, item_id: str, *, dry_run: bool = False) -> dict:
         c.execute("INSERT INTO costs(at, item_id, purpose, model, input_tokens, output_tokens, coins, usd, ok) "
                   "VALUES (?,?,?,?,?,?,?,?,1)", (now(), item_id, "analyze", resp.get("model") or model,
                                                 usage.get("input_tokens"), usage.get("output_tokens"), coins, usd))
-        tool = next((b for b in resp.get("content") or [] if b.get("type") == "tool_use"), None)
-        if not tool:
-            raise RuntimeError(f"no tool call in the answer (stop_reason {resp.get('stop_reason')})")
-        out = tool["input"]
+        if resp.get("stop_reason") == "refusal":
+            raise RuntimeError(f"Claude declined: {resp.get('stop_details')}")
+        if resp.get("stop_reason") == "max_tokens":
+            raise RuntimeError("the answer hit max_tokens")
+        text = "".join(b.get("text", "") for b in resp.get("content") or [] if b.get("type") == "text")
+        try:
+            out = json.loads(text)
+        except ValueError:
+            raise RuntimeError(f"the answer is not JSON (stop_reason {resp.get('stop_reason')}): {text[:300]}")
         covers = save_covers(c, item_id, out.get("covers"), info["videos"])
         cats = apply_result(c, item_id, out, resp.get("model") or model)
         result = {"item": item_id, "categories": cats, "summary": out.get("summary"),

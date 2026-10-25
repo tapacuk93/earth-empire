@@ -81,8 +81,9 @@ def published_hits() -> list[dict]:
         return []
     try:
         cols = {r[1] for r in m.execute("PRAGMA table_info(hits)")}
-        extra = ", ".join(c for c in ("level", "level_by") if c in cols) or "NULL"
-        rows = m.execute(f"SELECT id, data, published_at, section, {extra} FROM hits "
+        lv = "level" if "level" in cols else "NULL"
+        ai = "ai_level" if "ai_level" in cols else "NULL"
+        rows = m.execute(f"SELECT id, data, published_at, section, {lv}, {ai} FROM hits "
                          "WHERE published_at IS NOT NULL").fetchall()
     except sqlite3.Error:
         return []
@@ -95,10 +96,12 @@ def published_hits() -> list[dict]:
             d = json.loads(data or "{}")
         except ValueError:
             d = {}
-        level = row[4] if len(row) > 4 else None
-        level_by = row[5] if len(row) > 5 else None
+        level, ai_level = row[4], row[5]
+        # the monitor's effective level: the owner's when it differs from the AI's, else the AI's
+        eff = level if level in (1, 2, 3, 4) else ai_level if ai_level in (1, 2, 3, 4) else None
+        level_by = "owner" if level in (1, 2, 3, 4) and level != ai_level else "ai"
         out.append({"id": hid, "data": d, "published_at": pub, "section": section,
-                    "level": level if level in (1, 2, 3, 4) else None, "level_by": level_by})
+                    "level": eff, "level_by": level_by if eff else None})
     return out
 
 
@@ -249,7 +252,8 @@ def members(c) -> dict[str, dict]:
         out["hit:" + h["id"]] = {"half": "all", "kind": "hit", "video": True, "source": "ai_found", "level": lvl,
                                  "curation": lw,
                                  "curation_reason": ("level L%d set by the owner" % lvl) if h.get("level_by") == "owner"
-                                 else "AI-chosen level L%d: %s" % (lvl, (d.get("level_reason") or "rated by the monitor")[:120]),
+                                 else ("AI-chosen level L%d: %s" % (lvl, (d.get("level_reason") or "")[:120])).rstrip(": ")
+                                 if h.get("level") else "not rated yet: L3",
                                  "original_at": (d.get("video") or {}).get("posted_at") or h["published_at"],
                                  "taken_at": (d.get("video") or {}).get("posted_at") or h["published_at"],
                                  "importance": d.get("importance") if isinstance(d.get("importance"), (int, float))

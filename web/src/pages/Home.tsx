@@ -35,7 +35,7 @@ export function SearchBox({ route }: { route: Route }) {
   const commit = (val: string) => navigate(withParam(route, 'q', val.trim() || undefined), { replace: true, keepScroll: true });
   return (
     <form class="search" role="search" onSubmit={(e) => { e.preventDefault(); clearTimeout(timer.current); commit(v); }}>
-      <label class="sr-only" for="q">Search the archive</label>
+      <label class="sr-only" for="q">Search Earth Empire</label>
       <Icon name="search" size={18} />
       <input id="q" type="search" placeholder="Search" value={v} onInput={(e) => { const val = (e.target as HTMLInputElement).value; setV(val); clearTimeout(timer.current); timer.current = window.setTimeout(() => commit(val), 350); }} />
     </form>
@@ -57,7 +57,7 @@ export function Home({ route }: { route: Route }) {
 
   useEffect(() => {
     const p = profile.data;
-    setMeta(SITE_NAME, p ? `The archive of @${p.username} as a map of videos: what is related sits together.` : undefined, p?.avatar || undefined);
+    setMeta(SITE_NAME, 'Earth Empire: every video, described and mapped by what it is about.', '/icon/og.png');
   }, [profile.data]);
   useEffect(() => { if (all.data) settleScroll(); }, [!!all.data]);
 
@@ -122,9 +122,9 @@ export function Home({ route }: { route: Route }) {
       </div>
       <header class="home-pill fui">
         <h1><span class="logo" aria-hidden="true" />{SITE_NAME}</h1>
-        {all.error ? <p class="error" role="alert">Could not load the archive: {all.error.message}</p> : all.data && (
+        {all.error ? <p class="error" role="alert">Could not load Earth Empire: {all.error.message}</p> : all.data && (
           <p class="stats-line">
-            <b>{items.length}</b> videos{first && last && <> · <b>{spanOf(first.taken_at, last.taken_at)}</b></>} · <b>{places(items).length}</b> places · <b>{people(items).length}</b> people
+            <b>{items.length}</b> videos{first && last && <> · <b>{spanOf(first.taken_at, last.taken_at)}</b></>} · <b>{places(items).length}</b> places · <b>{people(items).length}</b> people{profile.data && <> · from <a href={`https://www.instagram.com/${profile.data.username}/`} rel="external noopener">@{profile.data.username}</a></>}
           </p>
         )}
       </header>

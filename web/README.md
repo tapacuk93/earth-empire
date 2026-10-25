@@ -33,7 +33,7 @@ backend/deploy/deploy-site.sh
 
 ## Routes
 
-The site presents the archive as data rather than as a profile.
+The site presents Earth Empire as data rather than as a profile.
 
 | URL | Page |
 |---|---|
@@ -48,7 +48,7 @@ The site presents the archive as data rather than as a profile.
 Home is the only public section. It shows the totals, the month band, then everything newest first, then the two sections: **upper**, the highlights with few items plus the regular posts, and **lower**, the highlights with many items. A highlight with at most the threshold items is upper; the threshold starts at the median and can be set with `VITE_SECTION_THRESHOLD` or `?split=N` (`src/sections.ts`). Videos lead each section's media. The hits the owner published (`GET /v1/published`) appear in the panel of
 the section chosen at publish. `?watch=<id>` on Home or Detected opens the **fullscreen mode**: one per screen,
 swipe or arrow keys up and down. On Home it plays the published hits (frame and clip), then the
-archive's videos.
+Earth Empire's videos.
 
 **Owner mode**, as in the apps: visitors see only Home. The hidden way in is the final "." of the footer: one tap, a pause, then three quick taps open the admin key prompt. `/settings` also accepts the key, at
 `/settings`. There the owner enters the token (`earth-empire/admin-token`). It is checked with
@@ -137,4 +137,5 @@ insets). Targets: Safari 14+, Chrome/Edge/Samsung Internet 90+, Firefox 90+.
 - **No word "feed"**: tiles outside any highlight have no label, and the halves have no visible names (screen readers get "Short highlights" and "Long highlights").
 - **Images** (only the owner's own) are never standalone tiles. Each takes a slice of its video's tile (`attached_to`, else its most similar video), and in the wheel it follows that video as a 5-second still.
 - **Why it is public**: the wheel starts a video 1.5 s before `detection.hits[0].at`. A floating chip shows the excerpt, the translation and the confidence level (likely, possible or low confidence), and the progress bar is marked at every hit. Mosaic tiles show a small hit-count badge once they are big enough.
+- **The mark is the Earth**: `web/public/icon/earth.svg` is the one source for the favicon, touch and manifest icons, the floating name pill, the app banner and the default share image (`og.png`). The apps use the same SVG for their icons. The PNGs are rendered from it.
 - **The app banner** never covers a fullscreen view. On Home it shows once, as a toast, after the first interaction.

@@ -111,7 +111,7 @@ export function ItemPage({ id, route }: { id: string; route: Route }) {
   }, [ready, inList, id]);
 
   if (err instanceof ApiError && err.status === 404) return <NotFound what="item" />;
-  if (err && !solo) return <div class="error" role="alert"><p>Could not load this item. {err.message}</p><p><a class="btn" href="/">Back to the archive</a></p></div>;
+  if (err && !solo) return <div class="error" role="alert"><p>Could not load this item. {err.message}</p><p><a class="btn" href="/">Back to Earth Empire</a></p></div>;
   const items = inList ? list! : solo ? [solo] : undefined;
   if (!items) return <div class="ifeed loading" aria-busy="true"><p class="sr-only" role="status">Loading…</p><span class="spinner" /></div>;
   return <ItemFeed key={ctx} items={items} start={id} ctx={inList ? ctx : 'all'} label={inList ? ctxLabel(ctx, cats.data, hl.data) : 'Item'} />;

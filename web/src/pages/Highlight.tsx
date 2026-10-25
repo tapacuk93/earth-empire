@@ -147,7 +147,7 @@ export function HighlightPage({ id, route }: { id: string; route: Route }) {
     go(e.clientX - r.left < r.width * 0.3 ? -1 : 1);
   };
 
-  if (err) return <div class="error" role="alert"><p>Could not load this highlight. {err.message}</p><p><a href="/">Back to the archive</a></p></div>;
+  if (err) return <div class="error" role="alert"><p>Could not load this highlight. {err.message}</p><p><a href="/">Back to Earth Empire</a></p></div>;
   if (all && !h) return <NotFound what="highlight" />;
 
   const r = item?.repost_of;

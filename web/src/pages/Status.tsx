@@ -61,7 +61,7 @@ function MonitorStats() {
 export function StatusPage() {
   const [st, setSt] = useState<Status>();
   const [err, setErr] = useState<string>();
-  useEffect(() => { setMeta('Status', 'Live activity and health of the archive’s parts.', undefined, true); }, []);
+  useEffect(() => { setMeta('Status', 'Live activity and health of Earth Empire’s parts.', undefined, true); }, []);
   useEffect(() => {
     let live = true, timer = 0;
     const tick = () => {

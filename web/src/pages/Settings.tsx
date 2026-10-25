@@ -126,7 +126,7 @@ export function SettingsPage() {
   return (
     <>
       <header class="page-head"><h1>{owner ? 'Settings' : 'Owner sign-in'}</h1>
-        {!owner && <p class="lead">This archive is public. The owner signs in here with the owner token to see Detected, Status and Settings.</p>}
+        {!owner && <p class="lead">Earth Empire is public. The owner signs in here with the owner token to see Detected, Status and Settings.</p>}
       </header>
       <section class="panel" aria-labelledby="token-h">
         <h2 id="token-h">Owner token</h2>

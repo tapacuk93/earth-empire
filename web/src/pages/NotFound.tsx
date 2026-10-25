@@ -6,8 +6,8 @@ export function NotFound({ what = 'page' }: { what?: string }) {
   return (
     <section class="notfound">
       <h1>Not found</h1>
-      <p>This {what} is not in the archive{what === 'page' ? '' : ', or it was removed'}.</p>
-      <p><a class="btn" href="/">Back to the archive</a></p>
+      <p>This {what} is not in Earth Empire{what === 'page' ? '' : ', or it was removed'}.</p>
+      <p><a class="btn" href="/">Back to Earth Empire</a></p>
     </section>
   );
 }

@@ -63,7 +63,9 @@ async function loadData() {
   return { profile, highlights, categories, items };
 }
 
-function head({ title, description, image, url, type = 'website', video, noindex }) {
+const DEFAULT_IMAGE = '/icon/og.png';
+function head({ title, description, image = DEFAULT_IMAGE, url, type = 'website', video, noindex }) {
+  image = image || DEFAULT_IMAGE;
   const full = title === NAME ? NAME : `${title} · ${NAME}`;
   const t = [
     `<title>${esc(full)}</title>`,
@@ -105,7 +107,7 @@ const itemLink = (it) => `<li><a href="/item/${encodeURIComponent(it.id)}">${esc
 let data = null;
 try { data = await loadData(); } catch (e) { console.warn(`prerender: could not load data from ${API} (${e.message}); writing generic shells only`); }
 
-const generic = { title: NAME, description: 'An archive of every video and highlight, each one described.', url: SITE + '/' };
+const generic = { title: NAME, description: 'Earth Empire: every video, described and mapped by what it is about.', url: SITE + '/' };
 page('404.html', { ...generic, url: '' }, `<h1>${NAME}</h1><p>Loading…</p>`);
 let count = 1;
 
@@ -114,8 +116,8 @@ if (!data) {
 } else {
   const { profile, highlights, categories, items } = data;
   const catName = Object.fromEntries(categories.map((c) => [c.slug, c.name]));
-  const desc = `The archive of @${profile.username}${profile.full_name ? ` (${profile.full_name})` : ''}: every video and highlight, described.`;
-  page('index.html', { ...generic, description: desc, image: profile.avatar },
+  const desc = 'Earth Empire: every video, described and mapped by what it is about.';
+  page('index.html', { ...generic, description: desc, image: DEFAULT_IMAGE },
     `<h1>${esc(profile.full_name || profile.username)}</h1><p>${esc(profile.bio || '')}</p>` +
     `<h2>Highlights</h2><ul>${highlights.map((h) => `<li><a href="/highlight/${encodeURIComponent(h.id)}">${esc(h.title)}</a></li>`).join('')}</ul>` +
     `<h2>Categories</h2><ul>${categories.map((c) => `<li><a href="/category/${encodeURIComponent(c.slug)}">${esc(c.name)}</a></li>`).join('')}</ul>` +

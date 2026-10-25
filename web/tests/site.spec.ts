@@ -493,3 +493,15 @@ test('wheel: why it is here - the first hit as a chip, the video starting just b
   await page.goto('/item/ig_3400000000000000008');
   await expect(feed(page).locator('.islide:not([aria-hidden])').getByRole('note', { name: 'Why this is here' })).toContainText('low confidence');
 });
+
+test('the mark is the Earth: favicon, touch icon, manifest and share image', async ({ page, request }) => {
+  await page.goto('/');
+  await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveAttribute('href', '/icon/earth.svg');
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/icon/apple-touch-icon.png');
+  for (const path of ['/icon/earth.svg', '/icon/earth-16.png', '/icon/earth-32.png', '/icon/apple-touch-icon.png', '/icon/og.png', '/manifest.webmanifest']) {
+    expect((await request.get(path)).status(), path).toBe(200);
+  }
+  const manifest = await (await request.get('/manifest.webmanifest')).json();
+  expect(manifest.icons.map((i: { src: string }) => i.src)).toContain('/icon/earth-512.png');
+  expect(await (await request.get('/')).text()).toContain('https://empire.earth/icon/og.png');
+});

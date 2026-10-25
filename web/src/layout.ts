@@ -362,7 +362,8 @@ export function pack(m: Mosaic, W: number, H: number): Packed[] {
     const list: Tile[] = [...shown];
     if (hidden.length) {
       // The "+N" tile never takes more than a fifth of the screen; zooming in opens it up.
-      const cw = Math.max(Math.min(hidden.reduce((s, t) => s + w(t), 0), 0.2 * total), (minSide * minSide * 1.6 / (W * H)) * (total || 1));
+      const shownW = shown.reduce((s, t) => s + w(t), 0) || total;
+      const cw = Math.max(Math.min(hidden.reduce((s, t) => s + w(t), 0), 0.25 * shownW), (minSide * minSide * 1.6 / (W * H)) * (shownW + 0.0001));
       const first = hidden[0];
       list.push({ ...first, id: `more:${first.id}`, r: Math.sqrt(cw), more: hidden, kids: undefined, group: '', text: `${hidden.length} more`, hit: undefined, item: undefined, video: undefined });
     }

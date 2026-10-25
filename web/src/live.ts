@@ -159,3 +159,42 @@ export async function rejectPhraseSuggestion(text: string) {
   if (MOCK) { try { localStorage.setItem(REJECT_KEY, JSON.stringify([...new Set([...rejectedLocal(), text.toLowerCase()])])); } catch { /* blocked */ } return; }
   await call('POST', `/v1/monitor/phrases/suggested/${encodeURIComponent(text)}/reject`, {}, true);
 }
+
+// ---- the importance rubric and size formula (CONTRACT.md: GET/PUT /v1/admin/settings, owner only) ----
+export interface RubricVersion { version: number; text: string; reason?: string; by?: string; applied?: boolean; created_at?: string }
+export interface AdminSettings {
+  size: { half_life_days?: number; age_floor?: number; importance_w?: number };
+  placement: Record<string, number>;
+  rubric: { version?: number; text: string; reason?: string; by?: string; history?: RubricVersion[] };
+  rubric_review?: boolean;
+  formula?: string;
+}
+let mockSettings: AdminSettings = {
+  size: { half_life_days: 180, age_floor: 0.05, importance_w: 0.15 },
+  placement: { post: 1, dedicated: 1, shared: 0.5, repost: 0.25, story: 0.125, hit_top: 1, hit_bottom: 0.5 },
+  rubric: { version: 2, text: 'Important: moments that show the owner taking part, speaking, or being named; events with lasting meaning. Less important: reshared news without the owner, filler.', reason: 'Clearer wording', by: 'claude',
+    history: [
+      { version: 1, text: 'Important: the owner taking part; lasting events.', reason: 'First version', by: 'backend', applied: true, created_at: '2026-10-24T10:00:00Z' },
+      { version: 2, text: 'Important: moments that show the owner taking part, speaking, or being named; events with lasting meaning. Less important: reshared news without the owner, filler.', reason: 'Clearer wording', by: 'claude', applied: true, created_at: '2026-10-25T10:00:00Z' },
+    ] },
+  rubric_review: true,
+  formula: 'size = placement × age_factor × (1 − w + w × importance); age_factor = max(floor, 0.5^(age_days / half_life_days))',
+};
+export async function getAdminSettings(): Promise<AdminSettings> {
+  if (MOCK) { if (adminToken() !== 'owner') throw new ApiError(401, '401 Unauthorized'); return JSON.parse(JSON.stringify(mockSettings)); }
+  return call<AdminSettings>('GET', '/v1/admin/settings', undefined, true);
+}
+export async function putAdminSettings(patch: Partial<Omit<AdminSettings, 'rubric'>> & { rubric?: { text: string; reason?: string } }): Promise<AdminSettings> {
+  if (MOCK) {
+    if (adminToken() !== 'owner') throw new ApiError(401, '401 Unauthorized');
+    if (patch.size) mockSettings.size = { ...mockSettings.size, ...patch.size };
+    if (patch.placement) mockSettings.placement = { ...mockSettings.placement, ...patch.placement };
+    if (patch.rubric) {
+      const v = (mockSettings.rubric.version || 0) + 1;
+      const entry = { version: v, text: patch.rubric.text, reason: patch.rubric.reason, by: 'owner', applied: true, created_at: new Date().toISOString() };
+      mockSettings.rubric = { ...entry, history: [...(mockSettings.rubric.history || []), entry] };
+    }
+    return getAdminSettings();
+  }
+  return call<AdminSettings>('PUT', '/v1/admin/settings', patch, true);
+}

@@ -28,7 +28,7 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, x: number, y: number,
  * tile under the pointer or keyboard focus plays muted; labels, dates and descriptions appear as
  * tiles grow. A hidden list of links mirrors the tiles for keyboard and screen-reader users.
  */
-export function MosaicView({ mosaic, title, id, hrefFor }: { mosaic: Mosaic; title: string; id: string; hrefFor: (t: Tile) => string }) {
+export function MosaicView({ mosaic, title, id, hrefFor, share, clamped }: { mosaic: Mosaic; title: string; id: string; hrefFor: (t: Tile) => string; share?: number; clamped?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const vid = useRef<HTMLVideoElement>(null);
   const view = useRef<View>({ k: 1, x: 0, y: 0 });
@@ -43,6 +43,9 @@ export function MosaicView({ mosaic, title, id, hrefFor }: { mosaic: Mosaic; tit
     if (w === size.current.w && h === size.current.h && cells.current.length) return;
     size.current = { w, h };
     cells.current = pack(mosaic, w, h);
+    // For tests and debugging: each video's area and weight (attached images left out).
+    const c = canvas.current;
+    if (c) c.dataset.cells = JSON.stringify(cells.current.filter((p) => !p.tile.attachedTo && !mosaic.tiles.some((t) => t.attachedTo === p.tile.id)).map((p) => [p.tile.id, Math.round(p.w * p.h), +(p.tile.r * p.tile.r).toFixed(4), Math.round(p.x), Math.round(p.y), Math.round(p.w), Math.round(p.h), p.tile.video ? 1 : 0]));
   };
   const clamp = () => {
     const v = view.current, { w, h } = size.current;
@@ -130,11 +133,18 @@ export function MosaicView({ mosaic, title, id, hrefFor }: { mosaic: Mosaic; tit
     const cw = p ? p.w * v.k : 0, ch = p ? p.h * v.k : 0;
     if (!p || !t?.video || Math.min(cw, ch) < 56) { if (!el.paused) el.pause(); el.style.display = 'none'; return; }
     Object.assign(el.style, { display: 'block', left: `${p.x * v.k + v.x}px`, top: `${p.y * v.k + v.y}px`, width: `${cw}px`, height: `${ch}px` });
-    if (el.dataset.src !== t.video) { el.dataset.src = t.video; el.src = t.video; el.poster = t.cover || ''; }
+    if (el.dataset.src !== t.video) { el.dataset.src = t.video; el.classList.remove('on'); el.src = t.video; el.poster = t.cover || ''; }
     claimPlayback(el);
     el.play().catch(() => undefined);
   };
-  const setHover = (p: Packed | null) => { if (hover.current !== p) { hover.current = p; schedule(); } };
+  // A preview starts after a short pause on a tile and stays while the pointer is anywhere over it.
+  const hoverTimer = useRef(0);
+  const setHover = (p: Packed | null, delay = 0) => {
+    if (hover.current === p) { clearTimeout(hoverTimer.current); return; }
+    clearTimeout(hoverTimer.current);
+    if (delay && p) { hoverTimer.current = window.setTimeout(() => { hover.current = p; schedule(); }, delay); return; }
+    hover.current = p; schedule();
+  };
   const changed = () => { clamp(); savedViews.set(id, { ...view.current }); setZoom(view.current.k); schedule(); };
 
   const fit = () => { Object.assign(view.current, { k: 1, x: 0, y: 0 }); changed(); };
@@ -150,12 +160,12 @@ export function MosaicView({ mosaic, title, id, hrefFor }: { mosaic: Mosaic; tit
       min: 1, max: MAXZ,
       onChange: changed,
       onTap: (sx, sy) => { const p = cellAt(sx, sy); if (p) navigate(hrefFor(p.tile)); },
-      onHover: (sx, sy) => { const p = cellAt(sx, sy); setHover(p); c.style.cursor = p ? 'pointer' : 'grab'; },
+      onHover: (sx, sy) => { const p = cellAt(sx, sy); setHover(p, 150); c.style.cursor = p ? 'pointer' : 'grab'; },
       onLeave: () => setHover(null),
     });
     const ro = new ResizeObserver(() => schedule());
     ro.observe(c);
-    return () => { off(); ro.disconnect(); if (raf.current) cancelAnimationFrame(raf.current); };
+    return () => { off(); ro.disconnect(); if (raf.current) cancelAnimationFrame(raf.current); raf.current = 0; };
   }, [mosaic]);
 
   const focusTile = (t: Tile) => {
@@ -170,13 +180,13 @@ export function MosaicView({ mosaic, title, id, hrefFor }: { mosaic: Mosaic; tit
   const zoomBtn = (f: number) => { zoomBy(view.current, size.current.w, size.current.h, f, 1, MAXZ); changed(); };
 
   return (
-    <section class="mosaic" aria-labelledby={`${id}-h`}>
+    <section class="mosaic" aria-labelledby={`${id}-h`} style={share ? { flex: `${share} 1 0` } : undefined} data-share={share?.toFixed(3)} data-clamped={clamped ? '1' : undefined}>
       <h2 id={`${id}-h`} class="sr-only">{title}: {mosaic.tiles.length} videos</h2>
       <ZoomCtl title={title} zoom={zoom} onIn={() => zoomBtn(1.6)} onOut={() => zoomBtn(1 / 1.6)} onFit={fit} />
       <div class="mosaic-box">
         <canvas ref={canvas} class="mosaic-canvas" aria-hidden="true" />
         <video ref={vid} class="mosaic-video" muted loop playsinline preload="none" aria-hidden="true" tabIndex={-1}
-          onClick={() => hover.current && navigate(hrefFor(hover.current.tile))} />
+          onPlaying={(e) => (e.currentTarget as HTMLVideoElement).classList.add('on')} />
       </div>
       <ul class="mosaic-list" aria-label={`${title}: videos`}>
         {mosaic.tiles.map((t) => (

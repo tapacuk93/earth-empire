@@ -181,7 +181,7 @@ export function mosaicFromLayout(lt: { id: string; kind: string; x: number; y: n
     const group = h ? (label || 'Detected') : FEEDISH.has(label.toLowerCase()) ? '' : label;
     const m = it ? it.media[0] || it.repost_of?.media?.[0] : undefined;
     tiles.push({
-      id: t.id, item: it, hit: h, x: (t.x - 0.5) * span, y: (t.y - 0.5) * span, r: 0.5 + 1.3 * Math.max(0.15, Math.min(1, t.size)),
+      id: t.id, item: it, hit: h, x: (t.x - 0.5) * span, y: (t.y - 0.5) * span, r: 1.6 * Math.sqrt(Math.max(0.005, Math.min(1, t.size))),
       cover: it ? cover(it) : h!.frame || h!.video?.thumbnail || undefined, video: it ? (m?.type === 'video' ? m.url : undefined) : h!.clip || undefined,
       group, date: it?.taken_at || t.taken_at || h?.video?.posted_at || undefined, text: it ? it.summary || it.caption || '' : `${whatOf(h!)} · ${titleOf(h!)}`,
       tags: it ? tagSet(it) : hitTags(h!),

@@ -5,7 +5,6 @@
 //   dist/index.html                     home
 //   dist/item/<id>/index.html           every item
 //   dist/highlight/<id>/index.html      every highlight
-//   dist/category/<slug>/index.html     every category
 //   dist/404.html                       generic shell: the SPA fallback (see README, CloudFront)
 //   dist/sitemap.xml, dist/robots.txt
 //
@@ -120,7 +119,6 @@ if (!data) {
   page('index.html', { ...generic, description: desc, image: DEFAULT_IMAGE },
     `<h1>${esc(profile.full_name || profile.username)}</h1><p>${esc(profile.bio || '')}</p>` +
     `<h2>Highlights</h2><ul>${highlights.map((h) => `<li><a href="/highlight/${encodeURIComponent(h.id)}">${esc(h.title)}</a></li>`).join('')}</ul>` +
-    `<h2>Categories</h2><ul>${categories.map((c) => `<li><a href="/category/${encodeURIComponent(c.slug)}">${esc(c.name)}</a></li>`).join('')}</ul>` +
     `<h2>Latest</h2><ul>${items.slice(0, 60).map(itemLink).join('')}</ul>`);
 
   for (const it of items) {
@@ -135,7 +133,6 @@ if (!data) {
       (coverOf(it) ? `<img src="${esc(coverOf(it))}" alt="${esc(clip(it.alt_text || a.what || it.summary || '', 300))}" width="360">` : '') +
       (it.description ? `<p>${esc(it.description)}</p>` : '') + (it.caption ? `<p>${esc(it.caption)}</p>` : '') + (a.what ? `<p>${esc(a.what)}</p>` : '') +
       (it.repost_of ? `<p>Original by <a href="${esc(it.repost_of.source_url || `https://www.instagram.com/${it.repost_of.author}/`)}">@${esc(it.repost_of.author)}</a></p>` : '') +
-      ((it.categories || []).length ? `<p>${it.categories.map((c) => `<a href="/category/${encodeURIComponent(c)}">${esc(catName[c] || c)}</a>`).join(' · ')}</p>` : '') +
       `<p><a href="/">${NAME}</a></p></article>`);
     count++;
   }
@@ -150,16 +147,7 @@ if (!data) {
     count++;
   }
 
-  for (const c of categories) {
-    const list = items.filter((i) => (i.categories || []).includes(c.slug));
-    page(`category/${encodeURIComponent(c.slug)}/index.html`,
-      { title: c.name, description: clip(c.description || `Everything in ${c.name}.`) + ` ${c.count ?? list.length} items.`, image: list[0] && coverOf(list[0]), url: `${SITE}/category/${encodeURIComponent(c.slug)}` },
-      `<h1>${esc(c.name)}</h1><p>${esc(c.description || '')}</p><ul>${list.slice(0, 60).map(itemLink).join('')}</ul>`);
-    count++;
-  }
-
-  // Detected, Status and Settings are the owner's: no prerendered page and no sitemap entry.
-  const urls = ['/', ...categories.map((c) => `/category/${encodeURIComponent(c.slug)}`), ...highlights.map((h) => `/highlight/${encodeURIComponent(h.id)}`), ...items.map((i) => `/item/${encodeURIComponent(i.id)}`)];
+  const urls = ['/', ...highlights.map((h) => `/highlight/${encodeURIComponent(h.id)}`), ...items.map((i) => `/item/${encodeURIComponent(i.id)}`)];
   writeFileSync(join(DIST, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `<url><loc>${esc(SITE + u)}</loc></url>`).join('\n')}\n</urlset>\n`);
 }
 writeFileSync(join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: /detected\nDisallow: /status\nDisallow: /settings\n${data ? `Sitemap: ${SITE}/sitemap.xml\n` : ''}`);

@@ -688,3 +688,11 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .facets-sheet { order: -1; width: 100%; max-height: 55dvh; overflow-y: auto; padding: 10px 12px; border-radius: 14px; background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: var(--shadow); }
 .facets-sheet h3 { margin: 6px 0; font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .mode#mode-tags { position: relative; }
+.mosaic-video { pointer-events: none; opacity: 0; transition: opacity .25s ease; }
+.mosaic-video.on { opacity: 1; }
+.formula code { display: block; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); font-size: .85rem; white-space: pre-wrap; }
+.imp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 8px 14px; }
+.imp-grid label { display: grid; gap: 4px; font-size: .85rem; color: var(--muted); }
+.importance textarea, .importance input { width: 100%; min-height: 40px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 16px; }
+.history li { padding: 8px 0; border-top: 1px solid var(--line); } .history blockquote { margin: 4px 0 0; white-space: pre-wrap; font-size: .9rem; }
+.history .not-applied { opacity: .7; }

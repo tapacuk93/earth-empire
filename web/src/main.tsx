@@ -5,7 +5,7 @@ import './idle';
 import { AppBanner } from './components/AppBanner';
 import { SecretDot, ThemeToggle } from './components/Chrome';
 import { SITE_NAME } from './config';
-import { CategoryPage } from './pages/Category';
+import { CategoryRedirect } from './pages/CategoryRedirect';
 import { HighlightPage } from './pages/Highlight';
 import { Home } from './pages/Home';
 import { DetectedPage } from './pages/Detected';
@@ -61,7 +61,7 @@ function App() {
 
   let page;
   if (seg[0] === 'item' && seg[1] && seg.length === 2) page = <ItemPage id={seg[1]} route={route} />;
-  else if (seg[0] === 'category' && seg[1] && seg.length === 2) page = <CategoryPage slug={seg[1]} route={route} />;
+  else if (seg[0] === 'category' && seg[1] && seg.length === 2) page = <CategoryRedirect slug={seg[1]} />;
   else if ((seg[0] === 'detected' || seg[0] === 'monitor') && seg.length === 1) page = <OwnerOnly><DetectedPage route={route} /></OwnerOnly>;
   else if (seg[0] === 'status' && seg.length === 1) page = <OwnerOnly><StatusPage /></OwnerOnly>;
   else if (seg[0] === 'settings' && seg.length === 1) page = <SettingsPage />;

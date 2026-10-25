@@ -208,17 +208,20 @@ test('feed: a section context, the overlay, expanded analysis, and seeking the v
   await expect(slide.locator('.ifacts')).toContainText('With @mira.sails');
   const video = slide.locator('video');
   await expect(video).toHaveAttribute('poster', /reel-sunset\.cover\.jpg/);
-  expect(await video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(true);
   await slide.getByRole('button', { name: 'More' }).click();
   const sheet = slide.getByRole('region', { name: 'What’s in it' });
   await expect(sheet.getByText('named from a mention')).toBeVisible();
   await expect(sheet.getByRole('heading', { name: /Transcript/ })).toBeVisible();
-  await expect(slide.getByRole('link', { name: 'Cape Lumen Lighthouse' })).toBeVisible();
+  await expect(slide.getByRole('link', { name: 'Cape Lumen Lighthouse' }).first()).toBeVisible();
   const playable = await video.evaluate((v: HTMLVideoElement) => v.canPlayType('video/mp4; codecs="avc1.4D401E, mp4a.40.2"') !== '');
   await sheet.getByRole('button', { name: /0:03\s*The lighthouse comes into view/ }).click();
   if (playable) await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 8000 }).toBeGreaterThan(2.9);
+  const tapForSound = page.getByRole('button', { name: 'Tap for sound' });
+  if (await tapForSound.count()) await tapForSound.click();
+  await page.getByRole('button', { name: 'Mute', exact: true }).click();
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(true);
   await page.getByRole('button', { name: 'Unmute', exact: true }).click();
-  expect(await video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(false);
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(false);
   await noHorizontalScroll(page);
 });
 
@@ -262,17 +265,16 @@ test('highlight: images advance on their own, then the next highlight', async ({
   await expect(page).toHaveURL(/\/highlight\/hl_9003/);
 });
 
-test('category page as a panel', async ({ page }) => {
+test('old category links open the matching facet category, else Home', async ({ page }) => {
   await page.goto('/category/food');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Food');
-  await expect(page.locator('.hero .kpi').first()).toContainText('4');
-  await expect(rows(page)).toHaveCount(4);
-  await expect(page.getByRole('group', { name: 'Kind' })).toHaveCount(0);
-  await noHorizontalScroll(page);
+  await expect(page).toHaveURL(/ctx=facet%3Atopic%3Afood/);
+  await expect(feed(page)).toHaveAccessibleName(/^Food: item 1 of \d+$/);
+  await page.goto('/category/no-such-thing');
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test('share tags are in the HTML of every main route', async ({ request }) => {
-  for (const path of ['/', `/item/${REEL}`, '/highlight/hl_9001', '/category/travel']) {
+  for (const path of ['/', `/item/${REEL}`, '/highlight/hl_9001']) {
     const res = await request.get(path);
     expect(res.status(), path).toBe(200);
     const html = await res.text();
@@ -330,11 +332,11 @@ test.describe('app banner on Android', () => {
     await page.goto('/item/ig_3400000000000000001');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.getByRole('complementary', { name: 'Open in the app' })).toHaveCount(0);
-    await page.goto('/category/food');
+    await page.goto('/settings');
     const banner = page.getByRole('complementary', { name: 'Open in the app' });
     await expect(banner).toBeVisible();
     const href = await banner.getByRole('link', { name: 'Open' }).getAttribute('href');
-    expect(href).toMatch(/^intent:\/\/[^/]+\/category\/food#Intent;scheme=https;package=com\.oeaio\.earthempire;S\.browser_fallback_url=https%3A%2F%2Fplay\.google\.com/);
+    expect(href).toMatch(/^intent:\/\/[^/]+\/settings#Intent;scheme=https;package=com\.oeaio\.earthempire;S\.browser_fallback_url=https%3A%2F%2Fplay\.google\.com/);
     await banner.getByRole('button', { name: 'Stay on the web' }).click();
     await expect(banner).toHaveCount(0);
     await page.reload();
@@ -346,9 +348,9 @@ test.describe('app banner on Android', () => {
 test.describe('app banner on iPhone', () => {
   test.use({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
   test('opens the app by its scheme at the same path', async ({ page }) => {
-    await page.goto('/category/food');
+    await page.goto('/settings');
     const open = page.getByRole('complementary', { name: 'Open in the app' }).getByRole('link', { name: 'Open' });
-    await expect(open).toHaveAttribute('href', 'earthempire://category/food');
+    await expect(open).toHaveAttribute('href', 'earthempire://settings');
   });
 });
 
@@ -515,4 +517,136 @@ test('facets: whatever the backend defines, each category opens its wheel', asyn
   await sheet.getByRole('button', { name: /^Food\s*4$/ }).click();
   await expect(feed(page)).toHaveAccessibleName(/^Food: item 1 of \d+$/);
   await expect(page).toHaveURL(/ctx=facet%3Atopic%3Afood/);
+});
+
+test('home stays tappable: open a tile, close the wheel, open another - several times', async ({ page, isMobile, hasTouch }) => {
+  await page.goto('/');
+  for (let i = 0; i < 5; i++) {
+    const mc = page.locator('.mode-mosaic canvas').first();
+    await expect(mc).toHaveAttribute('data-cells', /\[\[/);
+    const c = (await mc.boundingBox())!;
+    const x = c.x + c.width * (0.15 + 0.17 * i), y = c.y + c.height * (0.3 + 0.1 * (i % 3));
+    if (hasTouch) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y);
+    await expect(page).toHaveURL(/\/item\/|watch=/);
+    const close = page.getByRole('button', { name: 'Close' });
+    await close.click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.locator('canvas.mosaic-canvas').first()).toBeVisible();
+    void isMobile;
+  }
+});
+
+test('wheel: sound on by default, remembered when muted', async ({ page }) => {
+  await page.goto(`/item/${REEL}`);
+  const video = feed(page).locator('.islide:not([aria-hidden]) video').first();
+  const prompt = page.getByRole('button', { name: 'Tap for sound' });
+  // Either it plays with sound, or the browser refused and the wheel asks for a tap.
+  await expect.poll(async () => (await prompt.count()) > 0 || !(await video.evaluate((v: HTMLVideoElement) => v.muted))).toBe(true);
+  if (await prompt.count()) { await prompt.click(); await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(false); }
+  await expect(page.getByRole('button', { name: 'Mute', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Mute', exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Unmute', exact: true })).toBeVisible();
+});
+
+test('tag graph: no two labels overlap, at any zoom', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Tag graph mode' }).click();
+  const region = page.getByRole('region', { name: 'Tags', exact: true }).or(page.locator('.tag-graph'));
+  const canvas = page.locator('.tag-graph canvas');
+  const check = async () => {
+    const boxes: number[][] = JSON.parse((await canvas.getAttribute('data-labels')) || '[]');
+    const circles: number[][] = JSON.parse((await canvas.getAttribute('data-circles')) || '[]');
+    const [cw, ch] = ((await canvas.getAttribute('data-size')) || '0x0').split('x').map(Number);
+    expect(boxes.length).toBeGreaterThan(0);
+    for (const [x, y, w, h] of boxes) {
+      expect(x >= 0 && y >= 0 && x + w <= cw && y + h <= ch, 'label inside the screen').toBe(true);
+      for (const [cx, cy, r] of circles) {
+        const nx = Math.max(x, Math.min(cx, x + w)), ny = Math.max(y, Math.min(cy, y + h));
+        expect((cx - nx) ** 2 + (cy - ny) ** 2 >= r * r, 'label clear of every circle').toBe(true);
+      }
+    }
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const [a, b] = [boxes[i], boxes[j]];
+      const overlap = a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+      expect(overlap, `labels ${i} and ${j} overlap`).toBe(false);
+    }
+    return boxes.length;
+  };
+  await expect.poll(async () => JSON.parse((await canvas.getAttribute('data-labels')) || '[]').length).toBeGreaterThan(0);
+  const n0 = await check();
+  await page.locator('.tag-graph').getByRole('button', { name: /^Zoom controls/ }).click();
+  for (let z = 0; z < 3; z++) {
+    await page.locator('.tag-graph').getByRole('button', { name: 'Zoom in: tags' }).click();
+    await page.waitForTimeout(150);
+    await check();
+  }
+  await page.locator('.tag-graph').getByRole('button', { name: 'Zoom out: tags' }).click();
+  await page.waitForTimeout(150);
+  await check();
+  void n0; void region;
+});
+
+test('timeline: tiles recognisable at the first view', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Timeline mode' }).click();
+  const tile = Number(await page.locator('.timeline-mode canvas').getAttribute('data-tile'));
+  const vw = page.viewportSize()!.width;
+  expect(tile).toBeGreaterThanOrEqual(Math.min(vw * 0.3, 108));
+});
+
+test('mosaic: a hovered tile previews without flicker', async ({ page, hasTouch }) => {
+  test.skip(hasTouch, 'hover is for mice');
+  await page.goto('/');
+  const canvas = page.locator('.mode-mosaic canvas').first();
+  await expect(canvas).toHaveAttribute('data-cells', /\[\[/);
+  const c = (await canvas.boundingBox())!;
+  const cells: number[][] = JSON.parse((await canvas.getAttribute('data-cells'))!);
+  const v = cells.filter((x) => x[7] === 1).sort((a, b) => b[1] - a[1])[0];
+  await page.mouse.move(c.x + v[3] + v[5] / 2, c.y + v[4] + v[6] / 2);
+  await page.mouse.move(c.x + v[3] + v[5] / 2 + 4, c.y + v[4] + v[6] / 2 + 3);
+  await page.waitForTimeout(400);
+  // While the pointer stays on the tile, the preview never goes away and comes back.
+  const states = await page.evaluate(() => new Promise<string[]>((res) => {
+    const v = document.querySelector<HTMLVideoElement>('.mosaic-video')!;
+    const out: string[] = [];
+    let n = 0;
+    const tick = () => { out.push(`${v.style.display}|${v.dataset.src || ''}`); if (++n < 40) requestAnimationFrame(tick); else res(out); };
+    tick();
+  }));
+  expect(new Set(states).size, states.join(', ')).toBe(1);
+  expect(states[0].startsWith('none')).toBe(false);
+  // The overlay never takes the pointer away from the canvas.
+  expect(await page.locator('.mode-mosaic .mosaic-video').first().evaluate((v) => getComputedStyle(v).pointerEvents)).toBe('none');
+});
+
+test('mosaic: tile area follows size across both halves', async ({ page }) => {
+  await page.goto('/');
+  const halves = page.locator('.mode-mosaic .mosaic');
+  await expect(halves.first().locator('canvas')).toHaveAttribute('data-cells', /\[/);
+  const data = await halves.evaluateAll((els) => els.map((e) => ({ clamped: e.getAttribute('data-clamped') === '1', cells: JSON.parse(e.querySelector('canvas')!.getAttribute('data-cells') || '[]') as [string, number, number][] })));
+  const ratios = (cells: [string, number, number][]) => cells.filter((x) => x[2] > 0 && x[1] > 400).map((x) => x[1] / x[2]);
+  for (const h of data) {
+    const r = ratios(h.cells);
+    if (r.length > 1) expect(Math.max(...r) / Math.min(...r)).toBeLessThan(1.15);
+  }
+  if (data.length === 2 && !data.some((h) => h.clamped)) {
+    const [a, b] = data.map((h) => ratios(h.cells)).map((r) => r.reduce((s, x) => s + x, 0) / r.length);
+    expect(Math.max(a, b) / Math.min(a, b)).toBeLessThan(1.15);
+  }
+});
+
+test('settings: importance - formula, w, age, placement weights and a versioned rubric', async ({ page }) => {
+  await signIn(page);
+  const imp = page.getByRole('region', { name: 'Importance' });
+  await expect(imp.locator('.formula')).toContainText('size = placement × age_factor');
+  await expect(imp.getByLabel('w (weight of importance)')).toHaveValue('0.15');
+  await expect(imp.getByLabel('Story')).toHaveValue('0.125');
+  await imp.getByLabel('Importance rubric').fill('Important: the owner speaking.');
+  await imp.getByLabel('Reason for the change').fill('Shorter');
+  await imp.getByRole('button', { name: 'Save' }).click();
+  await expect(imp.getByRole('status')).toContainText('version 3');
+  await imp.locator('summary').click();
+  await expect(imp.locator('.history li').first()).toContainText('v3');
+  await expect(imp.locator('.history li').first()).toContainText('Shorter');
 });

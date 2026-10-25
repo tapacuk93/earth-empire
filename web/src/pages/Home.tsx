@@ -118,9 +118,24 @@ export function Home({ route }: { route: Route }) {
           {halves && !halves.some((h) => h.mosaic.tiles.length) && (
             <div class="empty-full"><p>Nothing is public yet.</p><p class="muted">Videos appear here as the monitor finds the moments they are about.</p></div>
           )}
-          {!halves ? <div class="skeleton-cloud" aria-hidden="true" /> : halves.map((h) => h.mosaic.tiles.length > 0 && (
-            <MosaicView key={h.id} id={`m-${h.id}`} title={SECTION_TITLE[h.id]} mosaic={h.mosaic} hrefFor={hrefFor(h.id)} />
-          ))}
+          {!halves ? <div class="skeleton-cloud" aria-hidden="true" /> : (() => {
+            // The halves share the screen by their total tile weight, so a tile's area follows its size
+            // across the whole screen; each non-empty half keeps at least 12%.
+            const live = halves.filter((h) => h.mosaic.tiles.length > 0);
+            const weight = (h: typeof live[number]) => h.mosaic.tiles.filter((t) => !t.attachedTo).reduce((s, t) => s + t.r * t.r * (1 + 0.3 * h.mosaic.tiles.filter((k) => k.attachedTo === t.id).length), 0); // as pack() weighs them
+            const total = live.reduce((s, h) => s + weight(h), 0) || 1;
+            const MIN = 0.12;
+            let shares = live.map((h) => weight(h) / total);
+            const low = shares.map((x) => live.length > 1 && x < MIN);
+            if (low.some(Boolean)) {
+              const fixed = low.filter(Boolean).length * MIN;
+              const rest = shares.reduce((s, x, i) => s + (low[i] ? 0 : x), 0) || 1;
+              shares = shares.map((x, i) => (low[i] ? MIN : (x / rest) * (1 - fixed)));
+            }
+            return live.map((h, i) => (
+              <MosaicView key={h.id} id={`m-${h.id}`} title={SECTION_TITLE[h.id]} mosaic={h.mosaic} hrefFor={hrefFor(h.id)} share={shares[i]} clamped={low[i]} />
+            ));
+          })()}
         </section>
         <section class="mode" id="mode-tags" aria-label="Tag graph mode">
           {graph && graph.nodes.length > 0 && (

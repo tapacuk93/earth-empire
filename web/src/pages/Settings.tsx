@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { acceptPhraseSuggestion, adminToken, checkAdmin, getPhrases, getPhraseSuggestions, rejectPhraseSuggestion, rescan, savePhrases, setAdminToken, useOwner, type Phrase, type PhraseSuggestion } from '../live';
+import { getAdminSettings, putAdminSettings, type AdminSettings, acceptPhraseSuggestion, adminToken, checkAdmin, getPhrases, getPhraseSuggestions, rejectPhraseSuggestion, rescan, savePhrases, setAdminToken, useOwner, type Phrase, type PhraseSuggestion } from '../live';
 import { getHighlights } from '../api';
 import { setMeta } from '../util';
 
@@ -120,6 +120,76 @@ function Phrases({ owner }: { owner: boolean }) {
   );
 }
 
+const PLACEMENT_LABEL: Record<string, string> = { post: 'Own post', dedicated: 'Dedicated highlight', shared: 'Common highlight', repost: 'Repost', story: 'Story', hit_top: 'Detected, upper', hit_bottom: 'Detected, lower' };
+const fmtWhen = (s?: string) => (s ? new Date(s).toLocaleString('en', { dateStyle: 'medium', timeStyle: 'short' }) : '');
+
+/** How tile sizes are computed: the importance rubric (versioned), w, age decay and placement weights. */
+function Importance() {
+  const [st, setSt] = useState<AdminSettings>();
+  const [draft, setDraft] = useState<AdminSettings>();
+  const [reason, setReason] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const load = () => getAdminSettings().then((x) => { setSt(x); setDraft(JSON.parse(JSON.stringify(x))); }, (e) => setMsg(`Could not load: ${e.message}`));
+  useEffect(() => { load(); }, []);
+  if (!st || !draft) return <section class="panel" aria-labelledby="imp-h"><h2 id="imp-h">Importance</h2><p class="muted">{msg || 'Loading…'}</p></section>;
+  const num = (v: string) => (v === '' ? undefined : Number(v));
+  const rubricChanged = draft.rubric.text.trim() !== st.rubric.text.trim();
+  const sizeChanged = JSON.stringify(draft.size) !== JSON.stringify(st.size);
+  const placeChanged = JSON.stringify(draft.placement) !== JSON.stringify(st.placement);
+  const save = async () => {
+    setBusy(true); setMsg('Saving…');
+    try {
+      const next = await putAdminSettings({
+        ...(sizeChanged ? { size: draft.size } : {}), ...(placeChanged ? { placement: draft.placement } : {}),
+        ...(rubricChanged ? { rubric: { text: draft.rubric.text.trim(), reason: reason.trim() || undefined } } : {}),
+      });
+      setSt(next); setDraft(JSON.parse(JSON.stringify(next))); setReason('');
+      setMsg(rubricChanged ? `Saved. The rubric is now version ${next.rubric.version}; items are re-scored in the background.` : 'Saved.');
+    } catch (e) { setMsg(`Could not save: ${(e as Error).message}`); }
+    setBusy(false);
+  };
+  const history = (st.rubric.history || []).slice().sort((a, b) => b.version - a.version);
+  return (
+    <section class="panel importance" aria-labelledby="imp-h">
+      <h2 id="imp-h">Importance</h2>
+      <p class="formula"><code>{st.formula || 'size = placement × age_factor × (1 − w + w × importance)'}</code></p>
+      <div class="imp-grid">
+        <label>w (weight of importance)<input type="number" step="0.01" min="0" max="1" value={draft.size.importance_w ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, importance_w: num((e.target as HTMLInputElement).value) } })} /></label>
+        <label>Age half-life (days)<input type="number" step="1" min="1" value={draft.size.half_life_days ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, half_life_days: num((e.target as HTMLInputElement).value) } })} /></label>
+        <label>Age floor<input type="number" step="0.01" min="0" max="1" value={draft.size.age_floor ?? ''} onInput={(e) => setDraft({ ...draft, size: { ...draft.size, age_floor: num((e.target as HTMLInputElement).value) } })} /></label>
+      </div>
+      <h3>Placement weights</h3>
+      <div class="imp-grid">
+        {Object.entries(draft.placement).map(([k, v]) => (
+          <label key={k}>{PLACEMENT_LABEL[k] || k}<input type="number" step="0.005" min="0" max="1" value={v} onInput={(e) => setDraft({ ...draft, placement: { ...draft.placement, [k]: Number((e.target as HTMLInputElement).value) } })} /></label>
+        ))}
+      </div>
+      <h3>Importance rubric <span class="muted small">version {st.rubric.version}{st.rubric.by ? `, by ${st.rubric.by}` : ''}</span></h3>
+      <label class="sr-only" for="rubric">Importance rubric</label>
+      <textarea id="rubric" rows={6} value={draft.rubric.text} onInput={(e) => setDraft({ ...draft, rubric: { ...draft.rubric, text: (e.target as HTMLTextAreaElement).value } })} />
+      {rubricChanged && <input aria-label="Reason for the change" placeholder="Why this change (kept in the history)" value={reason} onInput={(e) => setReason((e.target as HTMLInputElement).value)} />}
+      <div class="row">
+        <button class="btn" onClick={save} disabled={busy || !(rubricChanged || sizeChanged || placeChanged)}>Save</button>
+        {st.rubric_review !== undefined && <span class="muted small">Claude reviews the rubric daily{st.rubric_review ? '' : ' (off)'}; refinements apply as new versions.</span>}
+      </div>
+      <p class="muted small" role="status">{msg}</p>
+      <details class="history">
+        <summary>Rubric history ({history.length})</summary>
+        <ol class="plain">
+          {history.map((h) => (
+            <li key={h.version} class={h.applied === false ? 'not-applied' : ''}>
+              <p><b>v{h.version}</b> · {h.by || '?'} · {fmtWhen(h.created_at)}{h.applied === false && ' · proposed, not applied'}</p>
+              {h.reason && <p class="muted small">{h.reason}</p>}
+              <blockquote>{h.text}</blockquote>
+            </li>
+          ))}
+        </ol>
+      </details>
+    </section>
+  );
+}
+
 export function SettingsPage() {
   const owner = useOwner();
   useEffect(() => { setMeta('Settings', undefined, undefined, true); }, []);
@@ -133,6 +203,7 @@ export function SettingsPage() {
         <OwnerToken onChange={() => undefined} />
       </section>
       {owner && <Phrases owner />}
+      {owner && <Importance />}
     </>
   );
 }

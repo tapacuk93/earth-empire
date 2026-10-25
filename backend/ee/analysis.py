@@ -32,7 +32,15 @@ FRAME_EDGE = 768
 CONTEXT_ITEMS = 30
 MAX_NEW_CATEGORIES = 2
 
-from .llm import usd_for  # noqa: E402  (Anthropic list prices)
+RATES = {  # USD per million tokens (input, output): what the proxy meters at
+    "claude-opus": (5.0, 25.0), "claude-sonnet": (3.0, 15.0), "claude-haiku": (1.0, 5.0)}
+
+
+def usd_for(model: str, usage: dict) -> float:
+    rin, rout = next((v for k, v in RATES.items() if model.startswith(k)), (3.0, 15.0))
+    tin = usage.get("input_tokens", 0) + 1.25 * usage.get("cache_creation_input_tokens", 0) \
+        + 0.1 * usage.get("cache_read_input_tokens", 0)
+    return (tin * rin + usage.get("output_tokens", 0) * rout) / 1e6
 
 
 # ------------------------------------------------------------------ media
@@ -297,8 +305,8 @@ def build_request(c, item_id: str, work: Path, job: str | None = None) -> tuple[
                                                                 f"{tr.get('language')}):\n{text or '(no speech)'}"})
                         if not cached:
                             c.execute("INSERT INTO costs(at, item_id, purpose, model, coins, usd, ok, note) "
-                                      "VALUES (?,?,?,?,?,?,1,?)", (now(), item_id, "transcribe",
-                                                                  "faster-whisper (on the box)", 0, 0, f"{dur:.1f}s"))
+                                      "VALUES (?,?,?,?,?,?,1,?)", (now(), item_id, "transcribe", "whisper-1", coins,
+                                                                  round(dur / 60 * 0.006, 5), f"{dur:.1f}s"))
             else:
                 data = jpeg(src, work / f"i{n}.jpg", IMAGE_EDGE)
                 content.append({"type": "text", "text": f"Media {n} - {label}image:"})

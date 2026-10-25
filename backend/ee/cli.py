@@ -11,7 +11,7 @@
   ee settings [key [value]]           show or change a setting (analysis.daily_cap, x.enabled, ...)
   ee steps set <id> <step> <state>    force a step's state (e.g. after checking Facebook by hand)
   ee steps retry [step]               put failed steps back in the queue
-  ee ai                               the Anthropic API key (present?), model, today's spend, state
+  ee wallet init | show               the server's aicoin wallet
   ee home [refresh|layout|graph]      embeddings and Home layout now / print them
   ee facets [run|show]                let Claude redefine the facets now / print them
   ee importance [--n N]               score importance for items analyzed before it existed
@@ -43,7 +43,7 @@ def main(argv=None):
         p.add_argument("id", nargs="?"); p.add_argument("--id", dest="opt_id"); p.add_argument("--n", type=int, default=1)
     p = sub.add_parser("settings"); p.add_argument("key", nargs="?"); p.add_argument("value", nargs="?")
     p = sub.add_parser("steps"); p.add_argument("action", choices=["set", "retry"]); p.add_argument("rest", nargs="*")
-    sub.add_parser("ai")
+    p = sub.add_parser("wallet"); p.add_argument("action", choices=["init", "show"])
     p = sub.add_parser("home"); p.add_argument("action", nargs="?", default="refresh", choices=["refresh", "layout", "graph", "full"])
     p = sub.add_parser("facets"); p.add_argument("action", nargs="?", default="show", choices=["run", "show"])
     p = sub.add_parser("importance"); p.add_argument("--n", type=int, default=1000)
@@ -162,12 +162,24 @@ def main(argv=None):
             for r in rows:
                 store.set_step(c, r["item_id"], r["step"], "pending", note="retry by hand")
             print(f"requeued {len(rows)}")
-    elif a.cmd == "ai":
-        from . import llm
-        k = llm.api_key()
-        print("Anthropic API key:", "present (" + k[:7] + "…)" if k else "missing - put it in earth-empire/claude")
-        print("model:", llm.settings()["model"], f"| spent today ${llm.spent_today():.2f} of ${llm.budget():.2f}")
-        print("state:", db.setting(c, "ai.state") or "-")
+    elif a.cmd == "wallet":
+        from . import aicoin, config
+        s = config.secret("claude", fresh=True)
+        s = s if isinstance(s, dict) else {}
+        if a.action == "init":
+            if s.get("wallet_private_key"):
+                print("a wallet exists already:", s.get("wallet_address"))
+            else:
+                addr, priv = aicoin.new_wallet()
+                s = {k: v for k, v in s.items() if k != "placeholder"}
+                s.update({"wallet_address": addr, "wallet_private_key": priv,
+                          "proxy_url": s.get("proxy_url") or aicoin.DEFAULT_PROXY,
+                          "model": s.get("model") or aicoin.DEFAULT_MODEL})
+                config.put_secret("claude", s)
+                print("created wallet", addr, "(key stored only in earth-empire/claude)")
+        addr = s.get("wallet_address")
+        if addr:
+            print(json.dumps(aicoin.balance(addr), indent=2))
     elif a.cmd == "home":
         from . import home
         if a.action == "full":

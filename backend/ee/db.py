@@ -130,7 +130,6 @@ DEFAULT_SETTINGS = {
     "site.built_at": "",
     "site.force": "",
     "facets.daily_cap": "12",
-    "ai.daily_budget_usd": "10",     # the cost guard for every Claude call, from the API's usage numbers
     # Home tile size = placement × age_factor × importance_factor (CONTRACT.md "Home layout")
     "size.half_life_days": "7",
     "size.age_floor": "0.05",

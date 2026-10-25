@@ -144,30 +144,24 @@ def build(c) -> dict:
     day = _now().strftime("%Y-%m-%d")
     today = c.execute("SELECT COUNT(*) n FROM costs WHERE purpose='analyze' AND at >= ?", (day,)).fetchone()["n"]
     cap = int(setting(c, "analysis.daily_cap") or 0)
-    ai = json.loads(setting(c, "ai.state") or "null") or {}
+    bal = setting(c, "analysis.wallet_balance")
+    ooc = _age(setting(c, "analysis.out_of_coins_at"))
+    funded = None if bal == "" else float(bal) >= 1
     a_state = "ok"
     reason = None
     if setting(c, "analysis.enabled") != "1":
         a_state, reason = "off", "turned off"
-    elif ai.get("state") in ("waiting", "error"):
-        a_state, reason = "degraded", ai.get("reason")
+    elif funded is False or (ooc is not None and ooc < 3600):
+        a_state, reason = "degraded", "waiting for coins"
     elif q.get("pending", 0) and today >= cap:
         a_state, reason = "degraded", "daily cap reached; the rest waits for tomorrow"
     elif fail and done and fail["at"] > done["at"]:
         a_state, reason = "degraded", "the latest analysis failed"
     comps.append(comp("analyzer", "AI analyzer", a_state, last_success=done["at"] if done else None,
                       last_error=err(fail["at"], fail["note"]) if fail else None,
-                      details={"reason": reason, "model": "Claude Sonnet 5.5 (Anthropic API)", "pending": q.get("pending", 0),
+                      details={"reason": reason, "model": "Claude Sonnet 5.5", "pending": q.get("pending", 0),
                                "running": q.get("running", 0), "done": q.get("done", 0), "failed": q.get("failed", 0),
-                               "analyzed_today": today, "daily_cap": cap}))
-    spent = c.execute("SELECT COALESCE(SUM(usd), 0) s FROM costs WHERE at >= ? AND ok=1", (day,)).fetchone()["s"]
-    budget_usd = float(setting(c, "ai.daily_budget_usd") or 10)
-    comps.append(comp("claude", "Claude (Anthropic API)",
-                      {"ok": "ok", "waiting": "degraded", "error": "down"}.get(ai.get("state"), "ok"),
-                      last_success=ai.get("at") if ai.get("state") == "ok" else None,
-                      last_error=err(ai.get("at"), ai.get("reason")) if ai.get("state") in ("waiting", "error") else None,
-                      details={"reason": ai.get("reason"), "spent_today_usd": round(spent, 3),
-                               "daily_budget_usd": budget_usd}))
+                               "analyzed_today": today, "daily_cap": cap, "wallet_funded": funded}))
 
     # collector and other parts that report heartbeats
     last = c.execute("SELECT finished_at, ok, counts, received_at FROM runs ORDER BY id DESC LIMIT 1").fetchone()

@@ -16,6 +16,15 @@ sudo -u earth env PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH $VENV/bin/p
 
 install -d -o earth -g earth -m 755 /var/lib/earth-empire/backend /var/lib/earth-empire/backend/facebook
 
+# A rebuilt box: bring every part's state back from the hourly S3 backup before anything starts
+# (backend/ee/backup.py). Runs before the other parts' installers, which deploy-box.sh runs after.
+if [ ! -f /var/lib/earth-empire/backend/earth-empire.sqlite3 ] && \
+   aws s3 ls s3://earth-empire-backups/state/latest/backend/ >/dev/null 2>&1; then
+  echo "fresh box: restoring state from S3"
+  set -a; . /etc/earth-empire/env; set +a
+  $VENV/bin/ee restore
+fi
+
 cat > /usr/local/bin/ee <<EOF
 #!/bin/sh
 # The backend's CLI, as the earth user with the box's config.
@@ -86,5 +95,6 @@ EOF
 systemctl daemon-reload
 systemctl enable ee-api ee-worker
 systemctl restart ee-api ee-worker
+install -m 755 $SRC/deploy/restore-state.sh /usr/local/bin/ee-restore-state
 sleep 3
 curl -fsS http://127.0.0.1:8000/v1/health | head -c 300; echo

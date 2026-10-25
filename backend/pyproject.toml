@@ -3,6 +3,7 @@ name = "earth-empire-backend"
 version = "1.0.0"
 description = "Earth Empire backend: API, analysis with Claude, X and Facebook posters"
 requires-python = ">=3.11"
+license = "MIT"
 dependencies = [
   "fastapi>=0.115",
   "uvicorn[standard]>=0.30",

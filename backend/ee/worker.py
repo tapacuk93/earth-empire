@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import signal
 import subprocess
 import threading
@@ -56,10 +57,15 @@ def analyze_once(c) -> bool:
     item_id = store.claim_next(c, "analyze")
     if not item_id:
         return False
+    store.job_start(c, "analyze", "analyzer", "analyzing an item", item_id, "starting")
     try:
-        analysis.analyze(c, item_id)
+        analysis.analyze(c, item_id, job="analyze")
+        stop.wait(random.uniform(5, 20))   # gentle on the proxy between items
     except aicoin.OutOfCoins as e:
         store.set_step(c, item_id, "analyze", "pending", note="out of coins, waiting")
+        from .db import set_setting
+        set_setting(c, "analysis.out_of_coins_at", utcnow())
+        store.record(c, "analyzer", "wallet", "the server wallet is out of coins; analysis waits", ok=False)
         event("analysis.out_of_coins", logging.ERROR, item=item_id,
               action="fund the server wallet (backend/README.md)")
         metric("WorkerErrors")
@@ -70,6 +76,8 @@ def analyze_once(c) -> bool:
         c.execute("INSERT INTO costs(at, item_id, purpose, ok, note) VALUES (?,?,?,0,?)",
                   (utcnow(), item_id, "analyze", str(e)[:500]))
         metric("WorkerErrors")
+    finally:
+        store.job_end(c, "analyze")
     return True
 
 
@@ -88,7 +96,7 @@ def x_once(c) -> bool:
     if paused and paused > utcnow():
         return False
     last = c.execute("SELECT MAX(updated_at) t FROM steps WHERE step='x' AND state='posted'").fetchone()["t"]
-    gap = timedelta(minutes=int(setting(c, "x.interval_minutes") or 30))
+    gap = timedelta(minutes=int(setting(c, "x.interval_minutes") or 30) * random.uniform(0.8, 1.3))
     if last and datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc) + gap > datetime.now(timezone.utc):
         return False
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -101,12 +109,14 @@ def x_once(c) -> bool:
     if is_test(c, item_id):
         store.set_step(c, item_id, "x", "skipped", note="test fixture")
         return True
+    store.job_start(c, "x", "x_poster", "posting a thread to X", item_id, "uploading media")
     try:
-        xposter.post_item(c, item_id, dry_run=False)
+        xposter.post_item(c, item_id, dry_run=False, job="x")
     except xposter.XNoCredits as e:
         from .db import set_setting
         store.set_step(c, item_id, "x", "pending", note="X has no credits; posting paused")
         set_setting(c, "x.paused_until", "9999-12-31T00:00:00Z")
+        store.record(c, "x_poster", "paused", "X API has no credits; posting paused", ok=False)
         event("x.no_credits", logging.ERROR, item=item_id, error=str(e),
               action="buy X API credits (console.x.com), then: ee settings x.paused_until ''")
         metric("WorkerErrors")
@@ -120,6 +130,8 @@ def x_once(c) -> bool:
     except Exception as e:
         store.fail_step(c, item_id, "x", f"{type(e).__name__}: {e}")
         metric("WorkerErrors")
+    finally:
+        store.job_end(c, "x")
     return True
 
 
@@ -136,8 +148,9 @@ def facebook_once(c) -> bool:
     if is_test(c, item_id):
         store.set_step(c, item_id, "facebook", "skipped", note="test fixture")
         return True
+    store.job_start(c, "facebook", "facebook_poster", "posting to Facebook", item_id, "opening the composer")
     try:
-        fbposter.post_item(c, item_id, dry_run=False)
+        fbposter.post_item(c, item_id, dry_run=False, job="facebook")
         fbposter.schedule_next(c)
     except (fbposter.NeedsOwner, fbposter.Warned, fbposter.OwnerDecision) as e:
         fbposter.handle_block(c, e)
@@ -151,11 +164,13 @@ def facebook_once(c) -> bool:
                         permanent=bool(submitted))
         fbposter.schedule_next(c)
         metric("WorkerErrors")
+    finally:
+        store.job_end(c, "facebook")
     return True
 
 
 # ------------------------------------------------------------------ housekeeping
-_last = {"beat": 0.0, "backup": "", "site": 0.0}
+_last = {"beat": 0.0, "backup": 0.0, "backup_day": "", "site": 0.0, "wallet": 0.0}
 SITE_BUILD = "/opt/earth-empire/repo/backend/deploy/build-site.sh"
 
 
@@ -169,13 +184,19 @@ def site_once(c) -> None:
         return
     _last["site"] = time.time()
     t0 = time.time()
-    p = subprocess.run(["bash", SITE_BUILD], capture_output=True, text=True, timeout=1800)
+    store.job_start(c, "site", "site", "building and publishing empire.earth", progress="npm build, prerender, sync")
+    try:
+        p = subprocess.run(["bash", SITE_BUILD], capture_output=True, text=True, timeout=1800)
+    finally:
+        store.job_end(c, "site")
     if p.returncode == 0:
         from .db import set_setting
         set_setting(c, "site.built_at", newest)
         event("site.built", seconds=round(time.time() - t0), newest=newest, out=p.stdout[-300:])
+        store.record(c, "site", "build", f"site rebuilt and published in {round(time.time() - t0)} s")
     else:
         event("site.build_failed", logging.ERROR, code=p.returncode, err=(p.stderr or p.stdout)[-1500:])
+        store.record(c, "site", "build", "site build failed", ok=False)
         metric("WorkerErrors")
 
 
@@ -186,33 +207,40 @@ def house_once(c) -> bool:
         metric("Heartbeat")
         st = c.execute("SELECT step, state, COUNT(*) n FROM steps GROUP BY step, state").fetchall()
         event("worker.heartbeat", steps={f"{r['step']}.{r['state']}": r["n"] for r in st})
-    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    if config.CLOUDWATCH and _last["backup"] != day and datetime.now(timezone.utc).hour >= 3:
-        _last["backup"] = day
-        backup(c)
+    from .db import set_setting
+    set_setting(c, "worker.heartbeat_at", utcnow())
+    if config.CLOUDWATCH and t - _last["backup"] >= 3600:   # hourly; the first each day also kept dated
+        _last["backup"] = t
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        try:
+            from . import backup
+            keys = backup.backup_all(daily=_last["backup_day"] != day)
+            _last["backup_day"] = day
+            set_setting(c, "backup.last_at", utcnow())
+            store.record(c, "db", "backup", f"backed up {len(keys)} database(s)")
+        except Exception as e:
+            set_setting(c, "backup.last_error", f"{utcnow()} {e}"[:300])
+            store.record(c, "db", "backup", f"backup failed: {type(e).__name__}", ok=False)
+            event("backup.failed", logging.ERROR, error=repr(e))
+            metric("WorkerErrors")
+    if config.CLOUDWATCH and t - _last["wallet"] >= 3600:
+        _last["wallet"] = t
+        try:
+            bal = aicoin.balance()
+            set_setting(c, "analysis.wallet_balance", str(bal.get("balance", 0)))
+            set_setting(c, "analysis.wallet_checked_at", utcnow())
+        except Exception as e:
+            event("wallet.balance_unavailable", logging.WARNING, error=str(e))
     if config.CLOUDWATCH:
         site_once(c)
     return False
-
-
-def backup(c) -> str:
-    import boto3
-    path = config.DATA_DIR / "backup.sqlite3"
-    path.unlink(missing_ok=True)
-    c.execute("VACUUM INTO ?", (str(path),))
-    subprocess.run(["gzip", "-f", str(path)], check=True)
-    key = f"db/daily/{datetime.now(timezone.utc):%Y-%m-%d}.sqlite3.gz"
-    s3 = boto3.client("s3", region_name=config.REGION)
-    s3.upload_file(str(path) + ".gz", config.BACKUP_BUCKET, key)
-    s3.upload_file(str(path) + ".gz", config.BACKUP_BUCKET, "db/latest.sqlite3.gz")
-    event("backup.done", key=key)
-    return key
 
 
 def main():
     setup("worker")
     c = db.conn()
     n = store.recover_running(c)
+    c.execute("DELETE FROM jobs WHERE component IN ('analyzer','x_poster','facebook_poster','site')")
     event("worker.start", requeued=n)
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())

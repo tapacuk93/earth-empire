@@ -136,7 +136,7 @@ def describe(p: dict) -> str:
     return "\n".join(lines)
 
 
-def post_item(c, item_id: str, *, dry_run: bool) -> dict:
+def post_item(c, item_id: str, *, dry_run: bool, job: str | None = None) -> dict:
     p = plan(c, item_id)
     if dry_run:
         text = describe(p)
@@ -158,6 +158,8 @@ def post_item(c, item_id: str, *, dry_run: bool) -> dict:
             if i < len(done):
                 continue   # already posted on an earlier attempt
             ids = []
+            if job:
+                store.job_progress(c, job, f"tweet {i + 1} of {len(p['thread'])}")
             for k in t["media"]:
                 if k not in media_ids:
                     m = p["post"].media[k]

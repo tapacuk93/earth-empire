@@ -71,6 +71,22 @@ CREATE TABLE IF NOT EXISTS costs (           -- every paid call
   input_tokens INTEGER, output_tokens INTEGER, coins REAL, usd REAL, ok INTEGER, note TEXT
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- What runs right now (one row per lane or reporting part), for GET /v1/status.
+CREATE TABLE IF NOT EXISTS jobs (
+  id TEXT PRIMARY KEY, component TEXT NOT NULL, what TEXT NOT NULL, item_id TEXT,
+  progress TEXT, started_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+-- Heartbeats from the parts (collector, monitor, ...): POST /v1/ingest/heartbeat.
+CREATE TABLE IF NOT EXISTS heartbeats (
+  component TEXT PRIMARY KEY, at TEXT NOT NULL, ok INTEGER NOT NULL, detail TEXT NOT NULL DEFAULT '{}',
+  last_ok_at TEXT, last_error_at TEXT, last_error TEXT
+);
+-- Notable events that are not pipeline transitions (backups, pauses, site builds, ...).
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY, at TEXT NOT NULL, component TEXT NOT NULL, kind TEXT NOT NULL,
+  text TEXT NOT NULL, item_id TEXT, ok INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS events_at ON events(at);
 CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(id UNINDEXED, body, tokenize='unicode61 remove_diacritics 2');
 """
 

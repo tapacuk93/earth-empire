@@ -74,6 +74,7 @@ Resources:
       LifecycleConfiguration:
         Rules:
           - {Id: daily, Status: Enabled, Prefix: db/daily/, ExpirationInDays: 35}
+          - {Id: state-daily, Status: Enabled, Prefix: state/daily/, ExpirationInDays: 35}
       Tags: [{Key: project, Value: earth-empire}]
 
   Oac:

@@ -36,6 +36,7 @@ CLOUDWATCH = env("EE_CLOUDWATCH", "0") == "1"   # ship logs and metrics (on the 
 
 SECRET_NAMES = {
     "ingest_token": "earth-empire/ingest-token",
+    "admin_token": "earth-empire/admin-token",
     "claude": "earth-empire/claude",
     "x": "earth-empire/x",
     "facebook_session": "earth-empire/facebook-session",

@@ -337,3 +337,26 @@ def pipeline_status(c, failures: int = 20) -> dict:
         "spend_24h": dict(spend),
         "settings": {r["key"]: r["value"] for r in c.execute("SELECT key, value FROM settings ORDER BY key")},
     }
+
+
+# ------------------------------------------------------------------ activity (GET /v1/status)
+def job_start(c, job_id: str, component: str, what: str, item_id: str | None = None, progress: str = ""):
+    ts = now()
+    c.execute("""INSERT INTO jobs(id, component, what, item_id, progress, started_at, updated_at) VALUES (?,?,?,?,?,?,?)
+                 ON CONFLICT(id) DO UPDATE SET component=excluded.component, what=excluded.what,
+                 item_id=excluded.item_id, progress=excluded.progress, started_at=excluded.started_at,
+                 updated_at=excluded.updated_at""", (job_id, component, what, item_id, progress, ts, ts))
+
+
+def job_progress(c, job_id: str, progress: str):
+    c.execute("UPDATE jobs SET progress=?, updated_at=? WHERE id=?", (progress, now(), job_id))
+
+
+def job_end(c, job_id: str):
+    c.execute("DELETE FROM jobs WHERE id=?", (job_id,))
+
+
+def record(c, component: str, kind: str, text: str, item_id: str | None = None, ok: bool = True):
+    c.execute("INSERT INTO events(at, component, kind, text, item_id, ok) VALUES (?,?,?,?,?,?)",
+              (now(), component, kind, text[:500], item_id, 1 if ok else 0))
+    c.execute("DELETE FROM events WHERE id < (SELECT MAX(id) - 5000 FROM events)")

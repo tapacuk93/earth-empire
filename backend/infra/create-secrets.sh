@@ -23,6 +23,14 @@ if ! aws secretsmanager describe-secret --secret-id earth-empire/ingest-token >/
 else
   echo "exists   earth-empire/ingest-token"
 fi
+if ! aws secretsmanager describe-secret --secret-id earth-empire/admin-token >/dev/null 2>&1; then
+  TOKEN=$(aws secretsmanager get-random-password --password-length 40 --exclude-punctuation \
+    --query RandomPassword --output text)
+  create earth-empire/admin-token "The owner's token for owner-only API endpoints, entered once in the apps" "$TOKEN"
+  unset TOKEN
+else
+  echo "exists   earth-empire/admin-token"
+fi
 create earth-empire/x "X API, OAuth 1.0a user context: {api_key, api_secret, access_token, access_secret}" \
   '{"placeholder":true}'
 create earth-empire/facebook-session "Playwright storageState JSON of the owner's Facebook login" \

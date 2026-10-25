@@ -12,7 +12,9 @@
   ee steps set <id> <step> <state>    force a step's state (e.g. after checking Facebook by hand)
   ee steps retry [step]               put failed steps back in the queue
   ee wallet init | show               the server's aicoin wallet
-  ee backup                           back the database up to S3 now
+  ee backup                           back up every part's databases to S3 now
+  ee restore [--date D] [--dry-run]   restore them (use deploy/restore-state.sh, which stops services)
+  ee admin-token                      check that earth-empire/admin-token exists (never prints it)
   ee delete <id>... | --tests         remove items from the archive (--tests: every ig_test_* fixture)
 """
 from __future__ import annotations
@@ -40,8 +42,17 @@ def main(argv=None):
     p = sub.add_parser("steps"); p.add_argument("action", choices=["set", "retry"]); p.add_argument("rest", nargs="*")
     p = sub.add_parser("wallet"); p.add_argument("action", choices=["init", "show"])
     sub.add_parser("backup")
+    p = sub.add_parser("restore"); p.add_argument("--date"); p.add_argument("--only"); p.add_argument("--dry-run", action="store_true")
     p = sub.add_parser("delete"); p.add_argument("ids", nargs="*"); p.add_argument("--tests", action="store_true")
     a = ap.parse_args(argv)
+    if a.cmd in ("backup", "restore"):   # never hold the database open around these
+        from . import backup
+        if a.cmd == "backup":
+            print("\n".join(backup.backup_all()))
+        else:
+            for f in backup.restore_all(date=a.date, only=a.only, dry_run=a.dry_run):
+                print(json.dumps(f))
+        return 0
     c = db.conn()
 
     if a.cmd == "status":
@@ -177,9 +188,6 @@ def main(argv=None):
         from .logs import event
         event("items.deleted", ids=ids)
         print(f"deleted {len(ids)}: {ids}")
-    elif a.cmd == "backup":
-        from .worker import backup
-        print(backup(c))
     return 0
 
 

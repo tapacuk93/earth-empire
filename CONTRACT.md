@@ -37,6 +37,9 @@ part that reads it.
   - `earth-empire/x`: X API credentials (OAuth 1.0a user context: api_key, api_secret,
     access_token, access_secret; or OAuth 2.0 user tokens).
   - `earth-empire/facebook-session`: a Playwright `storageState` JSON for the owner's Facebook login.
+  - `earth-empire/admin-token`: a random string, the owner's token for owner-only endpoints
+    (`Authorization: Bearer`). The apps ask for it once, check it with `GET /v1/admin/me`, and keep
+    it in the Keychain or local storage. It is never shown or logged.
   - `earth-empire/claude`: how the backend reaches Claude (the aicoin proxy and a server wallet
     token, or an Anthropic key).
 
@@ -68,6 +71,15 @@ these live in `backend/README.md`.
   forwarding (steps in `backend/README.md`). Automation never types a password or solves a
   challenge: when a session is logged out or a checkpoint appears, it stops, logs it, saves a
   screenshot and waits for the owner.
+- **State survives a rebuild.** Durable state goes in SQLite files (`*.sqlite`, `*.sqlite3`, `*.db`)
+  under `/var/lib/earth-empire/<part>/`, at most two levels down. The backend backs up every one of
+  them hourly, consistently, to the private bucket `earth-empire-backups` (`state/latest/...`, plus a
+  daily copy kept 35 days). A fresh box restores them before any service starts, and
+  `ee-restore-state [date]` restores by hand. Caches, screenshots and browser profiles are not
+  backed up.
+- **Heartbeats:** a long-running part reports itself to `POST /v1/ingest/heartbeat` (see "The API"),
+  every few minutes and when its state changes, so `GET /v1/status` can show it.
+- **Systemd units** are named `ee-*`.
 
 ## The data
 
@@ -169,6 +181,34 @@ Ingest, for the collector only (`Authorization: Bearer <earth-empire/ingest-toke
 - `PUT /v1/ingest/profile` Profile
 - `POST /v1/ingest/runs` `{"started_at", "finished_at", "ok": bool, "counts": {}, "log_url"?}`:
   one record for each collector run, for health checks.
+- `POST /v1/ingest/heartbeat`
+  `{"component": "collector" | "monitor" | …, "ok": bool, "error"?: "…", "detail"?: {k: number|string|bool},
+  "jobs"?: [{"what", "progress", "started_at"}], "event"?: "…", "kind"?: "…"}`. This is how a part
+  appears in `/v1/status`; a part that has not sent one in 30 minutes shows as `down`. Keep
+  `detail` and `jobs` free of secrets and private data, since they are shown publicly (scrubbed
+  again on output).
+
+Status, public (`Cache-Control: max-age=5`):
+
+- `GET /v1/status` →
+  ```jsonc
+  {"generated_at": "…", "overall": "ok" | "degraded" | "down",       // over api, db, workers, analyzer, collector
+   "components": [{"id": "api" | "db" | "workers" | "analyzer" | "collector" | "monitor" | "x_poster" |
+                          "facebook_poster" | "site" | "disk" | "memory" | "cpu" | "queues" | <a heartbeat part>,
+                   "name": "…", "state": "ok" | "degraded" | "down" | "off",     // off: switched off on purpose
+                   "last_success": "…" | null, "last_error": {"at": "…", "message": "…"} | null,
+                   "details": {…}}],                                   // per component; queues: {step: {state: n}}
+   "activity": {"jobs": [{"component", "what", "item": "<id>" | null, "progress", "started_at", "elapsed_s"}],
+                "events": [{"at", "component", "kind", "text", "item": "<id>" | null, "ok": bool}]}}  // newest 50
+  ```
+  Nothing secret or private appears: error texts are scrubbed, and `item` is set only for items
+  that are already public.
+
+Owner-only (`Authorization: Bearer <earth-empire/admin-token>`):
+
+- `GET /v1/admin/me` → `{"ok": true, "role": "owner"}`, or 401: checks a token the owner entered.
+- `GET /v1/admin/pipeline` (the ingest token works here too), `GET /v1/admin/items/{id}`
+  (the item whatever its state, with its steps and transitions), `POST /v1/admin/items/{id}/reanalyze`.
 
 ## Analysis
 
@@ -213,10 +253,15 @@ backoff without blocking other items. Every transition is logged.
    A post on X or Facebook carries the description, the original caption, the date, the highlight
    names, the categories as hashtags, and the repost credit.
 
-`GET /v1/admin/pipeline` (with the ingest token) returns the counts in each state and the latest
-failures.
+`GET /v1/admin/pipeline` (admin or ingest token) returns the counts in each state and the latest
+failures; `GET /v1/status` shows the same publicly, scrubbed.
 
 ## Rules every part follows
+
+- **Pacing everywhere.** Every call to someone else's service stays inside that service's limits.
+  Calls are spread out with random jitter, never sent in bursts, and errors back off exponentially;
+  a 429 or a "slow down" waits at least as long as the service says. Downloads from Instagram are
+  jittered too. Each part documents its limits in its README.
 
 - **Nothing is lost.** Stories vanish from Instagram after 24 hours unless they are in a highlight,
   so the collector runs at least hourly, and media is re-hosted on `media.empire.earth` before it

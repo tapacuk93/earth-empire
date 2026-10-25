@@ -301,7 +301,7 @@ def schedule_next(c):
     set_setting(c, "facebook.next_at", at.strftime("%Y-%m-%dT%H:%M:%SZ"))
 
 
-def post_item(c, item_id: str, *, dry_run: bool) -> dict:
+def post_item(c, item_id: str, *, dry_run: bool, job: str | None = None) -> dict:
     row = c.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
     item = store.render_item(c, row)
     post = compose.build(item)
@@ -316,7 +316,7 @@ def post_item(c, item_id: str, *, dry_run: bool) -> dict:
         files = [fetch.fetch(m["url"], f"{i}{Path(m['url']).suffix or '.bin'}") for i, m in enumerate(post.media)]
         with profile_lock():
             b = Browser(state)
-            return _drive(c, b, item_id, files, text, dry_run)
+            return _drive(c, b, item_id, files, text, dry_run, job)
     except FacebookError:
         raise
     except Exception as e:
@@ -334,15 +334,20 @@ def post_item(c, item_id: str, *, dry_run: bool) -> dict:
         shutil.rmtree(work, ignore_errors=True)
 
 
-def _drive(c, b: "Browser", item_id: str, files: list, text: str, dry_run: bool) -> dict:
+def _drive(c, b: "Browser", item_id: str, files: list, text: str, dry_run: bool, job=None) -> dict:
+    def step(name, **kw):
+        event("facebook.step", item=item_id, step=name, **kw)
+        if job:
+            store.job_progress(c, job, name)
+
     b.open_home()
-    event("facebook.step", item=item_id, step="home", url=b.page.url)
+    step("home loaded")
     dlg = b.open_composer()
-    event("facebook.step", item=item_id, step="composer open")
+    step("composer open")
     b.add_media(dlg, files)
-    event("facebook.step", item=item_id, step="media added", files=len(files))
+    step(f"{len(files)} media added", files=len(files))
     b.type_text(dlg, text)
-    event("facebook.step", item=item_id, step="text typed", chars=len(text))
+    step("text typed", chars=len(text))
     b.check("composer")
     if dry_run:
         p = b.shot(f"dry-run-{item_id}")
@@ -353,7 +358,7 @@ def _drive(c, b: "Browser", item_id: str, files: list, text: str, dry_run: bool)
     # From here a retry could post twice: mark it, so a failure needs the owner to look.
     store.set_step(c, item_id, "facebook", "running", detail={"submitted_at": now()})
     b.submit(dlg)
-    event("facebook.step", item=item_id, step="posted")
+    step("posted")
     pause(4000, 8000)
     url = None
     try:
@@ -373,14 +378,20 @@ def handle_block(c, e: Exception):
     """Pause posting after a logout/challenge (until the secret changes) or a warning (72 h)."""
     if isinstance(e, NeedsOwner):
         set_setting(c, "facebook.paused_until", "session:" + session_fingerprint(session_state()))
+        set_setting(c, "facebook.pause_reason", "the session is logged out; waiting for a new one")
+        store.record(c, "facebook_poster", "paused", "logged out; waiting for a new session", ok=False)
         event("facebook.needs_owner", logging.ERROR, error=str(e),
               action="refresh the secret earth-empire/facebook-session; posting resumes by itself")
     elif isinstance(e, OwnerDecision):
         until = (datetime.now(timezone.utc) + timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%SZ")
         set_setting(c, "facebook.paused_until", until)
+        set_setting(c, "facebook.pause_reason", "Facebook asks the owner to confirm a setting")
+        store.record(c, "facebook_poster", "paused", "Facebook asks the owner to confirm a setting", ok=False)
         event("facebook.owner_decision", logging.ERROR, error=str(e), paused_until=until)
     elif isinstance(e, Warned):
         until = (datetime.now(timezone.utc) + timedelta(hours=72)).strftime("%Y-%m-%dT%H:%M:%SZ")
         set_setting(c, "facebook.paused_until", until)
+        set_setting(c, "facebook.pause_reason", "Facebook warned about the posting rate")
+        store.record(c, "facebook_poster", "paused", "Facebook warned about the posting rate; 72 h pause", ok=False)
         event("facebook.warned", logging.ERROR, error=str(e), paused_until=until)
     metric("WorkerErrors")

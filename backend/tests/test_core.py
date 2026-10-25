@@ -86,6 +86,32 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(store.fts_query('beach "x" OR'), '"beach"* "x"* "OR"*')
 
 
+class StatusTest(unittest.TestCase):
+    def test_scrub_removes_secrets_paths_and_queries(self):
+        from ee import status
+        t = status.scrub("HTTP 401 Bearer abcdefghijklmnopqrstuvwxyz0123456789ABCD at "
+                         "https://x.s3.amazonaws.com/items/a.mp4?X-Amz-Signature=deadbeef screenshot "
+                         "/var/lib/earth-empire/backend/facebook/1.png token=supersecret")
+        for leak in ("abcdefghijklmnopqrstuvwxyz0123456789", "X-Amz", "deadbeef", "/var/lib", "supersecret"):
+            self.assertNotIn(leak, t)
+
+    def test_build_hides_unpublished_items(self):
+        from ee import status
+        tmp = tempfile.TemporaryDirectory()
+        c = db.connect(Path(tmp.name) / "s.sqlite3")
+        store.upsert_items(c, FIXTURES["items"])
+        store.fail_step(c, "ig_test_post", "analyze", "boom with token=abc123456")
+        st = status.build(c)
+        ids = {x["id"] for x in st["components"]}
+        for need in ("api", "db", "workers", "analyzer", "collector", "monitor", "x_poster", "facebook_poster",
+                     "disk", "queues"):
+            self.assertIn(need, ids)
+        self.assertTrue(all(e["item"] is None for e in st["activity"]["events"]))
+        self.assertNotIn("abc123456", json.dumps(st))
+        c.close()
+        tmp.cleanup()
+
+
 class ComposeTest(unittest.TestCase):
     def item(self, **kw):
         base = {"id": "ig_1", "kind": "reel", "taken_at": "2024-05-01T12:00:00Z", "caption": "Sunset at the beach",

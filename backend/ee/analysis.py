@@ -232,7 +232,12 @@ def earlier_context(c, item_id: str, taken_at: str) -> dict:
 
 
 # ------------------------------------------------------------------ analyze one item
-def build_request(c, item_id: str, work: Path) -> tuple[dict, dict]:
+def _progress(c, job, text):
+    if job:
+        store.job_progress(c, job, text)
+
+
+def build_request(c, item_id: str, work: Path, job: str | None = None) -> tuple[dict, dict]:
     row = c.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
     if not row:
         raise LookupError(item_id)
@@ -253,12 +258,14 @@ def build_request(c, item_id: str, work: Path) -> tuple[dict, dict]:
             if not src_url:
                 continue
             ext = Path(store.media_key(src_url) or src_url).suffix or (".mp4" if m.get("type") == "video" else ".jpg")
+            _progress(c, job, f"downloading media {n + 1}")
             src = media.fetch(src_url, f"m{n}{ext}")
             if m.get("type") == "video":
                 pr = probe(src)
                 dur = pr["duration"] or (m.get("duration") or 0)
                 content.append({"type": "text", "text": f"Media {n} - {label}video, {dur:.1f} s. Frames follow:"})
                 times = frame_times(dur)
+                _progress(c, job, f"sampling {len(times)} frames from media {n + 1} ({dur:.0f} s)")
                 info["videos"].append({"n": n, "key": f"{prefix}{local_n}", "src": src, "times": times})
                 for k, t in enumerate(times):
                     try:
@@ -272,6 +279,7 @@ def build_request(c, item_id: str, work: Path) -> tuple[dict, dict]:
                 if pr["has_audio"]:
                     audio = extract_audio(src, work / f"a{n}.mp3")
                     if audio:
+                        _progress(c, job, f"transcribing the speech in media {n + 1}")
                         tr, coins = aicoin.transcribe(str(audio))
                         info["coins"] += coins
                         info["audio_s"] += dur
@@ -447,16 +455,17 @@ def put_media(key: str, path: Path, ctype: str) -> None:
         ExtraArgs={"ContentType": ctype, "CacheControl": "public, max-age=86400"})
 
 
-def analyze(c, item_id: str, *, dry_run: bool = False) -> dict:
+def analyze(c, item_id: str, *, dry_run: bool = False, job: str | None = None) -> dict:
     """Analyze one item end to end. Raises on failure; the worker records it."""
     t0 = time.time()
     work = Path(tempfile.mkdtemp(prefix="ee-analyze-"))
     try:
-        body, info = build_request(c, item_id, work)
+        body, info = build_request(c, item_id, work, job)
         model = aicoin.settings()["model"]
         if dry_run:
             imgs = sum(1 for b in body["messages"][0]["content"] if b["type"] == "image")
             return {"item": item_id, "dry_run": True, "images": imgs, **info}
+        _progress(c, job, f"asking Claude ({info['images']} images, {info['frames']} frames)")
         resp, coins = aicoin.claude(body)
         usage = resp.get("usage") or {}
         usd = usd_for(resp.get("model") or model, usage)
@@ -472,6 +481,7 @@ def analyze(c, item_id: str, *, dry_run: bool = False) -> dict:
             out = json.loads(text)
         except ValueError:
             raise RuntimeError(f"the answer is not JSON (stop_reason {resp.get('stop_reason')}): {text[:300]}")
+        _progress(c, job, "saving the analysis and covers")
         covers = save_covers(c, item_id, out.get("covers"), info["videos"])
         cats = apply_result(c, item_id, out, resp.get("model") or model)
         result = {"item": item_id, "categories": cats, "summary": out.get("summary"),

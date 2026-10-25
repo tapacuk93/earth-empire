@@ -18,7 +18,7 @@ from .logs import event, metric, setup
 setup("api")
 app = FastAPI(title="Earth Empire API", version="1", docs_url="/v1/docs", openapi_url="/v1/openapi.json",
               redoc_url=None)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "HEAD", "OPTIONS"],
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "HEAD", "OPTIONS", "POST", "PUT", "DELETE"],
                    allow_headers=["*"], max_age=86400)
 
 STARTED = time.time()
@@ -48,12 +48,35 @@ def conn():
     return db.conn()
 
 
-def require_token(request: Request):
+def _bearer_matches(request: Request, *keys: str) -> bool:
     auth = request.headers.get("authorization", "")
-    token = config.secret("ingest_token")
-    if not token or config.is_placeholder(token):
-        raise HTTPException(503, "ingest token not configured")
-    if not auth.startswith("Bearer ") or not hmac.compare_digest(auth[7:].strip().encode(), str(token).encode()):
+    if not auth.startswith("Bearer "):
+        return False
+    given = auth[7:].strip().encode()
+    ok = False
+    for k in keys:
+        token = config.secret(k)
+        if token and not config.is_placeholder(token) and hmac.compare_digest(given, str(token).encode()):
+            ok = True
+    return ok
+
+
+def require_token(request: Request):
+    """The collector's ingest token."""
+    if not _bearer_matches(request, "ingest_token"):
+        event("api.unauthorized", logging.WARNING, path=request.url.path)
+        raise HTTPException(401, "bad or missing bearer token")
+
+
+def require_admin(request: Request):
+    """The owner: earth-empire/admin-token, entered once in the apps."""
+    if not _bearer_matches(request, "admin_token"):
+        event("api.unauthorized", logging.WARNING, path=request.url.path, admin=True)
+        raise HTTPException(401, "bad or missing admin token")
+
+
+def require_admin_or_ingest(request: Request):
+    if not _bearer_matches(request, "admin_token", "ingest_token"):
         event("api.unauthorized", logging.WARNING, path=request.url.path)
         raise HTTPException(401, "bad or missing bearer token")
 
@@ -256,12 +279,52 @@ async def ingest_run(request: Request):
 
 
 # ------------------------------------------------------------------ admin
-@app.get("/v1/admin/pipeline", dependencies=[Depends(require_token)])
+@app.get("/v1/status")
+def status():
+    from . import status as st
+    resp = JSONResponse(st.build(conn()))
+    resp.headers["Cache-Control"] = "public, max-age=5"
+    return resp
+
+
+@app.post("/v1/ingest/heartbeat", dependencies=[Depends(require_token)])
+async def heartbeat(request: Request):
+    """A part on the box (collector, monitor, ...) says how it is and what it is doing."""
+    body = await request.json()
+    comp = str(body.get("component") or "")
+    if not re.fullmatch(r"[a-z][a-z0-9_-]{1,30}", comp) or comp in (
+            "api", "db", "workers", "analyzer", "x_poster", "facebook_poster", "site", "disk", "cpu", "memory", "queues"):
+        raise HTTPException(400, "component must be a short lowercase name of a part, e.g. collector or monitor")
+    ok = bool(body.get("ok", True))
+    detail = body.get("detail") if isinstance(body.get("detail"), dict) else {}
+    if isinstance(body.get("jobs"), list):
+        detail["jobs"] = body["jobs"][:10]
+    ts = db.now()
+    c = conn()
+    c.execute("""INSERT INTO heartbeats(component, at, ok, detail, last_ok_at, last_error_at, last_error)
+                 VALUES (?,?,?,?,?,?,?) ON CONFLICT(component) DO UPDATE SET at=excluded.at, ok=excluded.ok,
+                 detail=excluded.detail, last_ok_at=COALESCE(excluded.last_ok_at, heartbeats.last_ok_at),
+                 last_error_at=COALESCE(excluded.last_error_at, heartbeats.last_error_at),
+                 last_error=COALESCE(excluded.last_error, heartbeats.last_error)""",
+              (comp, ts, 1 if ok else 0, db.j(detail)[:20000], ts if ok else None,
+               None if ok else ts, None if ok else str(body.get("error") or "not ok")[:1000]))
+    if body.get("event"):
+        store.record(c, comp, str(body.get("kind") or "event")[:30], str(body["event"]), ok=ok)
+    return {"ok": True}
+
+
+@app.get("/v1/admin/me", dependencies=[Depends(require_admin)])
+def admin_me():
+    """For the apps: does the token the owner typed work?"""
+    return {"ok": True, "role": "owner"}
+
+
+@app.get("/v1/admin/pipeline", dependencies=[Depends(require_admin_or_ingest)])
 def admin_pipeline(failures: int = Query(20, ge=1, le=200)):
     return store.pipeline_status(conn(), failures)
 
 
-@app.get("/v1/admin/items/{item_id}", dependencies=[Depends(require_token)])
+@app.get("/v1/admin/items/{item_id}", dependencies=[Depends(require_admin)])
 def admin_item(item_id: str):
     c = conn()
     row = c.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
@@ -272,7 +335,7 @@ def admin_item(item_id: str):
     return {"item": store.render_item(c, row), "steps": steps, "transitions": trans}
 
 
-@app.post("/v1/admin/items/{item_id}/reanalyze", dependencies=[Depends(require_token)])
+@app.post("/v1/admin/items/{item_id}/reanalyze", dependencies=[Depends(require_admin)])
 def admin_reanalyze(item_id: str):
     c = conn()
     if not c.execute("SELECT 1 FROM items WHERE id=?", (item_id,)).fetchone():

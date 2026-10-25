@@ -20,7 +20,8 @@ create table if not exists membership (highlight_id text not null, item_id text 
 create table if not exists highlights (id text primary key, json text not null, sig text);
 create table if not exists kv (k text primary key, v text);
 create table if not exists timeline (id text primary key, taken_at real not null, kind text not null,
-                                     json text not null, listed_at real not null, attempts int not null default 0);
+                                     json text not null, listed_at real not null, attempts int not null default 0,
+                                     priority int not null default 0);
 """
 
 
@@ -29,6 +30,9 @@ class State:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(str(path))
         self.db.executescript(SCHEMA)
+        cols = [r[1] for r in self.db.execute("pragma table_info(timeline)")]
+        if "priority" not in cols:  # state from before new-items-first
+            self.db.execute("alter table timeline add column priority int not null default 0")
         self.db.commit()
 
     # kv
@@ -69,19 +73,25 @@ class State:
         self.db.commit()
 
     # the merged timeline still to ingest, newest first
-    def enqueue(self, item_id: str, taken_at: float, kind: str, raw: dict) -> bool:
+    def enqueue(self, item_id: str, taken_at: float, kind: str, raw: dict, priority: int = 0) -> bool:
         new = self.db.execute("select 1 from timeline where id=?", (item_id,)).fetchone() is None
-        self.db.execute("""insert into timeline(id, taken_at, kind, json, listed_at) values (?,?,?,?,?)
+        self.db.execute("""insert into timeline(id, taken_at, kind, json, listed_at, priority) values (?,?,?,?,?,?)
                            on conflict(id) do update set taken_at=excluded.taken_at, kind=excluded.kind,
-                           json=excluded.json, listed_at=excluded.listed_at""",
-                        (item_id, taken_at, kind, json.dumps(raw), time.time()))
+                           json=excluded.json, listed_at=excluded.listed_at,
+                           priority=max(timeline.priority, excluded.priority)""",
+                        (item_id, taken_at, kind, json.dumps(raw), time.time(), priority))
         self.db.commit()
         return new
 
-    def timeline_next(self) -> tuple[str, float, str, dict, int] | None:
-        row = self.db.execute("select id, taken_at, kind, json, attempts from timeline "
-                              "order by taken_at desc limit 1").fetchone()
-        return (row[0], row[1], row[2], json.loads(row[3]), row[4]) if row else None
+    def timeline_next(self, priority_only: bool = False) -> tuple[str, float, str, dict, int, int] | None:
+        """New items first (priority), then the backfill; newest first within each."""
+        where = "where priority > 0 " if priority_only else ""
+        row = self.db.execute("select id, taken_at, kind, json, attempts, priority from timeline " + where +
+                              "order by priority desc, taken_at desc limit 1").fetchone()
+        return (row[0], row[1], row[2], json.loads(row[3]), row[4], row[5]) if row else None
+
+    def timeline_priority_len(self) -> int:
+        return self.db.execute("select count(*) from timeline where priority > 0").fetchone()[0]
 
     def timeline_done(self, item_id: str) -> None:
         self.db.execute("delete from timeline where id=?", (item_id,))

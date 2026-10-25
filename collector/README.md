@@ -63,6 +63,12 @@ journalctl -u ee-collector-incremental -u ee-collector-backfill -f
 ls /var/log/earth-empire/collector/                   # one log file per run
 ```
 
+- **New items first.** Every run starts with a cheap check: the profile page's newest posts, the
+  story viewer, the Reposts tab's first page, and highlights whose tray entry changed (or that were
+  created since the last check). Anything newer than every earlier check saw, and any story added
+  to a highlight, goes to the front of the timeline and is ingested before the backfill, marked
+  `"priority": "new"` so the backend analyzes it first. During a long backfill the same check runs
+  every ~10 minutes. Nothing is "new" on the very first run.
 - **Order: by time, across every kind.** A run first lists, cheaply and without downloads: the
   profile page's posts, the Reposts tab (`user_reposts_timeline` grid items), the current stories
   (the story viewer at `/stories/<user>/`), every changed highlight's stories (the highlight viewer),

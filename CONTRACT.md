@@ -156,6 +156,9 @@ store it in `extra`.
     "model": "…", "analyzed_at": "…"
   },
   "extra": {},                             // anything else the source had
+  "priority": "new" | absent,              // set by the collector: appeared on Instagram after the
+                                           // backfill began (a new post, story, repost, or a story
+                                           // added to a highlight); see "The pipeline"
   "collected_at": "…", "updated_at": "…",
   "published_at": "…"                      // set by the backend when the item went public (see "The pipeline")
 }
@@ -375,8 +378,10 @@ cover for each video: the best-looking sampled frame, saved at full size as
 
 ## The pipeline
 
-Every item goes through these steps in order. The backlog goes oldest first, and each new item
-goes through as it arrives. Each step has its own recorded state, and a failure retries with
+Every item goes through these steps in order. **New items come first:** the collector ingests
+items marked `"priority": "new"` before any backfill item, and the backend analyzes them ahead of
+the backlog, newest first. The backlog goes oldest first, and each new item goes through as it
+arrives. Each step has its own recorded state, and a failure retries with
 backoff without blocking other items. Every transition is logged.
 
 1. **Downloaded:** the collector has ingested it (a post, carousel, reel, story, highlight story, or

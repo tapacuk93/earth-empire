@@ -309,3 +309,33 @@ def test_timeline_newest_first_across_kinds(env):
     keys = [key(i) for i in first]
     assert keys == sorted(keys, reverse=True), first
     assert state.timeline_len() == 0
+
+
+def test_new_items_first(env):
+    """After the first run, anything newer than what was seen jumps the queue and is marked new."""
+    store, backend, state = env
+    ig, dl = FakeIG(), FakeDL()
+    Collector(ig, backend, state, dl, "example.owner", budget_s=3600).run("full")
+    assert state.get("new.watermark")
+    assert all("priority" not in i for i in store.items.values())   # nothing is "new" on the first run
+    # a backfill item still waiting, and then a brand-new post and story appear
+    old = copy.deepcopy(ig.data["feed2"]["items"][0])
+    old.update(pk="3300000000000000099", id="3300000000000000099_1000000001", code="DAold000099", taken_at=1600000000)
+    state.enqueue("ig_3300000000000000099", 1600000000, "post", old)
+    post = copy.deepcopy(ig.data["feed1"]["items"][0])
+    post.update(pk="3300000000000000777", id="3300000000000000777_1000000001", code="DAnew000777",
+                taken_at=1900000000, timeline_pinned_user_ids=[])
+    ig.data["feed1"]["items"].insert(0, post)
+    story = copy.deepcopy(ig.data["user"]["reels"]["1000000001"]["items"][0])
+    story.update(pk="3300000000000000888", id="3300000000000000888_1000000001", taken_at=1900000100)
+    ig.data["user"]["reels"]["1000000001"]["items"].append(story)
+    sent = []
+    put = backend.put_items
+    backend.put_items = lambda items: (sent.extend(i["id"] for i in items), put(items))[1]
+    Collector(ig, backend, state, dl, "example.owner", budget_s=3600).run("full")
+    assert store.items["ig_3300000000000000777"]["priority"] == "new"
+    assert store.items["ig_3300000000000000888"]["priority"] == "new"
+    assert "priority" not in store.items["ig_3300000000000000099"]
+    order = [i for i in sent if i in ("ig_3300000000000000777", "ig_3300000000000000888", "ig_3300000000000000099")]
+    assert order.index("ig_3300000000000000099") > order.index("ig_3300000000000000777")
+    assert order.index("ig_3300000000000000888") < order.index("ig_3300000000000000777")   # newest first

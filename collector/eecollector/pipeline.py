@@ -25,6 +25,7 @@ BATCH = 12
 STORY_EVERY = 45 * 60
 PROFILE_EVERY = 6 * 3600
 HIGHLIGHTS_PER_RUN = 15
+CHECK_EVERY = 10 * 60      # during a backfill, look for new items this often
 
 
 class Collector:
@@ -44,6 +45,10 @@ class Collector:
         self.recent_cursor: str | None = None
         self.recent_new: int | None = None
         self.tray: list | None = None
+        self.priority = 0
+        self.watermark: float | None = None
+        self.seen_max: float = 0.0
+        self.last_check = 0.0
         self.uid: str | None = None
         self.counts: dict[str, int] = {}
         self.pending: list[dict] = []
@@ -91,9 +96,12 @@ class Collector:
         full = mode == "full"
         log.info("run %s: state has %d items, %d queued", mode, self.state.count_items(), self.state.timeline_len())
         self.do_profile()
-        self.step("list recent", self.list_recent)
+        # 1. new items first: a cheap check, then ingest whatever is new before any backfill
+        self.check_new(profile_done=True)
+        self.step("ingest new", self.ingest_timeline, True)
+        # 2. the backfill: list deeper (reposts, unread highlights, older grid pages), then ingest
+        #    newest first, checking for new items again every ~10 minutes
         self.step("list reposts", self.list_reposts, full)
-        self.step("list stories", self.list_stories)
         self.step("list highlights", self.list_highlights, full)
         self.step("list feed", self.list_feed, full)
         self.step("list clips", self.list_clips, full)
@@ -211,13 +219,15 @@ class Collector:
 
     # ------------------------------------------------------------ listing (metadata only)
 
-    def enqueue(self, item_id: str, kind: str, m: dict) -> bool:
+    def enqueue(self, item_id: str, kind: str, m: dict, force_new: bool = False) -> bool:
         """Put one item on the timeline unless it is already in, complete."""
         prev = self.state.item(item_id)
         if prev and all(x.get("url") for x in prev.get("media") or [None]):
             return False
-        taken = m.get("taken_at") or parse.pk_time(parse.media_pk(m))
-        return self.state.enqueue(item_id, float(taken), kind, m)
+        taken = float(m.get("taken_at") or parse.pk_time(parse.media_pk(m)))
+        self.seen_max = max(self.seen_max or 0.0, taken)
+        priority = 1 if (force_new or self.is_new(taken)) else 0
+        return self.state.enqueue(item_id, taken, kind, m, priority)
 
     def owner_media(self, bodies: list, story: bool) -> list[dict]:
         """The target's own media among what a page loaded (viewers preload other people's too)."""
@@ -233,28 +243,65 @@ class Collector:
                 out.append(m)
         return out
 
+    def is_new(self, taken: float) -> bool:
+        """Newer than everything any earlier check had seen (none is new on the very first run)."""
+        return self.watermark is not None and taken > self.watermark
+
+    def check_new(self, profile_done: bool = False) -> None:
+        """The cheap check for new items: the profile page's newest posts, the story viewer, the
+        Reposts tab's first page, and highlights whose tray entry changed. Anything new goes to the
+        front of the timeline (priority new)."""
+        self.last_check = time.time()
+        self.watermark = self.state.get("new.watermark")
+        self.seen_max = self.watermark or 0.0
+        before = self.state.timeline_priority_len()
+        if not profile_done:
+            self.step("profile", self.do_profile)
+        self.step("list recent", self.list_recent)
+        self.step("list stories", self.list_stories)
+        self.step("list reposts", self.list_reposts, False, True)
+        self.step("list highlights", self.list_highlights, False, True)
+        self.state.set("new.watermark", self.seen_max or None)
+        found = self.state.timeline_priority_len() - before
+        if found > 0:
+            log.info("new items: %d", found)
+            self.bump("new_found", found)
+
     def list_recent(self) -> None:
         """The posts and reels the profile page itself loaded; no extra request."""
         new = sum(self.enqueue(f"ig_{parse.media_pk(m)}", "post", m) for m in self.harvested)
         self.recent_new = new
         log.info("list recent: %d on the profile page, %d to ingest", len(self.harvested), new)
 
-    def list_reposts(self, full: bool) -> None:
+    def list_reposts(self, full: bool, first_page: bool = False) -> None:
         """The profile's Reposts tab as the web app loads it (user_reposts_timeline grid items).
         The grid gives no repost time; an item is placed by its pk's creation time."""
+        if not first_page and (not full or self.state.get("backfill.reposts.done") or self.out_of_time()):
+            return
         self.beat("listing reposts", force=True)
-        bodies = self.ig.browse(f"https://www.instagram.com/{self.target}/reposts/", scrolls=8 if full else 1)
-        seen, new = set(), 0
+        scrolls = 0 if first_page else int(self.state.get("backfill.reposts.scrolls", 8))
+        bodies = self.ig.browse(f"https://www.instagram.com/{self.target}/reposts/", scrolls=scrolls)
+        seen, new, flags = set(), 0, []
         for body in bodies:
             for d in parse.walk(body):
-                for g in d.get("repost_grid_items") or [] if isinstance(d.get("repost_grid_items"), list) else []:
+                if "repost_more_available" in d:
+                    flags.append(bool(d.get("repost_more_available")))
+                grid = d.get("repost_grid_items")
+                for g in grid if isinstance(grid, list) else []:
                     m = g.get("media") if isinstance(g, dict) else None
                     pk = parse.media_pk(m) if isinstance(m, dict) else None
                     if not pk or pk in seen:
                         continue
                     seen.add(pk)
                     new += self.enqueue(f"ig_repost_{pk}", "repost", m)
-        log.info("list reposts: %d on the Reposts tab, %d to ingest", len(seen), new)
+        more = bool(flags) and all(flags)
+        if not first_page:
+            if more:
+                self.state.set("backfill.reposts.scrolls", min(scrolls + 8, 80))
+            else:
+                self.state.set("backfill.reposts.done", True)
+        log.info("list reposts: %d on the Reposts tab (%s), %d to ingest, more: %s",
+                 len(seen), "first page" if first_page else f"{scrolls} scrolls", new, more)
 
     def list_stories(self) -> None:
         self.beat("listing stories", force=True)
@@ -273,7 +320,7 @@ class Collector:
         log.info("list stories: %d current, %d to ingest", len(items), new)
         self.bump("stories_seen", len(items))
 
-    def list_highlights(self, full: bool) -> None:
+    def list_highlights(self, full: bool, changes_only: bool = False) -> None:
         tray = []
         for body in self.profile_bodies:
             tray = parse.highlight_tray(body)
@@ -282,9 +329,20 @@ class Collector:
         if not tray:
             tray = parse.highlight_tray(self.ig.tray(self.uid))
         self.tray = tray
-        changed = [h for h in tray if (full and not self.state.get(f"backfill.hl.{h['id']}"))
-                   or not self.state.highlight(h["id"]) or self.state.highlight(h["id"])[1] != h["sig"]]
-        cap = HIGHLIGHTS_PER_RUN if full else len(changed)
+        def known(h):
+            return self.state.highlight(h["id"])
+
+        if changes_only:
+            # a highlight read before whose tray entry changed, or one created after the last check
+            changed = [h for h in tray if (known(h) and known(h)[1] != h["sig"])
+                       or (not known(h) and h.get("created_at") and self.watermark is not None
+                           and parse.iso(self.watermark) < h["created_at"])]
+            if not changed:
+                return
+        else:
+            changed = [h for h in tray if (full and not self.state.get(f"backfill.hl.{h['id']}"))
+                       or not known(h) or known(h)[1] != h["sig"]]
+        cap = HIGHLIGHTS_PER_RUN if full and not changes_only else len(changed)
         log.info("list highlights: %d in the tray, %d to read, up to %d this run", len(tray), len(changed), cap)
         changed = changed[:cap]
         loaded: dict[str, dict] = {}
@@ -306,10 +364,10 @@ class Collector:
                 log.warning("highlight %s (%s): the viewer showed no stories", h["id"], h["title"])
                 self.bump("errors")
                 continue
-            self.record_highlight(h, r["items"])
+            self.record_highlight(h, r["items"], additions_are_new=changes_only)
             self.state.set(f"backfill.hl.{h['id']}", True)
 
-    def record_highlight(self, h: dict, items: list[dict]) -> None:
+    def record_highlight(self, h: dict, items: list[dict], additions_are_new: bool = False) -> None:
         """A highlight's title, cover, order and membership; its stories go on the timeline."""
         hid = h["id"]
         cover = None
@@ -331,7 +389,8 @@ class Collector:
               "extra": {"media_count": h.get("media_count"), "created_at": h.get("created_at")}}
         self.state.save_highlight(hl, h["sig"])
         touched = self.state.set_membership(hid, ids)
-        new = sum(self.enqueue(f"ig_{parse.media_pk(m)}", "story", m) for m in items)
+        new = sum(self.enqueue(f"ig_{parse.media_pk(m)}", "story", m, force_new=additions_are_new)
+                  for m in items)
         # stories already ingested whose highlight names changed are sent again right away
         for iid in touched:
             it = self.state.item(iid)
@@ -393,17 +452,22 @@ class Collector:
 
     # ------------------------------------------------------------ ingesting the timeline
 
-    def ingest_timeline(self) -> None:
-        total = self.state.timeline_len()
+    def ingest_timeline(self, priority_only: bool = False) -> None:
+        total = self.state.timeline_priority_len() if priority_only else self.state.timeline_len()
         done = 0
         while True:
-            row = self.state.timeline_next()
+            if not priority_only and time.time() - self.last_check > CHECK_EVERY and not self.out_of_time():
+                self.flush()
+                self.check_new()          # new items jump the queue
+            row = self.state.timeline_next(priority_only)
             if row is None:
                 break
             if self.out_of_time() or (self.limit and self.counts.get("items", 0) >= self.limit):
                 break
-            item_id, taken, kind, m, attempts = row
-            self.beat(f"timeline {done}/{total} ({parse.iso(taken)[:10]}) (downloads)", done / max(total, 1))
+            item_id, taken, kind, m, attempts, priority = row
+            self.priority = priority
+            self.beat(f"{'new items' if priority else 'timeline'} {done}/{total} ({parse.iso(taken)[:10]}) (downloads)",
+                      done / max(total, 1))
             try:
                 if kind == "repost":
                     self.take_repost_tab(m)
@@ -437,8 +501,10 @@ class Collector:
                     log.warning("%s: dropped from the timeline after 3 attempts", item_id)
                     self.state.timeline_done(item_id)
             done += 1
+        self.priority = 0
         self.flush()
-        log.info("ingest: %d items from the timeline, %d left", done, self.state.timeline_len())
+        log.info("ingest%s: %d items, %d left in the timeline", " (new items)" if priority_only else "",
+                 done, self.state.timeline_len())
 
     def take_repost_tab(self, grid_media: dict) -> None:
         """A Reposts-tab item: the grid has no date or video, so read the original's own record."""
@@ -488,6 +554,11 @@ class Collector:
 
     def finish(self, it: dict, prev: dict | None = None) -> None:
         now = parse.now_iso()
+        if self.priority or (prev or {}).get("priority") == "new":
+            # appeared after the backfill began: the backend analyzes these first (CONTRACT.md)
+            it["priority"] = "new"
+            if self.priority:
+                self.bump("new_items")
         it["collected_at"] = (prev or {}).get("collected_at") or now
         it["updated_at"] = now
         self.state.save_item(it)

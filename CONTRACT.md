@@ -94,7 +94,9 @@ store it in `extra`.
     "type": "image" | "video",
     "url": "https://media.empire.earth/items/<id>/0.mp4",
     "thumbnail": "https://media.empire.earth/items/<id>/0.thumb.jpg",
-    "width": 1080, "height": 1920, "duration": 12.3 | null
+    "width": 1080, "height": 1920, "duration": 12.3 | null,
+    "cover": "https://media.empire.earth/items/<id>/0.cover.jpg" | null,  // video only, set by the backend:
+    "cover_at": 4.5 | null                 // the best-looking frame (sharp, representative) and its time in s
   }],
   "highlights": [{"id": "hl_<pk>", "title": "Travel"}],   // every highlight this story is in
   "repost_of": null | {                    // a story or post that shares someone's reel or post
@@ -145,11 +147,17 @@ store it in `extra`.
 Public, read-only:
 
 - `GET /v1/profile` → Profile
-- `GET /v1/items?kind=&category=&highlight=&q=&before=&limit=` → `{"items": [Item], "next": "<cursor>" | null}`;
-  newest first; `q` searches captions, summaries, hashtags, locations, highlight titles.
+- `GET /v1/items?kind=&category=&highlight=&tag=&q=&before=&limit=` → `{"items": [Item], "next": "<cursor>" | null}`;
+  newest first; `q` searches captions, summaries, descriptions, hashtags, locations, highlight titles
+  and the analysis; `tag` matches a tag from `/v1/tags` (case-insensitive, any kind).
 - `GET /v1/items/{id}` → Item
 - `GET /v1/highlights` → `{"highlights": [Highlight]}`, in the profile's order
 - `GET /v1/categories` → `{"categories": [Category]}`, by count
+- `GET /v1/tags?kind=&limit=` → `{"tags": [{"tag": "beach", "kind": "keyword", "count": 12}]}`, by
+  count, for a tag cloud. Tags come from published items' analyses and captions, and are lowercase.
+  `kind` is one of `category`, `keyword`, `place`, `country`, `object`, `animal`, `brand`,
+  `hashtag`, `person` (only people the post itself named: tag, mention or caption), `mood` or
+  `occasion`. The same tag can appear under two kinds.
 
 Ingest, for the collector only (`Authorization: Bearer <earth-empire/ingest-token>`):
 
@@ -173,7 +181,9 @@ original of a repost too). Claude sees all of the following:
 - the caption, tags, mentions, stickers, location, music, date, highlight names;
 - the account's earlier items, for recurring people, places and series.
 
-From these it writes `analysis`, then `categories`, `summary` and `description`.
+From these it writes `analysis`, then `categories`, `summary` and `description`, the tags, and a
+cover for each video: the best-looking sampled frame, saved at full size as
+`items/<id>/<n>.cover.jpg` (`items/<id>/r<n>.cover.jpg` for a repost original's media `n`).
 
 - **Who:** people are named only from what the post itself says - photo tags, mentions,
   caption, speech, on-screen text - or from a name the owner gave to a person in earlier items. A

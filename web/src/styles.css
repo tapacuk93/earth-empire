@@ -611,3 +611,4 @@ main:has(.modes) { padding-bottom: 0; }
 .pb-btn { position: relative; }
 .hero.compact .eyebrow { display: block; }
 @media (max-width: 480px) { .mosaic-head .zoom-level { display: none; } .mosaic-head .icon-btn { width: 32px; height: 32px; } }
+.ifeed-ctx { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

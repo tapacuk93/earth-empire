@@ -74,6 +74,12 @@ def analyze_once(c) -> bool:
 
 
 # ------------------------------------------------------------------ X
+def is_test(c, item_id) -> bool:
+    """Fixture items (extra.test) are never posted anywhere."""
+    row = c.execute("SELECT data FROM items WHERE id=?", (item_id,)).fetchone()
+    return bool(row and (json.loads(row["data"]).get("extra") or {}).get("test"))
+
+
 def x_once(c) -> bool:
     # Dry runs are the CLI's (ee x dry-run); the lane only posts for real.
     if setting(c, "x.enabled") != "1" or setting(c, "x.dry_run") == "1" or not xposter.credentials():
@@ -92,8 +98,18 @@ def x_once(c) -> bool:
     item_id = store.claim_next(c, "x", requires_analysis=True)
     if not item_id:
         return False
+    if is_test(c, item_id):
+        store.set_step(c, item_id, "x", "skipped", note="test fixture")
+        return True
     try:
         xposter.post_item(c, item_id, dry_run=False)
+    except xposter.XNoCredits as e:
+        from .db import set_setting
+        store.set_step(c, item_id, "x", "pending", note="X has no credits; posting paused")
+        set_setting(c, "x.paused_until", "9999-12-31T00:00:00Z")
+        event("x.no_credits", logging.ERROR, item=item_id, error=str(e),
+              action="buy X API credits (console.x.com), then: ee settings x.paused_until ''")
+        metric("WorkerErrors")
     except xposter.XError as e:
         store.fail_step(c, item_id, "x", str(e), permanent=e.status in (400, 403))
         if e.retry_after:
@@ -117,6 +133,9 @@ def facebook_once(c) -> bool:
     item_id = store.claim_next(c, "facebook", requires_analysis=True)
     if not item_id:
         return False
+    if is_test(c, item_id):
+        store.set_step(c, item_id, "facebook", "skipped", note="test fixture")
+        return True
     try:
         fbposter.post_item(c, item_id, dry_run=False)
         fbposter.schedule_next(c)

@@ -16,8 +16,6 @@ import os
 import threading
 import time
 
-import httpx
-
 from . import config
 from .logs import event
 
@@ -87,6 +85,7 @@ def new_wallet() -> tuple[str, str]:
 
 
 def balance(address: str | None = None) -> dict:
+    import httpx
     s = settings()
     address = address or s["address"]
     r = httpx.get(f"{s['proxy_url']}/wallet/api/reputation/{address}", timeout=20)
@@ -94,7 +93,7 @@ def balance(address: str | None = None) -> dict:
     return r.json()
 
 
-def _check(r: httpx.Response, what: str):
+def _check(r, what: str):
     if r.status_code == 402:
         raise OutOfCoins(f"{what}: the server wallet is out of aicoin", 402, r.text[:500])
     if r.status_code >= 400:
@@ -103,6 +102,7 @@ def _check(r: httpx.Response, what: str):
 
 def claude(body: dict, timeout: float = 300) -> tuple[dict, float]:
     """POST /v1/messages through the proxy. Returns (response JSON, coins charged)."""
+    import httpx
     s = settings()
     body = dict(body)
     body.setdefault("model", s["model"])
@@ -122,6 +122,7 @@ def claude(body: dict, timeout: float = 300) -> tuple[dict, float]:
 
 def transcribe(audio_path: str, timeout: float = 300) -> tuple[dict, float]:
     """OpenAI speech-to-text through the proxy: verbose JSON with timed segments."""
+    import httpx
     s = settings()
     with open(audio_path, "rb") as f:
         r = httpx.post(f"{s['proxy_url']}/v1/audio/transcriptions", timeout=timeout,

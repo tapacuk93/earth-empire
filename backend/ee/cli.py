@@ -13,6 +13,7 @@
   ee steps retry [step]               put failed steps back in the queue
   ee wallet init | show               the server's aicoin wallet
   ee backup                           back the database up to S3 now
+  ee delete <id>... | --tests         remove items from the archive (--tests: every ig_test_* fixture)
 """
 from __future__ import annotations
 
@@ -39,6 +40,7 @@ def main(argv=None):
     p = sub.add_parser("steps"); p.add_argument("action", choices=["set", "retry"]); p.add_argument("rest", nargs="*")
     p = sub.add_parser("wallet"); p.add_argument("action", choices=["init", "show"])
     sub.add_parser("backup")
+    p = sub.add_parser("delete"); p.add_argument("ids", nargs="*"); p.add_argument("--tests", action="store_true")
     a = ap.parse_args(argv)
     c = db.conn()
 
@@ -160,6 +162,21 @@ def main(argv=None):
         addr = s.get("wallet_address")
         if addr:
             print(json.dumps(aicoin.balance(addr), indent=2))
+    elif a.cmd == "delete":
+        ids = list(a.ids)
+        if a.tests:
+            ids += [r["id"] for r in c.execute("SELECT id FROM items WHERE id LIKE 'ig\\_test\\_%' ESCAPE '\\'")]
+        with db.tx(c):
+            for i in ids:
+                for t in ("items", "items_fts"):
+                    c.execute(f"DELETE FROM {t} WHERE id=?", (i,))
+                for t in ("steps", "item_categories", "item_tags", "item_highlights"):
+                    c.execute(f"DELETE FROM {t} WHERE item_id=?", (i,))
+            if a.tests:
+                c.execute("DELETE FROM highlights WHERE id LIKE 'hl\\_test\\_%' ESCAPE '\\'")
+        from .logs import event
+        event("items.deleted", ids=ids)
+        print(f"deleted {len(ids)}: {ids}")
     elif a.cmd == "backup":
         from .worker import backup
         print(backup(c))

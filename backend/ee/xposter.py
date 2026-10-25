@@ -35,6 +35,14 @@ class XError(Exception):
         self.status, self.retry_after = status, retry_after
 
 
+class XNoCredits(XError):
+    """The developer account has no pay-per-use credits (or no enrolment): pause, do not retry."""
+
+
+CREDITS_RE = __import__("re").compile(r"credit|CreditsDepleted|payment|billing|insufficient|"
+                                      r"client-not-enrolled|spend|usage cap|UsageCapExceeded", __import__("re").I)
+
+
 def credentials():
     c = config.secret("x")
     if not isinstance(c, dict) or config.is_placeholder(c):
@@ -54,6 +62,8 @@ def session(creds: dict):
 
 
 def _check(r, what):
+    if r.status_code == 402 or (r.status_code in (403, 429) and CREDITS_RE.search(r.text or "")):
+        raise XNoCredits(f"{what}: X API refused for billing (HTTP {r.status_code}): {r.text[:400]}", r.status_code)
     if r.status_code == 429:
         reset = r.headers.get("x-rate-limit-reset")
         wait = max(60, int(reset) - int(time.time())) if reset else 900

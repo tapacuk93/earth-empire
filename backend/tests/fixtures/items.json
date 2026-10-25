@@ -1,0 +1,66 @@
+{
+  "_note": "Fake items in the contract's shape. Media come from public sample files (see sources); tests/load_fixtures.py uploads them through the ingest flow. ids start with ig_test_ so they are easy to find and delete.",
+  "sources": {
+    "ig_test_post/0.jpg": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Lisboa_-_Portugal_%2852399433286%29.jpg/1280px-Lisboa_-_Portugal_%2852399433286%29.jpg",
+    "ig_test_carousel/0.jpg": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/June_odd-eyed-cat.jpg/1024px-June_odd-eyed-cat.jpg",
+    "ig_test_carousel/1.jpg": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Golde33443.jpg/1024px-Golde33443.jpg",
+    "ig_test_reel/0.mp4": "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4#t=0,20",
+    "ig_test_story/0.mp4": "https://upload.wikimedia.org/wikipedia/commons/transcoded/6/6d/We_Choose_to_go_to_the_Moon_-_John_F._Kennedy%27s_speech_at_Rice_University.webm/We_Choose_to_go_to_the_Moon_-_John_F._Kennedy%27s_speech_at_Rice_University.webm.360p.webm#t=0,25",
+    "ig_test_repost/r0.mp4": "https://download.blender.org/peach/bigbuckbunny_movies/BigBuckBunny_320x180.mp4#t=60,75"
+  },
+  "items": [
+    {
+      "id": "ig_test_post", "kind": "post", "shortcode": "TESTpost1",
+      "source_url": "https://www.instagram.com/p/TESTpost1/", "taken_at": "2023-06-10T18:20:00Z",
+      "caption": "Golden hour over Lisboa with @maria_test 🌅 #lisbon #travel",
+      "hashtags": ["lisbon", "travel"], "mentions": ["maria_test"],
+      "tagged_users": [{"username": "maria_test", "x": 0.4, "y": 0.6}],
+      "location": {"name": "Lisbon, Portugal", "id": "1", "lat": 38.72, "lng": -9.14},
+      "music": null, "alt_text": "Photo of a city by the river", "stickers": [],
+      "counts": {"likes": 120, "comments": 4},
+      "media": [{"type": "image", "url": "items/ig_test_post/0.jpg", "width": 1280, "height": 853, "duration": null}],
+      "highlights": [], "repost_of": null, "extra": {"test": true}
+    },
+    {
+      "id": "ig_test_carousel", "kind": "carousel", "shortcode": "TESTcar1",
+      "source_url": "https://www.instagram.com/p/TESTcar1/", "taken_at": "2023-09-02T09:00:00Z",
+      "caption": "Two good friends of the house. Who is the better model?", "hashtags": [], "mentions": [],
+      "tagged_users": [], "location": null, "music": null, "alt_text": null, "stickers": [], "counts": {"likes": 88},
+      "media": [{"type": "image", "url": "items/ig_test_carousel/0.jpg", "width": 1024, "height": 768, "duration": null},
+                {"type": "image", "url": "items/ig_test_carousel/1.jpg", "width": 1024, "height": 683, "duration": null}],
+      "highlights": [], "repost_of": null, "extra": {"test": true}
+    },
+    {
+      "id": "ig_test_reel", "kind": "reel", "shortcode": "TESTreel1",
+      "source_url": "https://www.instagram.com/reel/TESTreel1/", "taken_at": "2024-01-15T15:30:00Z",
+      "caption": "Weekend cartoon marathon, part 1", "hashtags": [], "mentions": [], "tagged_users": [],
+      "location": null, "music": {"title": "Original audio", "artist": "test"}, "alt_text": null, "stickers": [],
+      "counts": {"plays": 1500, "likes": 70},
+      "media": [{"type": "video", "url": "items/ig_test_reel/0.mp4", "thumbnail": null, "width": 320, "height": 180, "duration": 20.0}],
+      "highlights": [], "repost_of": null, "extra": {"test": true}
+    },
+    {
+      "id": "ig_test_story", "kind": "story", "shortcode": null, "source_url": null, "taken_at": "2024-03-03T20:00:00Z",
+      "caption": null, "hashtags": [], "mentions": [], "tagged_users": [], "location": null, "music": null,
+      "alt_text": null, "stickers": [{"type": "question", "text": "Which speech inspires you?", "extra": {}}],
+      "counts": {},
+      "media": [{"type": "video", "url": "items/ig_test_story/0.mp4", "thumbnail": null, "width": 640, "height": 360, "duration": 25.0}],
+      "highlights": [{"id": "hl_test_history", "title": "History"}], "repost_of": null, "extra": {"test": true}
+    },
+    {
+      "id": "ig_test_repost", "kind": "story", "shortcode": null, "source_url": null, "taken_at": "2024-04-01T08:00:00Z",
+      "caption": null, "hashtags": [], "mentions": ["blender_test"], "tagged_users": [], "location": null, "music": null,
+      "alt_text": null, "stickers": [{"type": "mention", "text": "@blender_test", "extra": {}}], "counts": {},
+      "media": [{"type": "image", "url": "items/ig_test_post/0.jpg", "width": 1280, "height": 853, "duration": null}],
+      "highlights": [],
+      "repost_of": {"author": "blender_test", "author_name": "Blender Test", "shortcode": "TESTorig1",
+                    "source_url": "https://www.instagram.com/reel/TESTorig1/", "taken_at": "2024-03-30T10:00:00Z",
+                    "caption": "Big Buck Bunny wakes up",
+                    "media": [{"type": "video", "url": "items/ig_test_repost/r0.mp4", "width": 320, "height": 180, "duration": 15.0}]},
+      "extra": {"test": true}
+    }
+  ],
+  "highlights": [{"id": "hl_test_history", "title": "History", "cover": null, "item_ids": ["ig_test_story"]}],
+  "profile": {"username": "earth_empire_test", "full_name": "Test Profile", "bio": "Fixture profile", "avatar": null,
+              "links": [], "counts": {"posts": 5, "followers": 10, "following": 3}}
+}

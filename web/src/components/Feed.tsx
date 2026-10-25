@@ -127,7 +127,7 @@ function Timeline({ items, ctx }: { items: Item[]; ctx: string }) {
     <div class="tl">
       {groups.map((g) => (
         <section key={g.key} class="tl-month" aria-labelledby={`m-${g.key}`}>
-          <h2 id={`m-${g.key}`} class="tl-h">{g.label}</h2>
+          <h3 id={`m-${g.key}`} class="tl-h">{g.label}</h3>
           <ol class="tl-list">
             {g.items.map((it) => {
               const src = cover(it);

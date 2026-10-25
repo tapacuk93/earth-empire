@@ -40,7 +40,7 @@ export function places(items: Item[]): Place[] {
     const loc = it.location;
     const w = it.analysis?.where;
     const name = loc?.name || w?.place;
-    if (!name) continue;
+    if (!name || /^(unknown|not stated|unclear)/i.test(name)) continue;
     const key = name.toLowerCase();
     let p = map.get(key);
     if (!p) { p = { name, country: w?.country || undefined, count: 0, items: [] }; map.set(key, p); }

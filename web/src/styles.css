@@ -573,3 +573,4 @@ progress { accent-color: var(--accent); height: 8px; }
 .prompt { width: min(440px, 100%); padding: 20px; border-radius: 16px; background: var(--surface); color: var(--text); box-shadow: 0 10px 40px rgb(0 0 0 / .3); }
 .prompt h2 { margin-top: 0; }
 .prompt input { width: 100%; min-height: 44px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 16px; }
+.chips-list .chip { white-space: normal; max-width: 100%; text-align: left; overflow-wrap: anywhere; }

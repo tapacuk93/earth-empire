@@ -82,15 +82,17 @@ class PagingTest {
         val conf = pager.items.map { it.confidence }
         assertEquals(conf.sortedDescending(), conf)
         assertEquals(MockMonitorApi.seed().size, pager.items.size)
-        api.fetchMore(10, null)
+        api.fetchMore(10)
         assertEquals(MockMonitorApi.seed().size + 2, api.hits(null, 100).hits.size)
     }
 
-    @Test fun mockMonitorAddNeedsToken() = runTest {
+    @Test fun mockMonitorPublishNeedsToken() = runTest {
         val api = MockMonitorApi(latencyMs = 0)
-        try { api.add("mock_1", ""); fail("added without a token") } catch (e: ApiException.Status) { assertEquals(401, e.code) }
-        assertTrue(api.add("mock_1", "t").isAdded)
-        assertTrue(api.published(null, 10).items.any { it.id == "mock_1" })
+        try { api.publish("mock_1", ""); fail("published without a token") } catch (e: ApiException.Status) { assertEquals(401, e.code) }
+        assertTrue(api.publish("mock_1", "t").isPublished)
+        assertTrue(api.published(null, 10).hits.any { it.id == "mock_1" })
+        assertFalse(api.publish("mock_1", "t", publish = false).isPublished)
+        assertTrue(api.hits(null, 50, kind = "language").hits.all { it.kind == "language" })
         assertEquals(listOf("тарас", "тарас маслов", "маслов"), api.phrases().map { it.text })
         assertEquals(listOf("тарас"), api.savePhrases(listOf(" тарас ", "тарас", ""), "t").map { it.text })
     }

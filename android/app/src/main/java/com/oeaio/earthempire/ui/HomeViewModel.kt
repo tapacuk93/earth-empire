@@ -44,6 +44,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     var view by mutableStateOf(container.settings.homeView); private set
 
     val offline get() = api.offline
+    val owner get() = container.owner
 
     private var pager = makePager()
     private var pageJob: Job? = null
@@ -105,7 +106,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
     }
 
     private suspend fun loadPublished() {
-        published = try { container.monitor.value.published(null, 20).items } catch (e: Exception) { Log.w(TAG, "published failed: $e"); published }
+        published = try { container.monitor.value.published(null, 20).hits } catch (e: Exception) { Log.w(TAG, "published failed: $e"); published }
     }
 
     private fun restartItems(): Job {

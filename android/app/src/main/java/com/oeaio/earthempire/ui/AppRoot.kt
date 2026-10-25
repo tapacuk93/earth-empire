@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Radar
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -58,16 +59,18 @@ val LocalNav = staticCompositionLocalOf { Nav({}, {}, {}, {}, { _, _ -> }, { _, 
 
 enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     Home("home", "Home", Icons.Filled.Home),
-    Monitor("monitor", "Monitor", Icons.Filled.Radar),
+    Monitor("monitor", "Detected", Icons.Filled.Radar),
     Status("status", "Status", Icons.Filled.MonitorHeart),
+    Settings("settings", "Settings", Icons.Filled.Settings),
 }
 
 /**
- * The app: three tabs (Home, Monitor, Status), each with a fullscreen video mode, the detail
- * screens above them, and the story viewer. Monitor is the main mode, so the app opens on it.
+ * The app, the same as on iOS and the web: Home (everything published) for everyone; Detected,
+ * Status and Settings for the owner once the admin token is accepted. Home and Detected have a
+ * fullscreen video mode; above them the detail screens and the story viewer.
  */
 @Composable
-fun EarthEmpireApp(container: AppContainer, links: Flow<DeepLink> = emptyFlow(), startTab: Tab = Tab.Monitor) {
+fun EarthEmpireApp(container: AppContainer, links: Flow<DeepLink> = emptyFlow(), startTab: Tab = Tab.Home) {
     val theme by container.theme.collectAsState()
     EarthEmpireTheme(theme) {
         val nav = rememberNavController()
@@ -76,9 +79,11 @@ fun EarthEmpireApp(container: AppContainer, links: Flow<DeepLink> = emptyFlow(),
         val homeVm: HomeViewModel = viewModel { HomeViewModel(container) }
         val monitorVm: MonitorViewModel = viewModel { MonitorViewModel(container) }
         val statusVm: StatusViewModel = viewModel { StatusViewModel(container) }
+        val settingsVm: SettingsViewModel = viewModel { SettingsViewModel(container) }
+        val owner by container.owner.collectAsState()
+
         var story by remember { mutableStateOf<Pair<String, String?>?>(null) }
         var feed by remember { mutableStateOf<Pair<List<FeedEntry>, Int>?>(null) }
-        var settingsRequest by rememberSaveable { mutableStateOf(false) }
 
         val navigation = remember(nav) {
             Nav(
@@ -88,7 +93,7 @@ fun EarthEmpireApp(container: AppContainer, links: Flow<DeepLink> = emptyFlow(),
                 hit = { nav.navigate("hit/${Uri.encode(it)}") },
                 story = { h, i -> story = h to i },
                 feed = { list, start -> feed = list to start },
-                settings = { settingsRequest = true; nav.selectTab(Tab.Status) },
+                settings = { if (container.owner.value) nav.selectTab(Tab.Settings) else nav.navigate("owner") { launchSingleTop = true } },
                 back = { nav.popBackStack() },
             )
         }
@@ -99,8 +104,8 @@ fun EarthEmpireApp(container: AppContainer, links: Flow<DeepLink> = emptyFlow(),
             links.collect { link ->
                 story = null; feed = null
                 when (link) {
-                    DeepLink.Monitor -> nav.selectTab(Tab.Monitor)
-                    is DeepLink.MonitorHit -> { nav.selectTab(Tab.Monitor); navigation.hit(link.id) }
+                    DeepLink.Monitor -> if (container.owner.value) nav.selectTab(Tab.Monitor) else navigation.settings()
+                    is DeepLink.MonitorHit -> if (container.owner.value) { nav.selectTab(Tab.Monitor); navigation.hit(link.id) } else navigation.settings()
                     is DeepLink.Home -> { nav.selectTab(Tab.Home); homeVm.applyQuery(link.query); link.view?.let { if (it == "tags" || it == "timeline") homeVm.chooseView(it) } }
                     is DeepLink.Item -> { nav.selectTab(Tab.Home); navigation.item(link.id) }
                     is DeepLink.Category -> { nav.selectTab(Tab.Home); nav.navigate("category/${Uri.encode(link.slug)}" + (link.kind?.let { "?kind=${it.wire}" } ?: "")) }
@@ -115,11 +120,12 @@ fun EarthEmpireApp(container: AppContainer, links: Flow<DeepLink> = emptyFlow(),
             val route = entry?.destination?.route
             Scaffold(
                 bottomBar = {
-                    NavigationBar(Modifier.testTag("tabs")) {
+                    // Without the owner's token there is only Home, so no tab bar.
+                    if (owner) NavigationBar(Modifier.testTag("tabs")) {
                         Tab.entries.forEach { t ->
                             NavigationBarItem(
                                 selected = route == t.route,
-                                onClick = { if (t == Tab.Status) settingsRequest = false; nav.selectTab(t) },
+                                onClick = { nav.selectTab(t) },
                                 icon = { Icon(t.icon, null) }, label = { Text(t.label) },
                                 modifier = Modifier.testTag("tab.${t.route}"),
                             )
@@ -127,14 +133,15 @@ fun EarthEmpireApp(container: AppContainer, links: Flow<DeepLink> = emptyFlow(),
                     }
                 },
                 snackbarHost = {
-                    SnackbarHost(when (route) { Tab.Monitor.route, "hit/{id}" -> monitorVm.messages; Tab.Status.route -> statusVm.messages; else -> remember { androidx.compose.material3.SnackbarHostState() } })
+                    SnackbarHost(when (route) { Tab.Monitor.route, "hit/{id}" -> monitorVm.messages; Tab.Status.route -> statusVm.messages; Tab.Settings.route -> settingsVm.messages; else -> remember { androidx.compose.material3.SnackbarHostState() } })
                 },
             ) { padding ->
                 Box(Modifier.fillMaxSize().padding(padding)) {
                     NavHost(nav, startDestination = startTab.route) {
                         composable(Tab.Home.route) { HomeScreen(homeVm) }
                         composable(Tab.Monitor.route) { MonitorScreen(monitorVm) }
-                        composable(Tab.Status.route) { StatusScreen(statusVm, settingsRequest) }
+                        composable(Tab.Status.route) { StatusScreen(statusVm) }
+                        composable(Tab.Settings.route) { SettingsScreen(settingsVm) }
                         composable("item/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
                             ItemScreen(e.arguments?.getString("id") ?: "", archive)
                         }
@@ -143,6 +150,7 @@ fun EarthEmpireApp(container: AppContainer, links: Flow<DeepLink> = emptyFlow(),
                             navArgument("kind") { type = NavType.StringType; nullable = true; defaultValue = null },
                         )) { e -> CategoryScreen(e.arguments?.getString("slug") ?: "", ItemKind.of(e.arguments?.getString("kind")), archive) }
                         composable("categories") { CategoriesScreen(archive) }
+                        composable("owner") { OwnerSignInScreen(container) { nav.popBackStack() } }
                         composable("hit/{id}", listOf(navArgument("id") { type = NavType.StringType })) { e ->
                             HitScreen(e.arguments?.getString("id") ?: "", monitorApi, monitorVm)
                         }
@@ -151,6 +159,8 @@ fun EarthEmpireApp(container: AppContainer, links: Flow<DeepLink> = emptyFlow(),
             }
             story?.let { (h, i) -> StoryViewer(h, i, archive) { story = null } }
             feed?.let { (list, start) -> VideoFeed(list, start) { feed = null } }
+            // Signing out leaves only Home.
+            LaunchedEffect(owner) { if (!owner && route in Tab.entries.map { it.route } && route != Tab.Home.route) nav.selectTab(Tab.Home) }
         }
     }
 }

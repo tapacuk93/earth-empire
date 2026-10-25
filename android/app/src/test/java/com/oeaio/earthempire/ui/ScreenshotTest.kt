@@ -53,7 +53,7 @@ class ScreenshotTest {
         File(out, "$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 
-    private fun app(theme: String = "light", token: String = "", tab: Tab = Tab.Monitor, link: DeepLink? = null): AppContainer {
+    private fun app(theme: String = "light", token: String = "owner", tab: Tab = Tab.Home, link: DeepLink? = null): AppContainer {
         val c = TestSupport.container(adminToken = token, theme = theme)
         val links = Channel<DeepLink>(Channel.BUFFERED)
         link?.let { links.trySend(it) }
@@ -61,18 +61,13 @@ class ScreenshotTest {
         return c
     }
 
-    @Test fun monitorLight() { app(); shot("monitor-light") }
-    @Test fun monitorDark() { app("dark"); shot("monitor-dark") }
-    @Test fun homeLight() { app(tab = Tab.Home); shot("home-light") }
-    @Test fun homeDark() { app("dark", tab = Tab.Home); shot("home-dark") }
-    @Test fun homeTimeline() { app(tab = Tab.Home, link = DeepLink.Home(view = "timeline")); shot("home-timeline") }
+    @Test fun homeVisitor() { app(token = ""); shot("home-visitor") }
+    @Test fun homeDark() { app("dark"); shot("home-owner-dark") }
+    @Test fun homeTimeline() { app(link = DeepLink.Home(view = "timeline")); shot("home-timeline") }
+    @Test fun detectedLight() { app(tab = Tab.Monitor); shot("detected-light") }
+    @Test fun detectedDark() { app("dark", tab = Tab.Monitor); shot("detected-dark") }
     @Test fun statusLight() { app(tab = Tab.Status); shot("status-light") }
-    @Test fun statusSettingsOwner() {
-        app(token = "owner", tab = Tab.Status)
-        settle()
-        rule.onNode(androidx.compose.ui.test.hasTestTag("status.list")).performScrollToNode(androidx.compose.ui.test.hasTestTag("phrases.rescan"))
-        shot("status-phrases-owner")
-    }
+    @Test fun settingsLight() { app(tab = Tab.Settings); shot("settings-light") }
     @Test fun itemDetail() { app(link = DeepLink.Item("ig_3400000000000000012")); shot("item-reel") }
     @Test fun itemRepost() { app("dark", link = DeepLink.Item("ig_3400000000000000005")); shot("item-repost-dark") }
 }

@@ -10,7 +10,9 @@ import com.oeaio.earthempire.data.DeepLink
 import com.oeaio.earthempire.data.TAG
 import com.oeaio.earthempire.ui.EarthEmpireApp
 import com.oeaio.earthempire.ui.VideoCache
+import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.receiveAsFlow
 
 class MainActivity : ComponentActivity() {
@@ -23,6 +25,7 @@ class MainActivity : ComponentActivity() {
         VideoCache.client = container.client
         if (savedInstanceState == null) handle(intent)
         setContent { EarthEmpireApp(container, links.receiveAsFlow()) }
+        lifecycleScope.launch { container.recheckToken() }
     }
 
     override fun onNewIntent(intent: Intent) {

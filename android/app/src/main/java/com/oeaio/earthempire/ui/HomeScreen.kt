@@ -33,7 +33,7 @@ import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.filled.Slideshow
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
@@ -88,6 +88,7 @@ import kotlin.math.ln
 fun HomeScreen(vm: HomeViewModel) {
     val nav = LocalNav.current
     val offline by vm.offline.collectAsState()
+    val owner by vm.owner.collectAsState()
     val grid = rememberLazyGridState()
     val nearEnd by remember { derivedStateOf { grid.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.let { it >= grid.layoutInfo.totalItemsCount - 6 } ?: false } }
     LaunchedEffect(nearEnd, vm.items.size) { if (nearEnd) vm.loadMore() }
@@ -99,7 +100,10 @@ fun HomeScreen(vm: HomeViewModel) {
                 IconButton(onClick = { homeFeed(vm, nav).let { if (it.isNotEmpty()) nav.feed(it, 0) } }, modifier = Modifier.testTag("home.fullscreen")) {
                     Icon(Icons.Filled.Slideshow, "Fullscreen videos")
                 }
-                IconButton(onClick = nav.settings) { Icon(Icons.Filled.Settings, "Settings") }
+                // The owner's discreet way in; the owner has the Settings tab instead.
+                if (!owner) IconButton(onClick = nav.settings, modifier = Modifier.testTag("owner.signin")) {
+                    Icon(Icons.Outlined.Key, "Owner sign-in", tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                }
             },
         )
         PullToRefreshBox(isRefreshing = vm.refreshing, onRefresh = vm::refresh, modifier = Modifier.fillMaxSize().testTag("home.refresh")) {
@@ -163,9 +167,9 @@ fun homeFeed(vm: HomeViewModel, nav: Nav): List<FeedEntry> =
         }
     }
 
-fun MonitorHit.feedEntry(nav: Nav): FeedEntry? = video.url?.let {
-    FeedEntry(id, it, video.poster, video.title ?: source.name ?: "@${source.account}",
-        "“$excerpt”" + (translation?.let { t -> "\n$t" } ?: ""), at, detail = { nav.hit(id) })
+fun MonitorHit.feedEntry(nav: Nav): FeedEntry? = playable?.let { (url, at) ->
+    FeedEntry(id, url, poster, video.title ?: sourceTitle,
+        "“${excerpt.text}”" + (excerpt.en?.let { t -> "\n$t" } ?: ""), at, detail = { nav.hit(id) })
 }
 
 private fun LazyGridScope.full(key: String, content: @Composable () -> Unit) =
@@ -247,25 +251,28 @@ private fun HighlightsRow(vm: HomeViewModel) {
 @Composable
 private fun PublishedRow(hits: List<MonitorHit>) {
     val nav = LocalNav.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     Column(Modifier.padding(vertical = 8.dp)) {
-        SectionTitle("Found and published", Modifier.padding(horizontal = 16.dp))
+        SectionTitle("Detected and published", Modifier.padding(horizontal = 16.dp))
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.testTag("published.row")) {
             items(hits, key = { it.id }) { hit ->
                 Surface(
                     shape = RoundedCornerShape(12.dp), tonalElevation = 2.dp,
                     modifier = Modifier.width(220.dp).clickable(onClickLabel = "Play") {
                         val entries = hits.mapNotNull { it.feedEntry(nav) }
-                        nav.feed(entries, entries.indexOfFirst { it.id == hit.id }.coerceAtLeast(0))
+                        val i = entries.indexOfFirst { it.id == hit.id }
+                        if (i >= 0) nav.feed(entries, i)
+                        else (hit.atUrl ?: hit.video.url)?.let { runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(it))) } }
                     }.semantics(mergeDescendants = true) {},
                 ) {
                     Column {
                         Box {
-                            RemoteImage(hit.video.poster, null, Modifier.fillMaxWidth().aspectRatio(16 / 9f))
+                            RemoteImage(hit.poster, null, Modifier.fillMaxWidth().aspectRatio(16 / 9f))
                             Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.align(Alignment.Center).size(36.dp))
                         }
                         Column(Modifier.padding(8.dp)) {
-                            Text(hit.source.name ?: "@${hit.source.account}", style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("“${hit.translation ?: hit.excerpt}”", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(hit.sourceTitle, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text("“${hit.excerpt.en ?: hit.excerpt.text}”", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }

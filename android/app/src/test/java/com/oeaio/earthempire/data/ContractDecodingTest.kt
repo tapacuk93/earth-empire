@@ -107,19 +107,48 @@ class ContractDecodingTest {
         assertEquals("ig_1", s.activity.events[0].item)
     }
 
-    @Test fun monitorHitsAndPhrases() {
+    @Test fun monitorHitAsTheContractDefinesIt() {
         val page = ContractJson.decodeFromString(MonitorPage.serializer(), """
-        {"hits": [{"id": "h1", "reason": "name", "matched": "Тарасе", "language": "uk", "excerpt": "Дякую, Тарасе", "translation": "Thank you, Taras",
-                   "confidence": 0.42, "at": 102.5, "video": {"id": "v", "url": "https://x/v.mp4"}, "source": {"id": "s", "account": "mfa"}}], "next": null}""")
+        {"hits": [{"id": "h_1", "kind": "name", "phrase": "тарас маслов", "matched": "Тарасом Масловим", "confidence": 0.62,
+          "confidence_label": "possible", "scores": {"sound": 0.9, "asr": 0.8, "name": 0.85}, "notes": ["a form of 'тарас'"],
+          "judge": {"by": "claude", "name_probability": 0.7, "reason": "a person's name in context"},
+          "language": "ru", "expected_languages": ["en"], "platform": "telegram", "source_kind": "official", "via": null, "hop": 0,
+          "source": {"id": "ru_mid", "name": "Ministry of Foreign Affairs of Russia", "kind": "ministry", "country": "RU", "source_kind": "official"},
+          "account": "MID_Russia",
+          "video": {"id": "tg:MID_Russia/94660", "url": "https://t.me/MID_Russia/94660", "title": "Briefing", "posted_at": "2026-10-20T10:00:00Z", "duration": 83.0, "thumbnail": null},
+          "start": 12.4, "end": 13.1, "at_url": "https://t.me/MID_Russia/94660?t=10",
+          "excerpt": {"text": "… с Тарасом Масловим …", "start": 6.4, "end": 19.1, "language": "ru", "en": "… with Taras Maslov …"},
+          "clip": "https://media.empire.earth/monitor/clips/h_1.mp3", "frame": "https://media.empire.earth/monitor/frames/h_1.jpg",
+          "model": "faster-whisper small int8", "found_at": "2026-10-25T10:00:00Z", "published_at": null}], "next": "c"}""")
         val h = page.hits[0]
+        assertEquals("possible", h.label)
+        assertFalse(h.isLowConfidence)
+        assertFalse(h.isPublished)
+        assertEquals("… with Taras Maslov …", h.excerpt.en)
+        assertEquals("https://media.empire.earth/monitor/frames/h_1.jpg", h.poster)
+        // The clip plays from its start; the platform page is not playable.
+        assertEquals("https://media.empire.earth/monitor/clips/h_1.mp3" to 0.0, h.playable)
+        assertNull(h.copy(clip = null).playable)
+        val file = h.copy(clip = null, video = h.video.copy(url = "https://x/a.m4a?sig=1")).playable!!
+        assertEquals("https://x/a.m4a?sig=1", file.first)
+        assertEquals(10.4, file.second, 1e-9)
+        assertEquals("Heard “Тарасом Масловим” ≈ тарас маслов", h.reasonLabel)
+        assertEquals(0.7, h.judge!!.nameProbability!!, 1e-9)
+    }
+
+    @Test fun lowConfidenceFromTheLabelOrTheNumber() {
+        val h = ContractJson.decodeFromString(MonitorHit.serializer(), """{"id": "h", "kind": "language", "matched": "uk", "confidence": 0.3, "expected_languages": ["en"]}""")
         assertTrue(h.isLowConfidence)
-        assertEquals("Name heard: “Тарасе”", h.reasonLabel)
-        assertFalse(h.isAdded)
-        val flagged = h.copy(confidence = 0.9, lowConfidenceFlag = true)
-        assertTrue(flagged.isLowConfidence)
-        val phrases = ContractJson.decodeFromString(PhraseList.serializer(), """{"phrases":[{"text":"тарас","variants":["тараса","taras"]},{"text":"маслов"}]}""").phrases
-        assertEquals(listOf("тараса", "taras"), phrases[0].variants)
-        assertTrue(phrases[1].variants.isEmpty())
+        assertEquals("Ukrainian speech; expected English", h.reasonLabel)
+        assertFalse(h.copy(confidenceLabel = "likely").isLowConfidence)
+    }
+
+    @Test fun phrasesAndFetch() {
+        val phrases = ContractJson.decodeFromString(PhraseList.serializer(), """{"phrases":[{"text":"тарас","variants":["тарас","тараса"],"mishearings":["taraz"],"claude_variants":["Taras"],"updated_at":"x"},{"text":"маслов"}]}""").phrases
+        assertEquals(listOf("тараса", "Taras", "taraz"), phrases[0].allVariants)
+        assertTrue(phrases[1].allVariants.isEmpty())
+        val f = ContractJson.decodeFromString(FetchResult.serializer(), """{"request_id":"r1","n":10,"queued":7,"to_discover":3}""")
+        assertEquals("Queued 7 videos to scan; looking for 3 more.", f.message)
     }
 
     @Test fun queryParamsSkipEmptyFilters() {

@@ -3,7 +3,6 @@ package com.oeaio.earthempire
 import android.content.Context
 import android.content.SharedPreferences
 import com.oeaio.earthempire.data.ArchiveApi
-import com.oeaio.earthempire.data.FallbackMonitorApi
 import com.oeaio.earthempire.data.LiveApi
 import com.oeaio.earthempire.data.LiveMonitorApi
 import com.oeaio.earthempire.data.MediaUrls
@@ -58,6 +57,30 @@ class AppContainer(
 
     fun setTheme(t: String) { settings.theme = t; _theme.value = t }
 
+    private val _owner = MutableStateFlow(settings.adminToken.isNotBlank())
+    /** True once the backend accepted the saved admin token: Detected, Status and Settings appear. */
+    val owner: StateFlow<Boolean> = _owner
+
+    /**
+     * Checks [token] with `GET /v1/admin/me` and keeps it only if accepted. Returns whether it
+     * was; throws when the backend could not be reached.
+     */
+    suspend fun signIn(token: String): Boolean {
+        val t = token.trim()
+        if (t.isEmpty() || !monitor.value.checkToken(t)) return false
+        settings.adminToken = t
+        _owner.value = true
+        return true
+    }
+
+    fun signOut() { settings.adminToken = ""; _owner.value = false }
+
+    /** At launch: a saved token the backend now refuses is dropped; offline keeps it. */
+    suspend fun recheckToken() {
+        val t = settings.adminToken
+        if (t.isNotBlank() && runCatching { monitor.value.checkToken(t) }.getOrDefault(true) == false) signOut()
+    }
+
     /** After Settings change the API base or sample mode: start over with new clients. */
     fun reconfigure() {
         _archive.value = makeArchive(settings)
@@ -94,9 +117,7 @@ class AppContainer(
                         LiveApi(s.apiBase, client, store)
                     }
                 },
-                makeMonitor = { s ->
-                    if (s.useSample) MockMonitorApi() else FallbackMonitorApi(LiveMonitorApi(s.apiBase, client), MockMonitorApi())
-                },
+                makeMonitor = { s -> if (s.useSample) MockMonitorApi() else LiveMonitorApi(s.apiBase, client) { s.adminToken } },
                 cacheDir = app.cacheDir,
                 fixtureJson = fixture,
             )

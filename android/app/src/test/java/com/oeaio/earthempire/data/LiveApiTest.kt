@@ -55,23 +55,35 @@ class LiveApiTest {
         assertTrue(again.offline.value)
     }
 
-    @Test fun monitorFallsBackToTheMockUntilTheEndpointsExist() = runBlocking {
-        server.enqueue(MockResponse().setResponseCode(404))
-        val api = FallbackMonitorApi(LiveMonitorApi(server.url("/").toString(), client), MockMonitorApi(0))
-        assertTrue(api.hits(null).hits.isNotEmpty())
-        assertTrue(api.isMock)
-        assertEquals("/v1/monitor?limit=30", server.takeRequest().path)
+    @Test fun monitorRequestsCarryTheSavedToken() = runBlocking {
+        server.enqueue(MockResponse().setBody("""{"hits":[{"id":"h_1","kind":"name","confidence":0.9}],"next":null}"""))
+        server.enqueue(MockResponse().setBody("""{"request_id":"r","n":10,"queued":10,"to_discover":0}"""))
+        server.enqueue(MockResponse().setBody("""{"id":"h_1","published_at":"2026-10-25T10:00:00Z"}"""))
+        server.enqueue(MockResponse().setBody("""{"hits":[],"next":null}"""))
+        val api = LiveMonitorApi(server.url("/").toString(), client) { "owner-token" }
+        assertEquals("h_1", api.hits(null, kind = "name").hits[0].id)
+        val list = server.takeRequest()
+        assertEquals("/v1/monitor/hits?kind=name&sort=confidence&limit=30", list.path)
+        assertEquals("Bearer owner-token", list.getHeader("Authorization"))
+        assertEquals(10, api.fetchMore(10, platform = "youtube").queued)
+        assertEquals("""{"n":10,"platform":"youtube"}""", server.takeRequest().body.readUtf8())
+        assertTrue(api.publish("h_1", "owner-token").isPublished)
+        val pub = server.takeRequest()
+        assertEquals("POST", pub.method)
+        assertEquals("/v1/monitor/hits/h_1/publish", pub.path)
+        api.published(null)
+        assertEquals("/v1/published?limit=30", server.takeRequest().path)
     }
 
     @Test fun ownerCallsSendTheAdminToken() = runBlocking {
         server.enqueue(MockResponse().setBody("""{"phrases":[{"text":"тарас","variants":["тараса"]}]}"""))
         server.enqueue(MockResponse().setResponseCode(401))
         val api = LiveMonitorApi(server.url("/").toString(), client)
-        assertEquals(listOf("тараса"), api.savePhrases(listOf("тарас"), "secret")[0].variants)
+        assertEquals(listOf("тараса"), api.savePhrases(listOf("тарас", "маслов"), "secret")[0].variants)
         val put = server.takeRequest()
         assertEquals("PUT", put.method)
         assertEquals("Bearer secret", put.getHeader("Authorization"))
-        assertEquals("""{"phrases":[{"text":"тарас"}]}""", put.body.readUtf8())
+        assertEquals("""{"phrases":["тарас","маслов"],"rescan":true}""", put.body.readUtf8())
         assertFalse(api.checkToken("wrong"))
         assertEquals("/v1/admin/me", server.takeRequest().path)
     }

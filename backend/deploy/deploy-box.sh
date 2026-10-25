@@ -35,7 +35,7 @@ EOF
 
 CMD=$(aws ssm send-command --instance-ids "$ID" --document-name AWS-RunShellScript \
   --comment "earth-empire deploy" --timeout-seconds 1800 \
-  --parameters "$(jq -n --arg s "$SCRIPT" '{commands: [$s], executionTimeout: ["1800"]}')" \
+  --parameters "$(jq -n --arg s "$SCRIPT" '{commands: ["cat > /tmp/ee-deploy.sh <<'"'"'EE_DEPLOY_EOF'"'"'\n" + $s + "\nEE_DEPLOY_EOF", "bash /tmp/ee-deploy.sh"], executionTimeout: ["1800"]}')" \
   --cloud-watch-output-config CloudWatchOutputEnabled=true,CloudWatchLogGroupName=/earth-empire \
   --query Command.CommandId --output text)
 echo "deploy $CMD on $ID"

@@ -30,6 +30,7 @@ id earth >/dev/null 2>&1 || useradd --system --create-home --home-dir /var/lib/e
 install -d -o earth -g earth -m 755 $ROOT /var/lib/earth-empire
 install -d -o earth -g earth -m 700 /var/lib/earth-empire/browser
 install -d -o earth -g earth -m 755 $ROOT/ms-playwright
+chown -R earth:earth $ROOT/ms-playwright   # shared by every part, all running as earth
 install -d -m 755 /etc/earth-empire
 chown -R earth:earth $REPO
 

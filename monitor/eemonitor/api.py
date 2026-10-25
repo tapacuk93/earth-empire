@@ -86,8 +86,10 @@ def render(c, row) -> dict:
                     "language": h.get("language"), "en": h.get("excerpt_en")},
         "clip": media.url(row, h, "clip"), "frame": media.url(row, h, "frame"),
         "model": h.get("model"), "found_at": row["found_at"], "published_at": row["published_at"],
-        "suggested_section": h.get("suggested_section"), "section_reason": h.get("section_reason"),
-        "section": row["section"] if "section" in row.keys() else None,
+        "level": (row["level"] or row["ai_level"]) if "level" in row.keys() else h.get("level"),
+        "ai_level": row["ai_level"] if "ai_level" in row.keys() else h.get("level"),
+        "level_by": "owner" if "level" in row.keys() and row["level"] and row["level"] != row["ai_level"] else "ai",
+        "level_reason": h.get("level_reason"),
     }
 
 
@@ -141,23 +143,53 @@ def hit(hit_id: str):
     return render(c, r)
 
 
+def _level(body) -> int | None:
+    lv = body.get("level") if isinstance(body, dict) else None
+    if lv is None:
+        return None
+    if isinstance(lv, str) and lv.upper().startswith("L"):
+        lv = lv[1:]
+    try:
+        lv = int(lv)
+    except (TypeError, ValueError):
+        lv = 0
+    if not 1 <= lv <= 4:
+        raise HTTPException(400, "level must be 1 (highest) to 4")
+    return lv
+
+
+async def _body(request: Request):
+    try:
+        return await request.json()
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 @owner.post("/v1/monitor/hits/{hit_id}/publish")
 async def publish(hit_id: str, request: Request):
-    try:
-        body = await request.json()
-    except Exception:  # noqa: BLE001
-        body = {}
-    section = (body or {}).get("section") if isinstance(body, dict) else None
-    if section not in (None, "dedicated", "common"):
-        raise HTTPException(400, 'section must be "dedicated" or "common"')
+    """"+": approve the hit for the Home mosaic at its AI level, or at `level` when the owner overrides it."""
+    override = _level(await _body(request))
     c = conn()
-    if not c.execute("SELECT 1 FROM hits WHERE id=?", (hit_id,)).fetchone():
-        raise HTTPException(404, "no such hit")
     row = c.execute("SELECT * FROM hits WHERE id=?", (hit_id,)).fetchone()
-    data = json.loads(row["data"])
-    media.publish(row, data)
-    section = section or data.get("suggested_section") or "common"
-    c.execute("UPDATE hits SET published_at=COALESCE(published_at, ?), section=? WHERE id=?", (db.now(), section, hit_id))
+    if not row:
+        raise HTTPException(404, "no such hit")
+    media.publish(row, json.loads(row["data"]))
+    level = override or row["level"] or row["ai_level"] or 3
+    c.execute("UPDATE hits SET published_at=COALESCE(published_at, ?), level=?, section=NULL WHERE id=?",
+              (db.now(), level, hit_id))
+    return render(c, c.execute("SELECT * FROM hits WHERE id=?", (hit_id,)).fetchone())
+
+
+@owner.put("/v1/monitor/hits/{hit_id}/level")
+async def set_level(hit_id: str, request: Request):
+    """The owner's level for a hit (approved or not); {"level": null} goes back to the AI level."""
+    body = await _body(request)
+    override = _level(body)
+    c = conn()
+    row = c.execute("SELECT * FROM hits WHERE id=?", (hit_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "no such hit")
+    c.execute("UPDATE hits SET level=? WHERE id=?", (override, hit_id))
     return render(c, c.execute("SELECT * FROM hits WHERE id=?", (hit_id,)).fetchone())
 
 
@@ -173,20 +205,13 @@ def unpublish(hit_id: str):
 
 
 @app.get("/v1/published")
-def published(section: str | None = Query(None, pattern="^(dedicated|common)$"), before: str | None = None,
-              limit: int = Query(30, ge=1, le=100)):
-    """The owner's published hits for Home: `dedicated` (upper) and `common` (lower), newest first."""
+def published(before: str | None = None, limit: int = Query(30, ge=1, le=100)):
+    """The hits the owner approved for Home, newest first, each with its level."""
     c = conn()
     off = _offset(before)
-    out = {}
-    more = False
-    for sec in ([section] if section else ["dedicated", "common"]):
-        rows = c.execute("SELECT * FROM hits WHERE published_at IS NOT NULL AND COALESCE(section, 'common')=? "
-                         "ORDER BY published_at DESC LIMIT ? OFFSET ?", (sec, limit + 1, off)).fetchall()
-        more = more or len(rows) > limit
-        out[sec] = [render(c, r) for r in rows[:limit]]
-    hits = sorted([h for v in out.values() for h in v], key=lambda h: h["published_at"], reverse=True)
-    return {**out, "hits": hits, "next": _cursor(off + limit) if more else None}
+    rows = c.execute("SELECT * FROM hits WHERE published_at IS NOT NULL ORDER BY published_at DESC LIMIT ? OFFSET ?",
+                     (limit + 1, off)).fetchall()
+    return {"hits": [render(c, r) for r in rows[:limit]], "next": _cursor(off + limit) if len(rows) > limit else None}
 
 
 @owner.post("/v1/monitor/fetch")
@@ -269,24 +294,6 @@ def make_suggestions():
     c = conn()
     n = highlights.suggest_phrases(c, force=True)
     return {"added": n, **get_phrases()}
-
-
-@owner.get("/v1/monitor/sections")
-def get_sections():
-    from . import highlights
-    return highlights.sections(conn())
-
-
-@owner.put("/v1/monitor/sections")
-async def put_sections(request: Request):
-    from . import highlights
-    body = await request.json()
-    ids = body.get("dedicated") if isinstance(body, dict) else None
-    if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
-        raise HTTPException(400, 'body must be {"dedicated": ["hl_...", ...]}')
-    c = conn()
-    highlights.set_dedicated(c, ids)
-    return highlights.sections(c)
 
 
 @owner.put("/v1/monitor/phrases")

@@ -230,7 +230,7 @@ def test_highlight_suggestions_and_sections(monkeypatch):
     answers = {"phrase-suggestions": '{"text": "львів", "why": "Масловы: Lviv", "uk": "Львів", "ru": "Львов", "en": "Lviv"}\n'
                                      '{"text": "тарас", "why": "already there"}',
                "review": '{"n": 0, "en": "and thanks to Taras Maslov", "name_probability": 0.8, "reason": "a name", '
-                         '"section": "dedicated", "section_reason": "the family highlight"}'}
+                         '"level": 2, "level_reason": "matters"}'}
     monkeypatch.setattr(judge, "ask", lambda c_, prompt, purpose, *a, **k: answers.get(purpose))
     cl = TestClient(api.app)
     auth = {"Authorization": "Bearer secret-admin"}
@@ -241,25 +241,24 @@ def test_highlight_suggestions_and_sections(monkeypatch):
     assert "львів" in [p["text"] for p in ph["phrases"]] and ph["suggested"] == []
     lv = next(p for p in ph["phrases"] if p["text"] == "львів")
     assert "lviv" in lv["claude_variants"] and "львов" in lv["claude_variants"]
-    # sections: the owner marks hl_1 dedicated; a new hit gets Claude's suggestion; publish defaults to it
-    assert cl.put("/v1/monitor/sections", json={"dedicated": ["hl_1"]}, headers=auth).json()["highlights"][0]["section"] == "dedicated"
+    # levels: Claude's level comes with the review; "+" approves at it; the owner may override
     hit = {"kind": "name", "phrase": "тарас маслов", "matched": "Тарасу Маслову", "language": "ru", "confidence": 0.8,
            "excerpt": "и спасибо Тарасу Маслову", "scores": {"sound": 0.9, "asr": 0.9, "name": 0.85}}
-    judge.review(c(), {"id": "v", "title": "t", "platform": "telegram", "url": "u", "source_kind": "official"}, [hit])
-    assert hit["suggested_section"] == "dedicated" and hit["excerpt_en"]
+    judge.review(c(), {"id": "v", "title": "t", "platform": "telegram", "url": "u"}, [hit])
+    assert hit["level"] == 2 and hit["level_reason"] and hit["excerpt_en"]
     v = c().execute("SELECT * FROM videos WHERE state='done' AND transcript IS NOT NULL LIMIT 1").fetchone()
     hit.update({"start": 50.0, "end": 51.0, "excerpt_start": 49, "excerpt_end": 52})
     worker.save_hits(c(), v, worker.detect_all(c(), v, worker.load_transcript(v["transcript"])) + [hit], "test")
     hid = worker.hit_id(v["id"], hit)
+    got = cl.get(f"/v1/monitor/hits/{hid}", headers=auth).json()
+    assert got["level"] == 2 and got["level_by"] == "ai" and got["level_reason"] == "matters"
     r = cl.post(f"/v1/monitor/hits/{hid}/publish", headers=auth).json()
-    assert r["section"] == "dedicated"
-    pub = cl.get("/v1/published").json()
-    assert hid in [h["id"] for h in pub["dedicated"]] and "common" in pub
-    r = cl.post(f"/v1/monitor/hits/{hid}/unpublish", headers=auth)
-    assert r.status_code == 200
-    r = cl.post(f"/v1/monitor/hits/{hid}/publish", json={"section": "common"}, headers=auth).json()
-    assert r["section"] == "common"
-
+    assert r["level"] == 2 and r["published_at"]
+    assert hid in [h["id"] for h in cl.get("/v1/published").json()["hits"]]
+    r = cl.put(f"/v1/monitor/hits/{hid}/level", json={"level": "L1"}, headers=auth).json()
+    assert r["level"] == 1 and r["level_by"] == "owner" and r["ai_level"] == 2
+    assert cl.post(f"/v1/monitor/hits/{hid}/publish", json={"level": 7}, headers=auth).status_code == 400
+    assert cl.get("/v1/monitor/sections", headers=auth).status_code == 404
 
 def test_tiktok_items():
     from eemonitor.platforms import tiktok

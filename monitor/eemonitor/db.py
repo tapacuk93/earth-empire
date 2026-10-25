@@ -145,8 +145,13 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     cols = {r["name"] for r in c.execute("PRAGMA table_info(accounts)")}
     if "priority" not in cols:
         c.execute("ALTER TABLE accounts ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
-    if "section" not in {r["name"] for r in c.execute("PRAGMA table_info(hits)")}:
-        c.execute("ALTER TABLE hits ADD COLUMN section TEXT")   # dedicated | common, set on publish
+    hcols = {r["name"] for r in c.execute("PRAGMA table_info(hits)")}
+    if "section" not in hcols:
+        c.execute("ALTER TABLE hits ADD COLUMN section TEXT")   # no longer used (kept for older readers)
+    if "ai_level" not in hcols:
+        c.execute("ALTER TABLE hits ADD COLUMN ai_level INTEGER")   # 1 (highest) .. 4, judged by Claude
+    if "level" not in hcols:
+        c.execute("ALTER TABLE hits ADD COLUMN level INTEGER")      # the level it was approved at (owner override or AI)
     return c
 
 

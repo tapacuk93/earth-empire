@@ -47,26 +47,42 @@ def ask(c, prompt: str, purpose: str, video_id: str | None = None, max_tokens: i
     return "".join(b.get("text", "") for b in resp.get("content") or [] if b.get("type") == "text")
 
 
-def review(c, video: dict, hits: list[dict]) -> None:
-    """Fill each hit's `excerpt_en`, and for borderline name hits Claude's `judge` opinion (in place)."""
+LEVELS = {1: "L1", 2: "L2", 3: "L3", 4: "L4"}
+
+
+def rubric_text() -> str:
+    """The backend's current importance rubric (read-only from its database), or its first one."""
+    import os
+    import sqlite3
+    path = os.environ.get("EE_BACKEND_DB", "/var/lib/earth-empire/backend/earth-empire.sqlite3")
     try:
-        from .highlights import themes
-        th = themes(c) if video.get("source_kind") not in ("mirror",) else None
-    except Exception as e:  # noqa: BLE001
-        log.warning("highlight themes unavailable: %s", e)
-        th = None
-    for h in hits:
-        if not th:
-            h["suggested_section"] = "common"
-            h["section_reason"] = "no dedicated highlights are set"
-    todo = [h for h in hits if th or h["kind"] == "language" or (h.get("language") or "en") != "en"
-            or 0.08 <= h["confidence"] <= 0.75]
-    if not todo:
+        b = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=5)
+        r = b.execute("SELECT text FROM rubrics WHERE applied=1 ORDER BY version DESC LIMIT 1").fetchone()
+        b.close()
+        if r:
+            return r[0]
+    except sqlite3.Error:
+        pass
+    try:
+        from ee.rubric import FIRST
+        return FIRST
+    except Exception:  # noqa: BLE001
+        return "How significant the content is: public consequence, newsworthiness, who is speaking."
+
+
+def review(c, video: dict, hits: list[dict]) -> None:
+    """One Claude call per video, filling each hit (in place) with:
+    - `excerpt_en`, an English translation of the excerpt;
+    - `judge`, for name hits, whether the heard word is the phrase rather than a common word;
+    - `level` 1 (highest) .. 4 and `level_reason`: importance from the content's significance by the
+      backend's importance rubric, together with the detection confidence."""
+    if not hits:
         return
     lines = []
-    for i, h in enumerate(todo):
+    for i, h in enumerate(hits):
         lines.append(json.dumps({"n": i, "kind": h["kind"], "phrase": h.get("phrase"), "heard": h["matched"],
-                                 "language": h.get("language"), "excerpt": h["excerpt"][:700]}, ensure_ascii=False))
+                                 "language": h.get("language"), "confidence": h["confidence"],
+                                 "excerpt": h["excerpt"][:700]}, ensure_ascii=False))
     prompt = (
         "These are excerpts from automatic speech recognition of a public video"
         f" (\"{(video.get('title') or '')[:120]}\", {video.get('platform')}, {video.get('url')}).\n"
@@ -74,22 +90,16 @@ def review(c, video: dict, hits: list[dict]) -> None:
         "whether the heard word is plausibly the name/phrase in `phrase` (a person's name, any grammatical form) "
         "rather than a common word or another name: give name_probability 0..1 and a short reason. Recognition "
         "errors are common; do not be certain.\n"
-        + (("\nThe owner's home page has an upper section for their dedicated highlights and a lower one for "
-            "common highlights. Dedicated highlights (title: examples): "
-            + json.dumps(th["dedicated"], ensure_ascii=False)[:1500] + "\nCommon highlights: "
-            + json.dumps(th["common"], ensure_ascii=False)[:800]
-            + "\nFor each line also say which section the moment deserves, judged by how the dedicated "
-              "highlights are themed: \"section\": \"dedicated\" or \"common\", with a short \"section_reason\".\n")
-           if th else "")
-        + "Answer only with JSON lines: {\"n\": <n>, \"en\": \"...\", \"name_probability\": <0..1 or null>, "
-        "\"reason\": \"...\"" + (", \"section\": \"dedicated|common\", \"section_reason\": \"...\"" if th else "")
-        + "}\n\n" + "\n".join(lines))
+        "Also give each line an importance level from 1 (highest) to 4: how significant this moment is by the "
+        "importance rubric below, weighed together with the detection confidence (a doubtful match cannot be "
+        "level 1), with a one-sentence level_reason.\nImportance rubric:\n" + rubric_text()[:3000] + "\n\n"
+        "Answer only with JSON lines: {\"n\": <n>, \"en\": \"...\", \"name_probability\": <0..1 or null>, "
+        "\"reason\": \"...\", \"level\": <1-4>, \"level_reason\": \"...\"}\n\n" + "\n".join(lines))
     text = ask(c, prompt, "review", video.get("id"))
     if not text:
         for h in hits:
-            if th and "suggested_section" not in h:
-                h["suggested_section"] = None
-                h["section_reason"] = "not judged yet (Claude unavailable)"
+            h.setdefault("level", None)
+            h.setdefault("level_reason", "not judged yet")
         return
     for line in text.splitlines():
         line = line.strip().strip(",")
@@ -97,14 +107,14 @@ def review(c, video: dict, hits: list[dict]) -> None:
             continue
         try:
             r = json.loads(line)
-            h = todo[int(r["n"])]
+            h = hits[int(r["n"])]
         except (ValueError, KeyError, IndexError, TypeError):
             continue
         if r.get("en"):
             h["excerpt_en"] = r["en"]
-        if th and r.get("section") in ("dedicated", "common"):
-            h["suggested_section"] = r["section"]
-            h["section_reason"] = (r.get("section_reason") or "")[:300]
+        if isinstance(r.get("level"), (int, float)) and 1 <= int(r["level"]) <= 4:
+            h["level"] = int(r["level"])
+            h["level_reason"] = (r.get("level_reason") or "")[:300]
         p = r.get("name_probability")
         if h["kind"] == "name" and isinstance(p, (int, float)):
             h["judge"] = {"by": "claude", "name_probability": round(float(p), 2), "reason": (r.get("reason") or "")[:300]}

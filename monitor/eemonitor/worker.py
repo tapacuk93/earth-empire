@@ -528,14 +528,13 @@ def save_hits(c, v, hits: list[dict], model: str, keep_media: bool = True) -> in
         h["model"] = model
         if hid in old:
             prev = json.loads(old[hid]["data"])
-            for k in ("clip_key", "frame_key", "clip", "frame", "excerpt_en", "judge", "suggested_section",
-                      "section_reason"):
+            for k in ("clip_key", "frame_key", "clip", "frame", "excerpt_en", "judge", "level", "level_reason"):
                 if prev.get(k) and not h.get(k):
                     h[k] = prev[k]
-        c.execute("""INSERT INTO hits(id, video_id, kind, start, "end", confidence, data, found_at)
-                     VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET confidence=excluded.confidence,
-                     data=excluded.data, start=excluded.start, "end"=excluded."end" """,
-                  (hid, v["id"], h["kind"], h["start"], h["end"], h["confidence"], db.j(h), db.now()))
+        c.execute("""INSERT INTO hits(id, video_id, kind, start, "end", confidence, data, found_at, ai_level)
+                     VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET confidence=excluded.confidence,
+                     data=excluded.data, start=excluded.start, "end"=excluded."end", ai_level=excluded.ai_level""",
+                  (hid, v["id"], h["kind"], h["start"], h["end"], h["confidence"], db.j(h), db.now(), h.get("level")))
     for hid in set(old) - new_ids:
         c.execute("DELETE FROM hits WHERE id=?", (hid,))
     return len(hits)
@@ -624,6 +623,26 @@ def rescan(c) -> dict:
         n += 1
     ev("rescanned", videos=n, hits=h)
     return {"videos": n, "hits": h}
+
+
+def judge_levels(c, videos: int = 3) -> int:
+    """Hits saved before levels existed (or while Claude was unavailable): judge them, a few videos at a time."""
+    from . import judge
+    n = 0
+    for (vid,) in c.execute("""SELECT DISTINCT video_id FROM hits WHERE ai_level IS NULL
+                               ORDER BY published_at IS NULL, confidence DESC LIMIT ?""", (videos,)).fetchall():
+        v = c.execute("SELECT * FROM videos WHERE id=?", (vid,)).fetchone()
+        rows = c.execute("SELECT id, data FROM hits WHERE video_id=?", (vid,)).fetchall()
+        hs = [json.loads(r["data"]) for r in rows]
+        judge.review(c, dict(v) if v else {"id": vid}, hs)
+        for r, h in zip(rows, hs):
+            if h.get("level"):
+                c.execute("UPDATE hits SET data=?, ai_level=?, confidence=? WHERE id=?",
+                          (db.j(h), h["level"], h["confidence"], r["id"]))
+                n += 1
+        if not any(h.get("level") for h in hs):
+            break   # Claude unavailable or over its cap: try again later
+    return n
 
 
 # ------------------------------------------------------------------ recommendations
@@ -796,7 +815,7 @@ def loop() -> None:
     setup(c)
     _heartbeat_thread()
     heartbeat(c, "monitor worker started", "start")
-    last_seed = last_gate = 0.0
+    last_seed = last_gate = last_levels = 0.0
     while True:
         try:
             if db.setting(c, "monitor.enabled") != "1":
@@ -812,6 +831,12 @@ def loop() -> None:
                     gate.refresh(c)
                 except Exception as e:  # noqa: BLE001
                     log.warning("gate refresh failed: %s", e)
+            if time.time() - last_levels > 600:
+                last_levels = time.time()
+                try:
+                    judge_levels(c)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("levels failed: %s", e)
             if time.time() - last_seed > 900:
                 last_seed = time.time()
                 setup(c)

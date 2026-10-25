@@ -4,9 +4,6 @@
   and suggests further phrases worth listening for - names, places, terms - with how they sound in
   uk/ru/en. They wait in `phrase_suggestions` until the owner accepts (then they become phrases) or
   rejects them. Nothing is added without acceptance.
-- **Home sections.** The owner marks some highlights as *dedicated* (`PUT /v1/monitor/sections`);
-  the rest are *common*. For each new hit Claude suggests the section it belongs in, from how the
-  dedicated highlights are themed; publish takes a section, defaulting to that suggestion.
 """
 from __future__ import annotations
 
@@ -53,37 +50,6 @@ def fetch_highlights() -> list[dict]:
             except Exception:  # noqa: BLE001
                 pass
     return hls
-
-
-def dedicated_ids(c) -> list[str]:
-    return json.loads(db.setting(c, "home.dedicated_highlights") or "[]")
-
-
-def sections(c, hls: list[dict] | None = None) -> dict:
-    hls = fetch_highlights() if hls is None else hls
-    ded = set(dedicated_ids(c))
-    return {"highlights": [{"id": h["id"], "title": h.get("title"),
-                            "section": "dedicated" if h["id"] in ded else "common"} for h in hls]}
-
-
-def set_dedicated(c, ids: list[str]) -> None:
-    db.set_setting(c, "home.dedicated_highlights", db.j(sorted(set(ids))))
-    db.set_setting(c, "home.themes", "")   # re-describe on the next judgement
-
-
-def themes(c) -> dict | None:
-    """{"dedicated": [...], "common": [...]} highlight titles and summaries; None without dedicated ones."""
-    ded = set(dedicated_ids(c))
-    if not ded:
-        return None
-    cached = db.setting(c, "home.themes")
-    if cached:
-        return json.loads(cached)
-    hls = fetch_highlights()
-    t = {"dedicated": [{"title": h.get("title"), "examples": h["summaries"]} for h in hls if h["id"] in ded],
-         "common": [{"title": h.get("title"), "examples": h["summaries"]} for h in hls if h["id"] not in ded]}
-    db.set_setting(c, "home.themes", db.j(t))
-    return t
 
 
 def suggest_phrases(c, force: bool = False) -> int:

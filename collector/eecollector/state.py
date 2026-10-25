@@ -51,6 +51,10 @@ class State:
                         (item["id"], json.dumps(item), time.time()))
         self.db.commit()
 
+    def count_posts(self) -> int:
+        return self.db.execute("select count(*) from items where json_extract(json, '$.kind') != 'story' "
+                               "and id not like 'ig_repost_%'").fetchone()[0]
+
     def count_items(self) -> int:
         return self.db.execute("select count(*) from items").fetchone()[0]
 

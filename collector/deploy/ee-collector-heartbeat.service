@@ -1,0 +1,11 @@
+[Unit]
+Description=Earth Empire collector: report the last run to /v1/status between runs (no Instagram traffic)
+
+[Service]
+Type=oneshot
+User=earth
+Group=earth
+EnvironmentFile=-/etc/earth-empire/env
+Environment=PYTHONPATH=/opt/earth-empire/repo/collector
+ExecStart=/opt/earth-empire/collector-venv/bin/python -m eecollector heartbeat
+TimeoutStartSec=2min

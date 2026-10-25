@@ -31,6 +31,8 @@ class Settings:
     locale: str = field(default_factory=lambda: env("EE_LOCALE", "en-US"))
     timezone: str = field(default_factory=lambda: env("EE_TIMEZONE", "Europe/Kyiv"))
     channel: str | None = field(default_factory=lambda: env("EE_BROWSER_CHANNEL", "chromium"))
+    # CONTRACT.md: automation does not type passwords. EE_AUTO_LOGIN=1 allows one attempt.
+    auto_login: bool = field(default_factory=lambda: env("EE_AUTO_LOGIN", "0") == "1")
     headless: bool = field(default_factory=lambda: env("EE_HEADLESS", "1") != "0")
     # Pacing of Instagram requests (seconds) and a hard cap per hour.
     min_gap: float = field(default_factory=lambda: float(env("EE_MIN_GAP", "7")))

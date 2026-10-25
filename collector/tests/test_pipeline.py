@@ -182,3 +182,14 @@ def test_budget_stops_backfill_at_checkpoint(env):
     assert state.get("backfill.feed.cursor") == "3300000000000000002_1000000001"
     Collector(ig, backend, state, dl, "example.owner").run("full")
     assert state.get("backfill.done_at") and "ig_3300000000000000003" in store.items
+
+
+def test_heartbeats(env):
+    store, backend, state = env
+    Collector(FakeIG(), backend, state, FakeDL(), "example.owner").run("full")
+    whats = [j["what"] for h in store.heartbeats for j in h.get("jobs") or []]
+    assert whats[0] == "profile" and "stories" in whats
+    assert any(w.startswith("highlights 0/2") for w in whats)
+    posts = [j for h in store.heartbeats for j in h.get("jobs") or [] if j["what"].startswith("posts ")]
+    assert posts and posts[0]["what"].endswith("/3 (downloads)") and 0 <= posts[0]["progress"] <= 1
+    assert all("example.owner" not in json.dumps(h) for h in store.heartbeats)

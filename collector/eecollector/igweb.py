@@ -227,7 +227,11 @@ class IGBrowser:
         self.login()
 
     def login(self) -> None:
-        creds = self.creds() if self.creds else None
+        if not self.creds:
+            raise IGStop("login", "the Instagram session is logged out and automatic login is off; "
+                                  "log in by hand (ee-collector login) or put a storageState in "
+                                  "earth-empire/instagram-session")
+        creds = self.creds()
         if not creds or is_placeholder(creds.get("username")) or is_placeholder(creds.get("password")):
             raise IGStop("config", "no usable credentials in earth-empire/instagram (placeholder?); "
                                    "log in by hand through the remote browser instead")

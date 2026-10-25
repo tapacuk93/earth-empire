@@ -40,7 +40,8 @@ on 429 / "please wait" it backs off 15, 30, then 60 minutes and then stops. A st
 
 **Login.** Order: the saved profile; a Playwright `storageState` in the secret
 `earth-empire/instagram-session` (if present); one automatic login with `earth-empire/instagram`
-(TOTP if `totp_secret` is set). A checkpoint, a challenge, a two-factor prompt without a TOTP secret
+(TOTP if `totp_secret` is set), but only with `EE_AUTO_LOGIN=1` in `/etc/earth-empire/env` or
+by running `ee-collector auto-login`; by default automation never types a password (CONTRACT.md). A checkpoint, a challenge, a two-factor prompt without a TOTP secret
 or a refused login stops the run (exit 3 or 4) with a `STOPPED (...)` log line and a screenshot in
 `/var/lib/earth-empire/collector/screenshots/`. After Instagram refuses the credentials, it never
 tries an automatic login again until someone logs in by hand.
@@ -70,6 +71,16 @@ ls /var/log/earth-empire/collector/                   # one log file per run
   and Reels pages until a page has nothing new, the Reposts tab. Already uploaded media is never
   downloaded again.
 - Every run ends with `POST /v1/ingest/runs` (ok, counts, `stopped_<kind>` when it stopped).
+- **Status:** during a run it sends `POST /v1/ingest/heartbeat` (component `collector`) with what it
+  is doing (`login`, `profile`, `stories`, `highlights i/n`, `posts n/m (downloads)`) and its
+  progress, and an event when it finishes or stops (`STOPPED (login refused)`, `STOPPED
+  (checkpoint)`, ...). Between runs `ee-collector-heartbeat.timer` (every 5 min, enabled by the
+  install, no Instagram traffic) reports the last run's outcome, so `/v1/status` shows the
+  collector as waiting or blocked rather than down.
+- **Files:** durable state is `/var/lib/earth-empire/collector/state.sqlite` (items sent, media
+  uploaded, highlight membership, cursors, login state, last run), covered by the backend's hourly
+  backups. Screenshots there and the browser profile are not backed up; logs are in
+  `/var/log/earth-empire/collector/`.
 
 ## Logging in by hand (the remote view)
 

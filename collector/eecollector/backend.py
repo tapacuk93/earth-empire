@@ -64,5 +64,22 @@ class Backend:
     def put_profile(self, profile: dict) -> dict:
         return self._call("PUT", "/v1/ingest/profile", json=profile)
 
+    def heartbeat(self, ok: bool = True, detail: dict | None = None, jobs: list | None = None,
+                  event: str | None = None, kind: str | None = None, error: str | None = None) -> None:
+        """CONTRACT.md heartbeat for /v1/status. Best effort: a failed heartbeat never stops a run."""
+        body: dict = {"component": "collector", "ok": ok, "detail": detail or {}}
+        if jobs is not None:
+            body["jobs"] = jobs
+        if event:
+            body["event"], body["kind"] = event, kind or "event"
+        if error:
+            body["error"] = error
+        try:
+            r = self.http.post(self.api + "/v1/ingest/heartbeat", json=body, timeout=15)
+            if r.status_code >= 400:
+                log.warning("heartbeat -> %d %s", r.status_code, r.text[:200])
+        except httpx.HTTPError as e:
+            log.warning("heartbeat failed: %s", e)
+
     def post_run(self, run: dict) -> dict:
         return self._call("POST", "/v1/ingest/runs", json=run)

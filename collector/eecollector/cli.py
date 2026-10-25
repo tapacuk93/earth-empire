@@ -76,12 +76,15 @@ def cmd_run(args, s: Settings, secrets: Secrets) -> int:
     counts: dict = {}
     ok, code = False, 1
     backend = None
+    stop_text = stop_error = None
     try:
         target = args.target or secrets.target()
         if is_placeholder(target):
             raise IGStop("config", "earth-empire/target holds a placeholder; set the archived account's username")
         backend = Backend(s.api, secrets.ingest_token())
-        with IGBrowser(s, creds=secrets.instagram, session_state=secrets.session_state, state=state) as ig:
+        backend.heartbeat(ok=True, jobs=[{"what": "login", "progress": None, "started_at": started}],
+                          detail={"mode": "backfill" if mode == "full" else "incremental"})
+        with IGBrowser(s, creds=secrets.instagram if s.auto_login else None, session_state=secrets.session_state, state=state) as ig:
             try:
                 ig.ensure_session()
             except IGStop:
@@ -89,6 +92,7 @@ def cmd_run(args, s: Settings, secrets: Secrets) -> int:
                 raise
             c = Collector(ig, backend, state, Downloader(ig.user_agent), target, limit=args.limit,
                           budget_s=budget)
+            c.started = started
             try:
                 counts = c.run(mode)
             except IGStop:
@@ -106,18 +110,68 @@ def cmd_run(args, s: Settings, secrets: Secrets) -> int:
         code = EXIT.get(e.kind, 1)
         counts[f"stopped_{e.kind}"] = 1
         log.error("STOPPED (%s): %s", e.kind.upper(), e)
+        stop_text = f"STOPPED ({_stop_label(e)})"
+        stop_error = str(e)
     except Exception as e:  # noqa: BLE001 - every failure ends in a run record
         log.exception("run %s failed: %s", mode, e)
         counts["failed"] = 1
+        stop_text, stop_error = f"run failed: {type(e).__name__}", str(e)[:300]
     finally:
+        last = {"finished_at": parse.now_iso(), "ok": ok, "mode": mode,
+                "event": None if ok else stop_text, "error": None if ok else stop_error,
+                "counts": {k: v for k, v in counts.items() if isinstance(v, (int, float))}}
+        state.set("last_run", last)
         if backend:
             try:
-                backend.post_run({"started_at": started, "finished_at": parse.now_iso(), "ok": ok,
+                backend.post_run({"started_at": started, "finished_at": last["finished_at"], "ok": ok,
                                   "counts": {"mode": mode, **counts}})
             except Exception as e:  # noqa: BLE001
                 log.error("could not record the run: %s", e)
+            done = f"run finished ({'backfill' if mode == 'full' else 'incremental'}): " + \
+                ", ".join(f"{k} {v}" for k, v in sorted(last["counts"].items()) if k in ("items", "media_uploaded", "errors"))
+            backend.heartbeat(ok=ok, jobs=[], detail=_detail(state, last),
+                              event=done if ok else stop_text, kind="run" if ok else "stop",
+                              error=None if ok else stop_error)
         lk.close()
     return code
+
+
+def _stop_label(e: IGStop) -> str:
+    text = str(e).lower()
+    if e.kind == "login" and "refused" in text:
+        return "login refused"
+    if e.kind == "login" and "automatic login is off" in text:
+        return "logged out, waiting for a login by hand"
+    return {"checkpoint": "checkpoint", "login": "logged out", "rate_limit": "rate limited",
+            "config": "config"}.get(e.kind, e.kind)
+
+
+def _detail(state: State, last: dict | None) -> dict:
+    d = {"items_known": state.count_items(), "posts_known": state.count_posts(),
+         "backfill_done": bool(state.get("backfill.done_at"))}
+    if last:
+        d["last_run_at"] = last.get("finished_at")
+        d["last_run_ok"] = bool(last.get("ok"))
+        if last.get("event"):
+            d["last_stop"] = last["event"]
+    return d
+
+
+def cmd_heartbeat(args, s: Settings, secrets: Secrets) -> int:
+    """Between runs: report the last run's outcome so /v1/status never shows the collector as down
+    while it is only waiting for its timer. Touches nothing on Instagram."""
+    logging.basicConfig(level=logging.WARNING)
+    lk = lock(s)
+    if not lk:
+        return 0  # a run is going; it sends its own heartbeats
+    lk.close()
+    state = State(s.state_db)
+    last = state.get("last_run")
+    ok = bool(last.get("ok")) if last else True
+    Backend(s.api, secrets.ingest_token()).heartbeat(
+        ok=ok, jobs=[], detail=_detail(state, last),
+        error=None if ok else (last.get("error") or last.get("event")))
+    return 0
 
 
 def cmd_login(args, s: Settings, secrets: Secrets) -> int:
@@ -153,7 +207,7 @@ def cmd_auto_login(args, s: Settings, secrets: Secrets) -> int:
     state = State(s.state_db)
     try:
         with IGBrowser(s, creds=secrets.instagram, session_state=secrets.session_state, state=state) as ig:
-            ig.ensure_session()
+            ig.ensure_session()  # auto-login is the explicit request for one attempt
             log.info("session ok")
         return 0
     except IGStop as e:
@@ -204,11 +258,12 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("import-session", help="load a Playwright storageState into the profile")
     p.add_argument("file", nargs="?", help="storageState JSON; default: secret earth-empire/instagram-session")
     sub.add_parser("status")
+    sub.add_parser("heartbeat", help="report the last run to /v1/status (the heartbeat timer)")
     args = ap.parse_args(argv)
     s = Settings()
     secrets = Secrets(s)
     return {"backfill": cmd_run, "incremental": cmd_run, "login": cmd_login, "auto-login": cmd_auto_login,
-            "import-session": cmd_import, "status": cmd_status}[args.cmd](args, s, secrets)
+            "import-session": cmd_import, "status": cmd_status, "heartbeat": cmd_heartbeat}[args.cmd](args, s, secrets)
 
 
 if __name__ == "__main__":

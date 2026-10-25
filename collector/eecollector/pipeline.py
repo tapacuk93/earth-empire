@@ -30,10 +30,41 @@ class Collector:
         self.limit = limit
         self.deadline = time.time() + budget_s if budget_s else None
         self.incomplete = False
+        self.mode = "incremental"
+        self.started = parse.now_iso()
+        self.total_posts: int | None = None
+        self._beat_at = 0.0
+        self._beat_what = ""
         self.uid: str | None = None
         self.counts: dict[str, int] = {}
         self.pending: list[dict] = []
         self.last_stories = 0.0
+
+    def beat(self, what: str, progress: float | None = None, force: bool = False) -> None:
+        """Tell /v1/status what the run is doing: at most once a minute, or when the step changes."""
+        step = what.split(" ")[0]
+        if not force and step == self._beat_what and time.time() - self._beat_at < 60:
+            return
+        self._beat_at, self._beat_what = time.time(), step
+        job = {"what": what, "progress": progress, "started_at": self.started}
+        self.backend.heartbeat(ok=True, jobs=[job], detail=self.detail())
+
+    def beat_posts(self, name: str) -> None:
+        have = self.state.count_posts()
+        total = self.total_posts if name == "feed" else None
+        if total:
+            self.beat(f"{'posts' if name == 'feed' else name} {have}/{total} (downloads)", min(1.0, have / total))
+        else:
+            self.beat(f"{'posts' if name == 'feed' else name} {have} (downloads)")
+
+    def detail(self) -> dict:
+        keys = ("items", "posts", "carousels", "reels", "stories", "highlights", "reposts",
+                "media_uploaded", "errors")
+        d = {"mode": "backfill" if self.mode == "full" else "incremental",
+             "items_known": self.state.count_items(),
+             "backfill_done": bool(self.state.get("backfill.done_at"))}
+        d.update({f"run_{k}": self.counts[k] for k in keys if k in self.counts})
+        return d
 
     def bump(self, k: str, n: int = 1) -> None:
         self.counts[k] = self.counts.get(k, 0) + n
@@ -42,6 +73,7 @@ class Collector:
 
     def run(self, mode: str) -> dict:
         assert mode in ("full", "incremental")
+        self.mode = mode
         log.info("run %s: target set, state has %d items", mode, self.state.count_items())
         self.do_profile()
         self.do_stories()
@@ -71,6 +103,7 @@ class Collector:
     # ------------------------------------------------------------ profile
 
     def do_profile(self) -> None:
+        self.beat("profile", force=True)
         p = parse.profile(self.ig.profile(self.target))
         if not p["_id"]:
             raise IGError("profile response had no user id")
@@ -88,11 +121,13 @@ class Collector:
         p["updated_at"] = parse.now_iso()
         self.backend.put_profile(p)
         self.bump("profile")
+        self.total_posts = p["counts"].get("posts")
         log.info("profile: %s posts, %s followers", p["counts"].get("posts"), p["counts"].get("followers"))
 
     # ------------------------------------------------------------ stories
 
     def do_stories(self) -> None:
+        self.beat("stories", force=True)
         self.last_stories = time.time()
         rs = parse.reels(self.ig.reels([self.uid]))
         items = next(iter(rs.values()), {}).get("items", []) if rs else []
@@ -113,6 +148,7 @@ class Collector:
                 changed.append(h)
         log.info("highlights: %d in tray, %d to read", len(tray), len(changed))
         for i in range(0, len(changed), 4):
+            self.beat(f"highlights {i}/{len(changed)}", i / len(changed))
             if full and self.out_of_time():
                 break
             self.maybe_stories()
@@ -200,6 +236,7 @@ class Collector:
             for m in media:
                 if not self.state.has_item(f"ig_{parse.media_pk(m)}"):
                     new += 1
+                self.beat_posts(name)
                 self.take(m)
             self.flush()
             log.info("%s page %d: %d items, %d new", name, pages, len(media), new)

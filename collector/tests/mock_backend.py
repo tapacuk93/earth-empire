@@ -24,6 +24,7 @@ class Store:
         self.runs: list[dict] = []
         self.uploads: dict[str, tuple[str, int]] = {}
         self.calls: list[str] = []
+        self.heartbeats: list[dict] = []
 
 
 def make_handler(store: Store, base: str):
@@ -67,6 +68,10 @@ def make_handler(store: Store, base: str):
                 assert key.startswith(("items/", "highlights/", "profile/")), key
                 return self._json(200, {"upload_url": f"{base}/upload/{key}",
                                         "public_url": f"https://media.empire.earth/{key}"})
+            if self.path == "/v1/ingest/heartbeat":
+                assert data.get("component") == "collector"
+                store.heartbeats.append(data)
+                return self._json(200, {"ok": True})
             if self.path == "/v1/ingest/runs":
                 for k in ("started_at", "finished_at", "ok", "counts"):
                     assert k in data, k

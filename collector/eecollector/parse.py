@@ -42,6 +42,14 @@ def shortcode_to_pk(code: str) -> str:
     return str(n)
 
 
+IG_EPOCH_MS = 1314220021721
+
+
+def pk_time(pk: str | int) -> float:
+    """When a media pk was created (Instagram ids carry milliseconds since their epoch above bit 23)."""
+    return ((int(pk) >> 23) + IG_EPOCH_MS) / 1000.0
+
+
 def pk_to_shortcode(pk: str | int) -> str:
     n = int(pk)
     out = ""

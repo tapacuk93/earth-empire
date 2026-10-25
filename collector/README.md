@@ -63,6 +63,15 @@ journalctl -u ee-collector-incremental -u ee-collector-backfill -f
 ls /var/log/earth-empire/collector/                   # one log file per run
 ```
 
+- **Order: by time, across every kind.** A run first lists, cheaply and without downloads: the
+  profile page's posts, the Reposts tab (`user_reposts_timeline` grid items), the current stories
+  (the story viewer at `/stories/<user>/`), every changed highlight's stories (the highlight viewer),
+  and in a backfill the older feed and Reels pages from a saved cursor. Then it ingests one merged
+  timeline, newest first: posts, reels, reposts, stories and highlight stories alike. The timeline
+  is a table in `state.sqlite`, so the next run continues down it. A Reposts-tab item carries no date
+  in the grid; it is placed by its pk's creation time and read in full with one request
+  (`/api/v1/media/<pk>/info/`) when its turn comes. A failed step or item is logged and skipped;
+  an item is dropped after three failures. Only a 429, a challenge or a lost session stops a run.
 - **Backfill:** until a backfill has finished once, every timer run continues it for 40 minutes
   from its checkpoint (feed and clips cursors, highlights done), and refreshes stories every 45
   minutes meanwhile. So enabling the timer is enough; `ee-collector-backfill` (no time limit,

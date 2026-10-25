@@ -1,8 +1,10 @@
-"""One collector run: profile, current stories, highlights, posts and reels, reposts -> the backend.
+"""One collector run, by time across every kind.
 
-`full` (backfill) walks the whole feed from a saved cursor, so it can stop and continue.
-`incremental` reads the newest pages until it reaches items it already has, every highlight whose
-tray entry changed, and the current stories. Both refresh stories at least every 45 minutes.
+1. List (metadata only): the profile page's posts, the Reposts tab, the current stories, every
+   changed highlight's stories (from the highlight viewer), and - in a backfill - older feed and
+   Reels pages from a saved cursor.
+2. Ingest one merged timeline, newest first: posts, reels, reposts, stories and highlight stories
+   alike. The timeline lives in the state, so the next run continues down it.
 """
 
 from __future__ import annotations
@@ -40,6 +42,7 @@ class Collector:
         self.profile_bodies: list = []
         self.recent_cursor: str | None = None
         self.recent_new: int | None = None
+        self.tray: list | None = None
         self.uid: str | None = None
         self.counts: dict[str, int] = {}
         self.pending: list[dict] = []
@@ -47,7 +50,7 @@ class Collector:
 
     def beat(self, what: str, progress: float | None = None, force: bool = False) -> None:
         """Tell /v1/status what the run is doing: at most once a minute, or when the step changes."""
-        step = what.split(" ")[0]
+        step = " ".join(what.split(" ")[:2]) if what.startswith("listing") else what.split(" ")[0]
         if not force and step == self._beat_what and time.time() - self._beat_at < 60:
             return
         self._beat_at, self._beat_what = time.time(), step
@@ -77,30 +80,35 @@ class Collector:
     # ------------------------------------------------------------ run
 
     def run(self, mode: str) -> dict:
+        """List everything cheaply (metadata only), then ingest one merged timeline, newest first:
+        posts, reels, reposts, stories and highlight stories alike. The timeline is kept in the
+        state, so the next run continues down it."""
         assert mode in ("full", "incremental", "sample")
         self.mode = mode
         if mode == "sample":
             return self.run_sample()
-        log.info("run %s: target set, state has %d items", mode, self.state.count_items())
         full = mode == "full"
+        log.info("run %s: state has %d items, %d queued", mode, self.state.count_items(), self.state.timeline_len())
         self.do_profile()
-        # newest first: reposts (the owner's newest content), current stories (they expire and may
-        # share someone's reel), the posts the profile page lists, highlights, then older pages
-        self.step("reposts", self.do_reposts_tab, full)
-        self.step("stories", self.do_stories)
-        self.step("recent", self.do_recent)
-        self.step("highlights", self.do_highlights, full)
-        self.step("feed", self.do_feed, full)
-        self.step("clips", self.do_clips, full)
+        self.step("list recent", self.list_recent)
+        self.step("list reposts", self.list_reposts, full)
+        self.step("list stories", self.list_stories)
+        self.step("list highlights", self.list_highlights, full)
+        self.step("list feed", self.list_feed, full)
+        self.step("list clips", self.list_clips, full)
+        log.info("timeline: %d queued %s", self.state.timeline_len(), self.state.timeline_kinds())
+        self.step("ingest", self.ingest_timeline)
         self.flush()
+        self.step("highlights", self.send_highlights)
         failed = [k for k in self.counts if k.startswith("failed_")]
-        if mode == "full" and failed:
-            log.info("backfill not complete: %s failed; the next run continues", ", ".join(failed))
-        elif mode == "full" and not self.incomplete:
-            self.state.set("backfill.done_at", parse.now_iso())
-        elif self.incomplete:
-            log.info("run budget used up; the backfill continues from its checkpoint next run")
+        left = self.state.timeline_len()
+        if failed:
+            log.info("not complete: %s failed; the next run continues", ", ".join(failed))
+        if self.incomplete or left:
+            log.info("run budget used up; %d items wait in the timeline for the next run", left)
             self.bump("backfill_incomplete")
+        elif full and not failed and self.state.get("backfill.feed.done"):
+            self.state.set("backfill.done_at", parse.now_iso())
         return self.counts
 
     def out_of_time(self) -> bool:
@@ -119,7 +127,7 @@ class Collector:
         except Exception as e:  # noqa: BLE001
             log.warning("step %s failed, skipped: %s: %s", name, type(e).__name__, str(e)[:300])
             self.bump("errors")
-            self.bump(f"failed_{name}")
+            self.bump("failed_" + name.replace(" ", "_"))
             try:
                 self.flush()
             except Exception as e2:  # noqa: BLE001
@@ -139,11 +147,6 @@ class Collector:
         self.flush()
         log.info("sample: sent ig_%s (%s, %s)", parse.media_pk(newest), parse.kind_of(newest), parse.iso(newest.get("taken_at")))
         return self.counts
-
-    def maybe_stories(self) -> None:
-        if time.time() - self.last_stories > STORY_EVERY:
-            self.flush()
-            self.do_stories()
 
     # ------------------------------------------------------------ profile
 
@@ -205,7 +208,15 @@ class Collector:
         self.total_posts = p["counts"].get("posts")
         log.info("profile: %s posts, %s followers", p["counts"].get("posts"), p["counts"].get("followers"))
 
-    # ------------------------------------------------------------ stories
+    # ------------------------------------------------------------ listing (metadata only)
+
+    def enqueue(self, item_id: str, kind: str, m: dict) -> bool:
+        """Put one item on the timeline unless it is already in, complete."""
+        prev = self.state.item(item_id)
+        if prev and all(x.get("url") for x in prev.get("media") or [None]):
+            return False
+        taken = m.get("taken_at") or parse.pk_time(parse.media_pk(m))
+        return self.state.enqueue(item_id, float(taken), kind, m)
 
     def owner_media(self, bodies: list, story: bool) -> list[dict]:
         """The target's own media among what a page loaded (viewers preload other people's too)."""
@@ -219,10 +230,33 @@ class Collector:
             if is_story == story and pk not in seen:
                 seen.add(pk)
                 out.append(m)
-        return sorted(out, key=lambda m: m.get("taken_at") or 0)
+        return out
 
-    def do_stories(self) -> None:
-        self.beat("stories", force=True)
+    def list_recent(self) -> None:
+        """The posts and reels the profile page itself loaded; no extra request."""
+        new = sum(self.enqueue(f"ig_{parse.media_pk(m)}", "post", m) for m in self.harvested)
+        self.recent_new = new
+        log.info("list recent: %d on the profile page, %d to ingest", len(self.harvested), new)
+
+    def list_reposts(self, full: bool) -> None:
+        """The profile's Reposts tab as the web app loads it (user_reposts_timeline grid items).
+        The grid gives no repost time; an item is placed by its pk's creation time."""
+        self.beat("listing reposts", force=True)
+        bodies = self.ig.browse(f"https://www.instagram.com/{self.target}/reposts/", scrolls=8 if full else 1)
+        seen, new = set(), 0
+        for body in bodies:
+            for d in parse.walk(body):
+                for g in d.get("repost_grid_items") or [] if isinstance(d.get("repost_grid_items"), list) else []:
+                    m = g.get("media") if isinstance(g, dict) else None
+                    pk = parse.media_pk(m) if isinstance(m, dict) else None
+                    if not pk or pk in seen:
+                        continue
+                    seen.add(pk)
+                    new += self.enqueue(f"ig_repost_{pk}", "repost", m)
+        log.info("list reposts: %d on the Reposts tab, %d to ingest", len(seen), new)
+
+    def list_stories(self) -> None:
+        self.beat("listing stories", force=True)
         self.last_stories = time.time()
         # the story viewer, as a person opens it; not /api/v1/feed/reels_media/ directly
         bodies = self.ig.browse(f"https://www.instagram.com/stories/{self.target}/", scrolls=0,
@@ -234,16 +268,11 @@ class Collector:
                 if rid == str(self.uid):
                     items += [m for m in r["items"] if parse.media_pk(m) not in known]
                     known |= {parse.media_pk(m) for m in r["items"]}
-        items.sort(key=lambda m: m.get("taken_at") or 0)
-        for m in items:
-            self.take(m, story=True)
-        self.flush()
-        log.info("stories: %d current", len(items))
+        new = sum(self.enqueue(f"ig_{parse.media_pk(m)}", "story", m) for m in items)
+        log.info("list stories: %d current, %d to ingest", len(items), new)
         self.bump("stories_seen", len(items))
 
-    # ------------------------------------------------------------ highlights
-
-    def do_highlights(self, full: bool) -> None:
+    def list_highlights(self, full: bool) -> None:
         tray = []
         for body in self.profile_bodies:
             tray = parse.highlight_tray(body)
@@ -251,18 +280,15 @@ class Collector:
                 break
         if not tray:
             tray = parse.highlight_tray(self.ig.tray(self.uid))
-        changed = []
-        for h in tray:
-            known = self.state.highlight(h["id"])
-            if full and not self.state.get(f"backfill.hl.{h['id']}") or not known or known[1] != h["sig"]:
-                changed.append(h)
-        log.info("highlights: %d in tray, %d to read", len(tray), len(changed))
+        self.tray = tray
+        changed = [h for h in tray if (full and not self.state.get(f"backfill.hl.{h['id']}"))
+                   or not self.state.highlight(h["id"]) or self.state.highlight(h["id"])[1] != h["sig"]]
+        log.info("list highlights: %d in the tray, %d to read", len(tray), len(changed))
         loaded: dict[str, dict] = {}
         for i, h in enumerate(changed):
-            self.beat(f"highlights {i}/{len(changed)}", i / len(changed))
-            if full and self.out_of_time():
+            self.beat(f"listing highlights {i}/{len(changed)}", i / len(changed))
+            if self.out_of_time():
                 break
-            self.maybe_stories()
             r = loaded.get(h["reel_id"])
             if r is None:
                 # the highlight viewer, as a person opens it; it often preloads the next ones too
@@ -277,19 +303,11 @@ class Collector:
                 log.warning("highlight %s (%s): the viewer showed no stories", h["id"], h["title"])
                 self.bump("errors")
                 continue
-            self.save_highlight(h, r["items"])
+            self.record_highlight(h, r["items"])
             self.state.set(f"backfill.hl.{h['id']}", True)
-        # the profile's order, every time
-        ordered = [self.state.highlight(h["id"])[0] for h in tray if self.state.highlight(h["id"])]
-        for pos, h in enumerate(ordered):
-            h.setdefault("extra", {})["position"] = pos
-        self.flush()
-        if ordered:
-            self.backend.put_highlights(ordered)
-        self.state.set("highlights.order", [h["id"] for h in tray])
-        self.bump("highlights", len(ordered))
 
-    def save_highlight(self, h: dict, items: list[dict]) -> None:
+    def record_highlight(self, h: dict, items: list[dict]) -> None:
+        """A highlight's title, cover, order and membership; its stories go on the timeline."""
         hid = h["id"]
         cover = None
         key = f"highlights/{hid}/cover.jpg"
@@ -310,116 +328,134 @@ class Collector:
               "extra": {"media_count": h.get("media_count"), "created_at": h.get("created_at")}}
         self.state.save_highlight(hl, h["sig"])
         touched = self.state.set_membership(hid, ids)
-        fresh = set()
-        for m in items:
-            self.take(m, story=True)
-            fresh.add(f"ig_{parse.media_pk(m)}")
-        # items that left this highlight (or are known and unchanged) still need their names updated
-        for iid in touched - fresh:
+        new = sum(self.enqueue(f"ig_{parse.media_pk(m)}", "story", m) for m in items)
+        # stories already ingested whose highlight names changed are sent again right away
+        for iid in touched:
             it = self.state.item(iid)
-            if it:
+            if it and it.get("highlights") != self.state.highlights_of(iid):
                 it["highlights"] = self.state.highlights_of(iid)
+                self.state.save_item(it)
                 self.queue(it)
-        log.info("highlight %s %r: %d stories", hid, h["title"], len(items))
+        log.info("highlight %s %r: %d stories, %d to ingest", hid, h["title"], len(items), new)
 
-    # ------------------------------------------------------------ posts and reels
+    def send_highlights(self) -> None:
+        tray = getattr(self, "tray", None)
+        order = [h["id"] for h in tray] if tray else (self.state.get("highlights.order") or [])
+        ordered = [self.state.highlight(hid)[0] for hid in order if self.state.highlight(hid)]
+        for pos, h in enumerate(ordered):
+            h.setdefault("extra", {})["position"] = pos
+        if ordered:
+            self.backend.put_highlights(ordered)
+        self.state.set("highlights.order", order)
+        self.bump("highlights", len(ordered))
 
-    def do_recent(self) -> None:
-        """The posts and reels the profile page itself loaded, newest first, with no extra request."""
-        self.recent_new = None
-        if not self.harvested:
+    def list_feed(self, full: bool) -> None:
+        """Older posts, page by page from a saved cursor (requests only, no downloads)."""
+        if not full or self.state.get("backfill.feed.done"):
+            if self.recent_new is not None and self.recent_new < len(self.harvested):
+                return  # the profile page reached posts we have: caught up
+            self._list_pages("feed", self.ig.feed, parse.feed_page, False, self.recent_cursor)
             return
-        ordered = sorted(self.harvested, key=lambda m: m.get("taken_at") or 0, reverse=True)
-        self.recent_new = sum(not self.state.has_item(f"ig_{parse.media_pk(m)}") for m in ordered)
-        for m in ordered:
-            self.beat_posts("feed")
-            self.take(m)
-        self.flush()
-        log.info("recent: %d posts from the profile page, %d new", len(ordered), self.recent_new)
+        self._list_pages("feed", self.ig.feed, parse.feed_page, True, self.recent_cursor)
 
-    def do_feed(self, full: bool) -> None:
-        if (not full or self.state.get("backfill.feed.done")) and self.recent_new is not None \
-                and self.recent_new < len(self.harvested):
-            log.info("feed: caught up from the profile page alone")
-            return
-        self._paged("feed", self.ig.feed, parse.feed_page, full)
+    def list_clips(self, full: bool) -> None:
+        """Reels only in the Reels tab (most are in the feed too); once, during the backfill."""
+        if full and not self.state.get("backfill.clips.done"):
+            self._list_pages("clips", self.ig.clips, parse.clips_page, True, None)
 
-    def do_clips(self, full: bool) -> None:
-        try:
-            self._paged("clips", self.ig.clips, parse.clips_page, full)
-        except IGError as e:
-            # reels that are only in the Reels tab; the feed already holds most of them
-            log.warning("clips tab unavailable: %s", e)
-            self.bump("errors")
-
-    def _paged(self, name: str, fetch, parse_page, full: bool) -> None:
-        key = f"backfill.{name}.cursor"
-        done_key = f"backfill.{name}.done"
-        if full and self.state.get(done_key):
-            log.info("%s: backfill already complete; checking the newest page only", name)
-            full = False
-        cursor = self.state.get(key) if full else None
-        if full and cursor is None and name == "feed" and self.recent_cursor:
-            cursor = self.recent_cursor
-            log.info("feed: starting after the posts the profile page listed")
-        if cursor:
-            log.info("%s: resuming backfill from a saved cursor", name)
+    def _list_pages(self, name: str, fetch, parse_page, full: bool, start: str | None) -> None:
+        key, done_key = f"backfill.{name}.cursor", f"backfill.{name}.done"
+        cursor = (self.state.get(key) or start) if full else start
         pages = 0
         while True:
-            self.maybe_stories()
+            if self.out_of_time():
+                log.info("list %s: run budget used up; the cursor is saved", name)
+                break
+            self.beat(f"listing {name} page {pages + 1}")
             media, nxt = parse_page(fetch(self.uid, cursor))
             pages += 1
-            new = 0
-            for m in media:
-                if not self.state.has_item(f"ig_{parse.media_pk(m)}"):
-                    new += 1
-                self.beat_posts(name)
-                self.take(m)
-            self.flush()
-            log.info("%s page %d: %d items, %d new", name, pages, len(media), new)
+            new = sum(self.enqueue(f"ig_{parse.media_pk(m)}", "post", m) for m in media)
+            log.info("list %s page %d: %d items, %d to ingest", name, pages, len(media), new)
             if full:
                 self.state.set(key, nxt)
-            if not nxt:
-                if full:
+                if not nxt:
                     self.state.set(done_key, True)
+            if not nxt or (not full and new == 0):
                 break
-            if not full and new == 0 and pages >= 1:
-                break  # caught up; pinned posts make page 1 never fully new, so stop on the first all-known page
-            if full and self.out_of_time():
-                log.info("%s: run budget used up; stopping at the checkpoint", name)
-                break
-            if self.limit and self.counts.get("items", 0) >= self.limit:
-                log.info("%s: stopping at --limit %d", name, self.limit)
+            if self.limit and pages * 12 >= self.limit:
                 break
             cursor = nxt
 
-    def do_reposts_tab(self, full: bool) -> None:
-        """Posts the account reposted from others (profile's Reposts tab), read as the web app loads it."""
-        self.beat("reposts", force=True)
-        bodies = self.ig.browse(f"https://www.instagram.com/{self.target}/reposts/", scrolls=6 if full else 2)
-        n = 0
-        for body in bodies:
-            for m in parse.find_media(body):
-                owner = (m.get("user") or m.get("owner") or {})
-                if str(owner.get("pk") or owner.get("id") or "") in ("", self.uid):
-                    continue
-                self.take_repost_post(m)
-                n += 1
+    # ------------------------------------------------------------ ingesting the timeline
+
+    def ingest_timeline(self) -> None:
+        total = self.state.timeline_len()
+        done = 0
+        while True:
+            row = self.state.timeline_next()
+            if row is None:
+                break
+            if self.out_of_time() or (self.limit and self.counts.get("items", 0) >= self.limit):
+                break
+            item_id, taken, kind, m, attempts = row
+            self.beat(f"timeline {done}/{total} ({parse.iso(taken)[:10]}) (downloads)", done / max(total, 1))
+            try:
+                if kind == "repost":
+                    self.take_repost_tab(m)
+                else:
+                    self.take(m, story=(kind == "story"))
+                self.state.timeline_done(item_id)
+            except IGStop:
+                raise
+            except MediaGone as e:
+                # CDN links listed in an earlier run expire; a post can be read again once
+                try:
+                    if kind != "post":
+                        raise
+                    log.info("%s: media links expired (%s); reading the post again", item_id, e)
+                    found = parse.find_media(self.ig.media_info(parse.media_pk(m)))
+                    if not found:
+                        raise
+                    self.take(found[0])
+                    self.state.timeline_done(item_id)
+                except IGStop:
+                    raise
+                except Exception as e2:  # noqa: BLE001
+                    log.warning("%s: media unavailable: %s", item_id, e2)
+                    self.bump("errors")
+                    self.state.timeline_done(item_id)
+            except Exception as e:  # noqa: BLE001 - one bad item never stops the timeline
+                n = self.state.timeline_failed(item_id)
+                log.warning("%s (%s): %s: %s (attempt %d)", item_id, kind, type(e).__name__, str(e)[:200], n)
+                self.bump("errors")
+                if n >= 3:
+                    log.warning("%s: dropped from the timeline after 3 attempts", item_id)
+                    self.state.timeline_done(item_id)
+            done += 1
         self.flush()
-        log.info("reposts tab: %d reposted posts seen", n)
+        log.info("ingest: %d items from the timeline, %d left", done, self.state.timeline_len())
+
+    def take_repost_tab(self, grid_media: dict) -> None:
+        """A Reposts-tab item: the grid has no date or video, so read the original's own record."""
+        pk = parse.media_pk(grid_media)
+        found = parse.find_media(self.ig.media_info(pk))
+        if not found:
+            raise IGError(f"original {pk} not found")
+        self.take_repost_post(found[0])
 
     def take_repost_post(self, original: dict) -> None:
         it = parse.item(original)
         it["id"] = f"ig_repost_{parse.media_pk(original)}"
         it["extra"]["repost"] = True
+        it["extra"]["repost_source"] = "reposts tab"
         it["repost_of"] = parse.repost_of(original)
         prev = self.state.item(it["id"])
-        if prev and prev.get("repost_of", {}).get("media") and all(x.get("url") for x in prev["repost_of"]["media"]):
-            return
         self.upload_media(it["id"], it["repost_of"]["media"], prefix="r")
         it["media"] = [dict(x) for x in it["repost_of"]["media"]]
-        self.finish(it)
+        self.finish(it, prev)
+        self.bump("items")
         self.bump("reposts")
+        log.info("%s: repost of @%s %s", it["id"], it["repost_of"]["author"], it["repost_of"]["shortcode"])
 
     # ------------------------------------------------------------ one item
 
@@ -430,12 +466,11 @@ class Collector:
         try:
             self.upload_media(it["id"], it["media"])
         except MediaGone as e:
-            log.warning("%s: media unavailable (%s)", it["id"], e)
+            if not prev:
+                raise
+            log.warning("%s: media unavailable (%s); keeping what was uploaded before", it["id"], e)
             self.bump("errors")
-            if prev:
-                it["media"] = prev["media"]
-            else:
-                return
+            it["media"] = prev["media"]
         ref = it["extra"].get("repost_ref")
         if ref:
             if prev and prev.get("repost_of") and prev["repost_of"].get("shortcode"):

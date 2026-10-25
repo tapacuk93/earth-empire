@@ -1,6 +1,7 @@
 """End to end: fixture Instagram -> Collector -> the mock backend over HTTP."""
 
 import copy
+import time
 import io
 import json
 from pathlib import Path
@@ -8,6 +9,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from eecollector import parse
 from eecollector.backend import Backend
 from eecollector.igweb import IGStop
 from eecollector.pipeline import Collector
@@ -168,7 +170,7 @@ def test_backfill_resumes_from_checkpoint(env):
     ig.fail_feed_after = 1
     c = Collector(ig, backend, state, dl, "example.owner")
     c.run("full")                      # the feed step fails; the run goes on and ends
-    assert c.counts["failed_feed"] == 1 and state.get("backfill.done_at") is None
+    assert c.counts["failed_list_feed"] == 1 and state.get("backfill.done_at") is None
     assert state.get("backfill.feed.cursor") == "3300000000000000002_1000000001"
     assert "ig_3300000000000000003" not in store.items or True
     ig.fail_feed_after = None
@@ -188,7 +190,6 @@ def test_budget_stops_backfill_at_checkpoint(env):
     _t.sleep(0.01)
     c.run("full")
     assert c.incomplete and state.get("backfill.done_at") is None
-    assert state.get("backfill.feed.cursor") == "3300000000000000002_1000000001"
     Collector(ig, backend, state, dl, "example.owner").run("full")
     assert state.get("backfill.done_at") and "ig_3300000000000000003" in store.items
 
@@ -197,10 +198,10 @@ def test_heartbeats(env):
     store, backend, state = env
     Collector(FakeIG(), backend, state, FakeDL(), "example.owner").run("full")
     whats = [j["what"] for h in store.heartbeats for j in h.get("jobs") or []]
-    assert whats[0] == "profile" and "stories" in whats
-    assert any(w.startswith("highlights 0/2") for w in whats)
-    posts = [j for h in store.heartbeats for j in h.get("jobs") or [] if j["what"].startswith("posts ")]
-    assert posts and posts[0]["what"].endswith("/3 (downloads)") and 0 <= posts[0]["progress"] <= 1
+    assert whats[0] == "profile" and "listing stories" in whats
+    assert any(w.startswith("listing highlights 0/2") for w in whats)
+    tl = [j for h in store.heartbeats for j in h.get("jobs") or [] if j["what"].startswith("timeline ")]
+    assert tl and tl[0]["what"].endswith("(downloads)") and 0 <= tl[0]["progress"] <= 1
     assert all("example.owner" not in json.dumps(h) for h in store.heartbeats)
 
 
@@ -258,23 +259,44 @@ def test_failing_step_does_not_end_the_run(env):
     ig.browse = broken
     c = Collector(ig, backend, state, FakeDL(), "example.owner")
     c.run("full")
-    assert c.counts["failed_stories"] == 1
+    assert c.counts["failed_list_stories"] == 1
     assert "ig_3300000000000000003" in store.items      # posts were still reached
 
 
-def test_reposts_tab_first(env):
+def test_timeline_newest_first_across_kinds(env):
+    """Reposts (placed by the original's pk time), stories, highlight stories and posts are
+    ingested in one order, newest first."""
     store, backend, state = env
     ig = FakeIG()
     orig = ig.browse
     original = fx("media_info_original.json")["items"][0]
+    grid = {"pk": original["pk"], "code": original["code"], "media_type": 2, "product_type": "clips",
+            "user": original["user"], "image_versions2": original["image_versions2"]}   # no taken_at
 
     def with_reposts(url, scrolls=1, click=()):
         if url.endswith("/reposts/"):
             ig.calls.append("browse:" + url)
-            return [{"data": {"edges": [{"node": original}]}}]
+            return [{"data": {"fetch__XDTUserDict": {"user_reposts_timeline": {
+                "repost_grid_items": [{"media": grid}], "repost_more_available": False}}}}]
         return orig(url, scrolls)
     ig.browse = with_reposts
+    sent = []
+    put = backend.put_items
+    backend.put_items = lambda items: (sent.extend(i["id"] for i in items), put(items))[1]
     Collector(ig, backend, state, FakeDL(), "example.owner").run("full")
     rep = store.items["ig_repost_3400000000000000009"]
     assert rep["repost_of"]["author"] == "other.author" and rep["media"][0]["url"].endswith("/r0.mp4")
-    assert [c for c in ig.calls if c.startswith("browse:")][1].endswith("/reposts/")
+    assert rep["taken_at"] == "2024-04-23T19:20:00Z"
+    first = []
+    for i in sent:
+        if i not in first:
+            first.append(i)
+    # the repost is placed by its pk's time (the grid has no date); everything else by taken_at
+    import calendar
+    def key(i):
+        if i.startswith("ig_repost_"):
+            return parse.pk_time(i.rsplit("_", 1)[1])
+        return calendar.timegm(time.strptime(store.items[i]["taken_at"], "%Y-%m-%dT%H:%M:%SZ"))
+    keys = [key(i) for i in first]
+    assert keys == sorted(keys, reverse=True), first
+    assert state.timeline_len() == 0

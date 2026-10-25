@@ -223,7 +223,7 @@ def members(c) -> dict[str, dict]:
                 hls.append(h["id"])
                 hl_titles.setdefault(h["id"], h.get("title"))
         top = [h for h in hls if h in ded]
-        half = "top" if top else "bottom"
+        half = "all"   # one panel: a single similarity layout over everything
         cur, why = placement(d, r["kind"], hls, ded, W)
         orig = (d.get("repost_of") or {}).get("taken_at") if isinstance(d.get("repost_of"), dict) else None
         label_hl = (top or hls or [None])[0]
@@ -236,7 +236,7 @@ def members(c) -> dict[str, dict]:
     for h in published_hits():
         d = h["data"]
         top_hit = h["section"] == "dedicated"
-        out["hit:" + h["id"]] = {"half": "top" if top_hit else "bottom", "kind": "hit", "video": True,
+        out["hit:" + h["id"]] = {"half": "all", "kind": "hit", "video": True,
                                  "curation": W["hit_top"] if top_hit else W["hit_bottom"],
                                  "original_at": (d.get("video") or {}).get("posted_at") or h["published_at"],
                                  "curation_reason": "detected, published in the top section" if top_hit
@@ -297,7 +297,7 @@ def update_layout(c) -> dict:
             if i in mem and mem[i]["half"] != p["half"]:
                 c.execute("DELETE FROM layout WHERE id=?", (i,))
     placed = {r["id"]: dict(r) for r in c.execute("SELECT * FROM layout")}
-    for half in ("top", "bottom"):
+    for half in ("all",):
         ids = [i for i, m in mem.items() if m["half"] == half and i in vec and m["video"]]
         if not ids:
             continue
@@ -390,7 +390,7 @@ def layout(c) -> dict:
     mem = members(c)
     vec = vectors(c, set(mem))
     params = size_params(c)
-    halves = {"top": [], "bottom": []}
+    tiles_out: list = []
     tiles = {}
     for r in c.execute("SELECT * FROM layout"):
         m = mem.get(r["id"])
@@ -404,7 +404,7 @@ def layout(c) -> dict:
              "placement_reason": m["curation_reason"], "curation": m["curation"],
              "label": m["label"], "taken_at": m["taken_at"]}
         tiles[hid] = t
-        halves[m["half"]].append(t)
+        tiles_out.append(t)
     # images sit beside their video, smaller, in the video's half
     by_video: dict[str, list] = {}
     for img, vid in attachments(c, mem, vec).items():
@@ -417,15 +417,16 @@ def layout(c) -> dict:
         for k, img in enumerate(imgs):
             ang = math.pi / 4 + k * (2 * math.pi / max(len(imgs), 6))
             rad = 0.012 + 0.018 * v["size"]
-            halves[mem[vid]["half"]].append({
+            tiles_out.append({
                 "id": img, "kind": "item", "attached_to": v["id"],
                 "x": round(min(max(v["x"] + rad * math.cos(ang), 0), 1), 4),
                 "y": round(min(max(v["y"] + rad * math.sin(ang), 0), 1), 4),
                 "size": round(v["size"] * 0.45, 4), "curation": mem[img]["curation"],
                 "label": v["label"], "taken_at": mem[img]["taken_at"]})
-    for h in halves.values():
-        h.sort(key=lambda t: (t["taken_at"] or "", t["id"]), reverse=True)   # newest first
-    return {"halves": halves, "updated_at": setting(c, "home.layout_at") or None,
+    tiles_out.sort(key=lambda t: (t["taken_at"] or "", t["id"]), reverse=True)   # newest first
+    return {"tiles": tiles_out,
+            "halves": {"top": [], "bottom": tiles_out},   # compatibility for one release: one panel now
+            "updated_at": setting(c, "home.layout_at") or None,
             "display_exponent": float(setting(c, "size.display_exponent") or 2),
             "size_params": params}
 
@@ -447,12 +448,9 @@ def related(c, item_id: str, limit: int = 20) -> list[dict]:
             continue
         sim = float(v @ me)
         scored.append((sim * (0.5 + 0.5 * mem[i]["curation"]), mem[i]["taken_at"] or "", i, sim))
-    def order(lst):   # most similar first; equal similarity: the newer first
+    def order(lst):   # most similar first (weighted by placement); equal: the newer first
         return sorted(lst, key=lambda s: (-round(s[0], 4), -_ts(s[1])))
-    same = order([s for s in scored if mem[s[2]]["half"] == mem[key]["half"]])
-    other = order([s for s in scored if mem[s[2]]["half"] != mem[key]["half"]])
-    n_same = min(len(same), max(limit - min(len(other), max(1, limit // 4)), 0))
-    pick = same[:n_same] + other[:limit - n_same]
+    pick = order(scored)[:limit]
     att = attachments(c, mem, vec)   # an image follows its video when both are listed
     ids = [p[2] for p in pick]
     moved = [p for p in pick if att.get(p[2]) in ids]

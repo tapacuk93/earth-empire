@@ -314,15 +314,14 @@ These replace hard-coded places and categories on the site and in the apps. The 
 Home is two zoomable mosaics and a tag graph below them. Everything here is built from published
 items and published monitor hits only.
 
-- **Halves:** `top` holds the items in the owner's dedicated highlights and the hits published with
-  `section: "dedicated"`. `bottom` holds everything else (the big catch-all highlights, items in no
-  highlight) and the hits published as `common`. The dedicated highlights are the owner's choice
-  (`PUT /v1/monitor/sections`). Until it is made, a highlight counts as dedicated when it holds at
-  most 30 items and under a quarter of all highlighted items.
+- **One panel.** Every published item and every hit the owner published ("+") is in a single mosaic.
+  There are no halves; where an item lives only sets its `placement` weight (below). A hit published
+  once ("+") has placement 0.5, and published a second time, 1. (The monitor still stores this as
+  `section` `common` and `dedicated`.)
 - **Closeness** is similarity. The backend embeds each item's description and analysis (and each
   hit's excerpt) with an open-source multilingual sentence model on the box. It places each half
   with a seeded t-SNE, and puts a new tile next to its nearest neighbours without moving the others.
-  When a half has doubled, the whole half is placed again, aligned to the old picture.
+  When the mosaic has doubled, it is placed again, aligned to the old picture.
 - **Size** of a tile (owner-tunable in Settings):
 
   **size = placement × age_factor × importance_factor**
@@ -335,7 +334,7 @@ items and published monitor hits only.
     | **0.5** | an item in a **shared** (large) highlight |
     | **0.25** | a repost made with Instagram's Repost feature (the Reposts tab) |
     | **0.125** | a story in no highlight |
-    | **1 / 0.5** | a published monitor hit in the top / bottom section |
+    | **0.5 / 1** | a monitor hit published with one "+" / with a second "+" |
 
   - **age_factor** = max(`age_floor`, 0.5 ^ (age_days / `half_life_days`)), counted from the
     **original** publication (for a repost, the original's date). Defaults: half-life 7 days,
@@ -364,14 +363,88 @@ items and published monitor hits only.
 
 Public:
 
-- `GET /v1/layout` → `{"halves": {"top": [Tile], "bottom": [Tile]}, "updated_at"}`, newest first, where
+- `GET /v1/layout` → `{"tiles": [Tile], "updated_at", "display_exponent", "size_params"}`, newest first, where
   `Tile = {"id", "kind": "item" | "hit", "x": 0-1, "y": 0-1, "size": 0-1, "placement", "age_days",
   "age_factor", "importance_factor", "placement_reason", "curation", "label": "<highlight
   name, source name for a hit, else Reels/Posts/Stories>", "taken_at", "attached_to"?: "<video id>"}`.
   A hit's `id` is its hit id (details in `/v1/published`). **Images are never tiles of their own:**
   an item without video carries `attached_to`, its most similar video (the same half first), sits
-  right beside it in that video's half, and is under half its size. Items with a video are laid out
+  right beside it, and is under half its size. Items with a video are laid out
   by similarity as above.
+  `halves` (`{"top": [], "bottom": tiles}`) is still sent for one release, for older clients.
+- `GET /v1/items/{id}/related?limit=20` → `{"related": [{"id", "kind", "score", "rank", "curation",
+  "item"?: Item}]}`, ranked across everything: `score` is the similarity, and `rank` = score ×
+  (0.5 + 0.5 × placement) orders the list. Equal ranks go to the newer item, and an image follows
+  its video. Also takes a hit id.
+- `GET /v1/tags/graph` puts the facets' categories at `level` 0 (`kinds: ["facet"]`, with `facet`,
+  `facet_name`, `category`), linked to the tags their items share most. The tags follow at levels 1+.
+
+These replace hard-coded places and categories on the site and in the apps. The per-item
+`categories` from the analysis stay as tags.
+
+## Home layout
+
+Home is two zoomable mosaics and a tag graph below them. Everything here is built from published
+items and published monitor hits only.
+
+- **One panel.** Every published item and every hit the owner published ("+") is in a single mosaic.
+  There are no halves; where an item lives only sets its `placement` weight (below). A hit published
+  once ("+") has placement 0.5, and published a second time, 1. (The monitor still stores this as
+  `section` `common` and `dedicated`.)
+- **Closeness** is similarity. The backend embeds each item's description and analysis (and each
+  hit's excerpt) with an open-source multilingual sentence model on the box. It places each half
+  with a seeded t-SNE, and puts a new tile next to its nearest neighbours without moving the others.
+  When the mosaic has doubled, it is placed again, aligned to the old picture.
+- **Size** of a tile (owner-tunable in Settings):
+
+  **size = placement × age_factor × importance_factor**
+
+  - **placement**, from where the item lives; the highest that applies:
+
+    | Weight | When |
+    |---|---|
+    | **1** | a post (the owner's own), or an item in a **dedicated** highlight |
+    | **0.5** | an item in a **shared** (large) highlight |
+    | **0.25** | a repost made with Instagram's Repost feature (the Reposts tab) |
+    | **0.125** | a story in no highlight |
+    | **0.5 / 1** | a monitor hit published with one "+" / with a second "+" |
+
+  - **age_factor** = max(`age_floor`, 0.5 ^ (age_days / `half_life_days`)), counted from the
+    **original** publication (for a repost, the original's date). Defaults: half-life 7 days,
+    floor 0.05.
+  - **importance_factor** = 1 − w + w × importance, where `importance` (0-1) is scored by Claude
+    by the **importance rubric** and `w` defaults to 0.4.
+  - **Display:** a tile's **area** follows `size ** display_exponent` (default 2). `/v1/layout`
+    returns `display_exponent` (and `size_params`), and the site and apps apply it.
+
+  Items carry `placement` and `placement_reason` (`curation` and `curation_reason` are the same
+  values, under their earlier names). Tiles carry `size` and its parts: `placement`, `age_days`,
+  `age_factor` and `importance_factor`. Time orders (newest first, ties) stay purely by `taken_at`.
+- **Importance is scored from the item itself:** the images, frames across every video, the speech
+  transcripts (for a repost, the original's audio too), the on-screen text and the description, with
+  the current rubric. Transcripts are cached, so re-scoring never transcribes twice.
+- **The importance rubric** is plain text in settings, with every version kept. Once a day, Claude
+  reviews it against the content and proposes a better one. A refinement (same intent, clearer or
+  more accurate) is applied as a new version, and any other proposal is recorded but not applied.
+  The owner can also replace it. A new version re-scores every item in the background, within
+  `importance.rescore_daily_cap` (400) a day.
+- **Background jobs** run continuously, always behind the analysis of new items: importance
+  scoring, the daily rubric review, facets, and the layout (every minute). `GET /v1/status` (owner)
+  shows each one as a component (`importance`, `rubric`, `facets`, `layout`, `spend`) with its queue,
+  progress, the rubric version, the last facets run, the last layout recompute and today's spend
+  by purpose. The item being worked on now is in `activity.jobs`.
+
+Public:
+
+- `GET /v1/layout` → `{"tiles": [Tile], "updated_at", "display_exponent", "size_params"}`, newest first, where
+  `Tile = {"id", "kind": "item" | "hit", "x": 0-1, "y": 0-1, "size": 0-1, "placement", "age_days",
+  "age_factor", "importance_factor", "placement_reason", "curation", "label": "<highlight
+  name, source name for a hit, else Reels/Posts/Stories>", "taken_at", "attached_to"?: "<video id>"}`.
+  A hit's `id` is its hit id (details in `/v1/published`). **Images are never tiles of their own:**
+  an item without video carries `attached_to`, its most similar video (the same half first), sits
+  right beside it, and is under half its size. Items with a video are laid out
+  by similarity as above.
+  `halves` (`{"top": [], "bottom": tiles}`) is still sent for one release, for older clients.
 - `GET /v1/items/{id}/related?limit=20` → `{"related": [{"id", "kind", "half", "score", "rank", "curation",
   "item"?: Item}]}`: `score` is the similarity, and `rank` = score × (0.5 + 0.5 × curation) orders the
   list. The same half comes first (about three quarters of `limit`), then the other half; equal

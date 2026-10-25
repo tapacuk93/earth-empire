@@ -33,28 +33,35 @@ backend/deploy/deploy-site.sh
 
 ## Routes
 
+The site presents the archive as data rather than as a profile.
+
 | URL | Page |
 |---|---|
-| `/` | profile, highlights, then either the **tag cloud** with a grid, or **everything by date** (a month-by-month timeline). The visitor's choice is remembered in `localStorage`. Query: `kind`, `category`, `tag`, `q`, `view=tags\|timeline`. |
-| `/item/<id>` | media viewer, caption, details, description and the analysis; a repost shows the sharing item and the credited original side by side (stacked on phones) |
+| `/` | **Home**, built from the items and analyses (`src/stats.ts`, `src/components/Charts.tsx`, no chart library): totals; one panel per **section** (the owner's dedicated highlights first, then the common ones) with counts, people named, places, key moments, highlights, media and the hits published into it; a **timeline** band of activity by month; a **places** plot and bar list; **themes** as a treemap of tags plus category bars; and **everything by date** with search and kind. Picking a month, place, tag or category (`?m= ?p= ?t= ?c=`) shows that selection's items. |
+| `/item/<id>?ctx=<context>` | the **vertical feed**: fullscreen, one item per screen. Swipe, wheel, arrow keys or j/k move through the context the item was opened from (`section:`, `tag:`, `month:`, `place:`, `cat:`, `person:`, `hl:`, `q:`, `kind:`, or everything; see `src/context.ts`). Videos autoplay muted, and a tap unmutes. An overlay holds the description and a few facts, and **More** expands the caption, details and full analysis (the event timeline seeks the video). The URL follows the item on screen, and Close (or Esc) returns to the same spot. |
 | `/highlight/<id>?item=<id>` | Instagram-style story viewer: tap left/right, hold to pause, swipe sideways for the next highlight, swipe down or Esc to close; arrows, Space, `m` on a keyboard |
 | `/category/<slug>` | one category |
 | `/detected` (owner) | the monitor's hits by confidence, labelled (likely, possible, low confidence), with the excerpt, clip and frame; **+ Publish** puts one on Home; "Fetch N more" asks the monitor to scan more (`POST /v1/monitor/fetch`) |
 | `/status` (owner) | component health (`GET /v1/status`, every 10 s), what is running now, latest events, monitor stats (`GET /v1/monitor/status`) |
 | `/settings` | the owner token; for the owner, the phrases (variants read-only, Save, Rescan) |
 
-Home is the only public section: the hits the owner published (`GET /v1/published`), then the
-Instagram mirror. `?watch=<id>` on Home or Detected opens the **fullscreen mode**: one per screen,
+Home is the only public section. The hits the owner published (`GET /v1/published`) appear in the panel of
+the section chosen at publish. `?watch=<id>` on Home or Detected opens the **fullscreen mode**: one per screen,
 swipe or arrow keys up and down. On Home it plays the published hits (frame and clip), then the
 archive's videos.
 
-**Owner mode:** visitors see only Home and a small "Owner" link in the footer, which goes to
+**Owner mode**, as in the apps: visitors see only Home and a dim key button ("Owner sign-in") in the header, which goes to
 `/settings`. There the owner enters the token (`earth-empire/admin-token`). It is checked with
 `GET /v1/admin/me` and kept in this browser's `localStorage`. The token is checked again on each
 visit, and a rejected one is forgotten. Only then do Detected, Status and Settings appear; their
 routes show the sign-in form to anyone else. They are not prerendered, are absent from the sitemap,
 are disallowed in `robots.txt`, and carry `noindex`. Every monitor and status request sends the
 token. Signed storage URLs in a hit are never shown as links.
+
+**Provisional, until CONTRACT.md defines them** (`src/sections.ts`, `src/live.ts`):
+- A highlight is in the dedicated section when the API marks it (`section: "dedicated"`, `kind: "dedicated"` or `dedicated: true`); every other highlight is common.
+- A hit's suggestion is read from `suggested_section` (`{section, reason}`), and its section from `section`. Publishing sends `{"section"}`.
+- Suggested phrases come from `GET /v1/monitor/phrases/suggestions`. Without that endpoint, the highlight titles are suggested. Rejections go to `POST /v1/monitor/phrases/suggestions/reject` and are also kept locally.
 
 ## Sharing: prerendered route shells
 

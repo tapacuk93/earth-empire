@@ -18,46 +18,76 @@ async function noHorizontalScroll(page: Page) {
   expect(over, 'page scrolls sideways').toBeLessThanOrEqual(1);
 }
 
-const tiles = (page: Page) => page.locator('.feed .grid:not(.skeleton) .tile a');
+const rows = (page: Page) => page.locator('.feed .tl-row');
+const feed = (page: Page) => page.getByRole('dialog', { name: /item \d+ of \d+/ });
 
-test('home: profile, highlights, grid, no sideways scroll', async ({ page }) => {
+test('home: infographics, not a profile; no sideways scroll; every image described', async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('earth.empire');
-  await expect(page.getByRole('navigation', { name: 'Highlights' }).getByRole('link')).toHaveCount(3);
-  await expect.poll(() => tiles(page).count()).toBeGreaterThanOrEqual(24);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Earth Empire, in data');
+  await expect(page.locator('.hero .kpi').first()).toContainText('28');
+  for (const name of ['About the owner', 'Everything else', 'Timeline', 'Places', 'Themes', 'Everything, by date']) {
+    await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
+  }
+  // No profile header, follower counts, highlight bubbles or square grid.
+  await expect(page.getByText(/\d+\s+followers/)).toHaveCount(0);
+  await expect(page.locator('.hl-row, .grid .tile, .profile')).toHaveCount(0);
+  await expect(page.getByRole('list', { name: 'Months' }).or(page.locator('.band li'))).not.toHaveCount(0);
   await noHorizontalScroll(page);
-  // Every image says what it shows.
-  const missingAlt = await page.locator('img:not([alt])').count();
-  expect(missingAlt).toBe(0);
-  // More items arrive on scroll (tall screens load them at once) or with the button.
-  const more = page.getByRole('button', { name: 'Load more' });
-  if (await more.isVisible()) await more.click({ timeout: 3000 }).catch(() => undefined);
-  await expect(tiles(page)).toHaveCount(28);
-  await expect(page.getByRole('button', { name: 'Load more' })).toHaveCount(0);
+  expect(await page.locator('img:not([alt])').count()).toBe(0);
   expect(errors).toEqual([]);
 });
 
-test('home: kind filter, category filter and search', async ({ page }) => {
+test('home: sections as panels with counts, people, places, moments and media', async ({ page }) => {
+  await page.goto('/');
+  const ded = page.getByRole('region', { name: 'About the owner' });
+  const com = page.getByRole('region', { name: 'Everything else' });
+  expect((await ded.boundingBox())!.y).toBeLessThan((await com.boundingBox())!.y);
+  await expect(ded.locator('.kpi').first()).toContainText('2');
+  await expect(ded.getByRole('link', { name: /^Travel/ })).toHaveAttribute('href', '/highlight/hl_9001');
+  await expect(ded.getByRole('link', { name: /Dunas Altas/ }).first()).toBeVisible();
+  await expect(ded.getByRole('list', { name: 'Media: About the owner' }).locator('li')).toHaveCount(2);
+  await expect(ded.getByRole('button', { name: /Fullscreen: City council/ })).toBeVisible();
+  await expect(com.getByRole('button', { name: /Fullscreen: Regional news/ })).toBeVisible();
+  await expect(com.getByRole('link', { name: /^Food/ })).toBeVisible();
+});
+
+test('home: timeline, map and themes pick a context and show its items', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /^Sep 2026: \d+ items?$/ }).click();
+  await expect(page).toHaveURL(/m=2026-09/);
+  const sel = page.getByRole('region', { name: 'Timeline' }).locator('.selection');
+  await expect(sel).toContainText('Sep 2026');
+  await expect(sel.locator('.strip li')).not.toHaveCount(0);
+  await page.getByRole('region', { name: 'Places' }).getByRole('button', { name: /^Cape Lumen Lighthouse.*: 1$/ }).click();
+  await expect(page.getByRole('region', { name: 'Places' }).locator('.selection')).toContainText('1 item');
+  const theme = page.getByRole('region', { name: 'Themes' });
+  const big = theme.getByRole('button', { name: /^calm, mood, 19 items$/ });
+  const small = theme.getByRole('button', { name: /^@mira\.sails, person, 1 item$/ });
+  const area = async (l: typeof big) => { const b = (await l.boundingBox())!; return b.width * b.height; };
+  expect(await area(big)).toBeGreaterThan(await area(small));
+  await small.click();
+  await expect(page).toHaveURL(/t=%40mira\.sails/);
+  await theme.locator('.selection').getByRole('link', { name: 'Open the feed' }).click();
+  await expect(feed(page)).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/item/${REEL}\\?ctx=tag%3A%40mira\\.sails`));
+  await page.keyboard.press('Escape');
+  await expect(page).toHaveURL(/t=%40mira\.sails/);
+  await expect(theme.locator('.selection')).toBeVisible();
+});
+
+test('home: search and kind filter the list of everything', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('group', { name: 'Kind' }).getByRole('button', { name: 'Reels' }).click();
-  await expect(page).toHaveURL(/kind=reel/);
-  await expect(tiles(page)).toHaveCount(2);
+  await expect(rows(page)).toHaveCount(2);
   await page.getByRole('group', { name: 'Kind' }).getByRole('button', { name: 'Stories' }).click();
-  await expect(tiles(page)).toHaveCount(4);
+  await expect(rows(page)).toHaveCount(4);
   await page.getByRole('group', { name: 'Kind' }).getByRole('button', { name: 'All' }).click();
-  await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Everything, by date' }).click();
-  await page.getByRole('group', { name: 'Category' }).getByRole('button', { name: /^Food/ }).click();
-  await expect(page).toHaveURL(/category=food/);
-  await expect(page.locator('.tl-row')).toHaveCount(4);
-  await page.getByRole('group', { name: 'Category' }).getByRole('button', { name: 'All categories' }).click();
-  await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Tag cloud' }).click();
-
   const box = page.getByRole('searchbox');
   await box.fill('lighthouse');
   await expect(page).toHaveURL(/q=lighthouse/);
-  await expect(tiles(page)).toHaveCount(1);
-  await expect(tiles(page).first()).toHaveAttribute('href', `/item/${REEL}`);
+  await expect(rows(page)).toHaveCount(1);
+  await expect(rows(page).first()).toHaveAttribute('href', `/item/${REEL}?ctx=q%3Alighthouse`);
   await box.fill('zzzz-nothing');
   await box.press('Enter');
   await expect(page.locator('.empty')).toContainText('Nothing matches');
@@ -66,105 +96,91 @@ test('home: kind filter, category filter and search', async ({ page }) => {
 test('search from a deep link and from a hashtag', async ({ page }) => {
   await page.goto('/?q=%23recipe');
   await expect(page.getByRole('searchbox')).toHaveValue('#recipe');
-  await expect(tiles(page)).toHaveCount(1);
+  await expect(rows(page)).toHaveCount(1);
 });
 
-test('item: reel with analysis; the timeline seeks the video', async ({ page }) => {
-  const errors = watchErrors(page);
+test('feed: one item per screen, arrows move through the context, the URL follows, close returns', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('region', { name: 'Everything, by date' }).scrollIntoViewIfNeeded();
+  const y = await page.evaluate(() => scrollY);
+  await rows(page).nth(1).click();
+  const f = feed(page);
+  await expect(f).toBeVisible();
+  await expect(f).toHaveAccessibleName('Everything: item 2 of 28');
+  await expect(page).toHaveURL(new RegExp(`/item/${CAROUSEL}$`));
+  await page.keyboard.press('ArrowDown');
+  await expect(f).toHaveAccessibleName('Everything: item 3 of 28');
+  await expect(page).toHaveURL(/\/item\/ig_3400000000000000003$/);
+  await expect(page).toHaveTitle(/dunes/);
+  await page.keyboard.press('ArrowUp');
+  await expect(f).toHaveAccessibleName('Everything: item 2 of 28');
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(f).toHaveCount(0);
+  await expect(page).toHaveURL(/\/$/);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(y - 200);
+});
+
+test('feed: a section context, the overlay, expanded analysis, and seeking the video', async ({ page }) => {
   await page.goto(`/item/${REEL}`);
+  const f = feed(page);
+  await expect(f).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/sunset run/);
-  await expect(page.locator('time').first()).toHaveAttribute('datetime', /2026-10-23/);
-  await expect(page.getByRole('link', { name: 'Cape Lumen Lighthouse' })).toBeVisible();
-  await expect(page.getByText('Golden Hour Drive — The Paper Kites (sample)')).toBeVisible();
-  await expect(page.getByRole('link', { name: '@mira.sails' }).first()).toHaveAttribute('href', 'https://www.instagram.com/mira.sails/');
-  await expect(page.getByText('named from a mention')).toBeVisible();
-  await expect(page.getByRole('heading', { name: /Transcript/ })).toBeVisible();
-  await expect(page.getByText('Day 12', { exact: false }).first()).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Travel' })).toHaveAttribute('href', '/category/travel');
-  const video = page.locator('.viewer video');
+  const slide = f.locator('.islide').first();
+  await expect(slide.locator('.ifacts')).toContainText('With @mira.sails');
+  const video = slide.locator('video');
   await expect(video).toHaveAttribute('poster', /reel-sunset\.cover\.jpg/);
-  await noHorizontalScroll(page);
-
+  expect(await video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(true);
+  await slide.getByRole('button', { name: 'More' }).click();
+  const sheet = slide.getByRole('region', { name: 'What’s in it' });
+  await expect(sheet.getByText('named from a mention')).toBeVisible();
+  await expect(sheet.getByRole('heading', { name: /Transcript/ })).toBeVisible();
+  await expect(slide.getByRole('link', { name: 'Cape Lumen Lighthouse' })).toBeVisible();
   const playable = await video.evaluate((v: HTMLVideoElement) => v.canPlayType('video/mp4; codecs="avc1.4D401E, mp4a.40.2"') !== '');
-  await page.getByRole('button', { name: /0:03\s*The lighthouse comes into view/ }).click();
-  if (playable) {
-    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 8000 }).toBeGreaterThan(2.9);
-  }
-  expect(errors).toEqual([]);
-});
-
-test('item: carousel moves with buttons, dots and keys', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' }); // instant scrolls, so each step is settled before the next
-  await page.goto(`/item/${CAROUSEL}`);
-  const viewer = page.getByRole('region', { name: /Carousel media/ });
-  await expect(viewer).toBeVisible();
-  await expect(viewer.locator('.counter')).toHaveText('1/3');
-  await viewer.getByRole('button', { name: 'Next slide' }).click();
-  await expect(viewer.locator('.counter')).toHaveText('2/3');
-  await viewer.getByRole('button', { name: 'Show slide 3 of 3' }).click();
-  await expect(viewer.locator('.counter')).toHaveText('3/3');
-  await expect(viewer.getByRole('button', { name: 'Next slide' })).toBeDisabled();
-  await viewer.locator('.track').focus();
-  await page.keyboard.press('ArrowLeft');
-  await expect(viewer.locator('.counter')).toHaveText('2/3');
-  // A swipe is a native scroll of the track.
-  // Let the smooth scroll to slide 2 finish (a real touch would cancel it), then swipe back.
-  await expect.poll(() => viewer.locator('.track').evaluate((t) => Math.abs(t.scrollLeft - t.clientWidth) < 2)).toBe(true);
-  await viewer.locator('.track').evaluate((t) => { t.dispatchEvent(new Event('touchstart', { bubbles: true })); t.scrollTo({ left: 0 }); });
-  await expect(viewer.locator('.counter')).toHaveText('1/3');
-  await expect(page.getByRole('link', { name: '@leo.maps' }).first()).toBeVisible();
-});
-
-test('item: a story repost shows the original credited and linked', async ({ page }) => {
-  await page.goto(`/item/${STORY_REPOST}`);
-  const shared = page.locator('.pane.sharing');
-  const original = page.locator('.pane.original');
-  await expect(shared).toBeVisible();
-  await expect(original).toBeVisible();
-  await expect(original.locator('figcaption')).toContainText('Reel by @oceanlab');
-  await expect(original.getByRole('link', { name: '@oceanlab' })).toHaveAttribute('href', 'https://www.instagram.com/oceanlab/');
-  await expect(original.getByRole('link', { name: /View on Instagram/ })).toHaveAttribute('href', 'https://www.instagram.com/reel/DMockOrig1/');
-  // Side by side when there is room, stacked when not.
-  const a = await shared.boundingBox(), b = await original.boundingBox();
-  const vw = page.viewportSize()!.width;
-  if (vw >= 720) expect(Math.abs(a!.y - b!.y)).toBeLessThan(5);
-  else expect(b!.y).toBeGreaterThan(a!.y + a!.height - 1);
-  await expect(page.locator('.details a[href^="/highlight/hl_9003"]')).toHaveText('Ocean');
+  await sheet.getByRole('button', { name: /0:03\s*The lighthouse comes into view/ }).click();
+  if (playable) await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 8000 }).toBeGreaterThan(2.9);
+  await page.getByRole('button', { name: 'Unmute', exact: true }).click();
+  expect(await video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(false);
   await noHorizontalScroll(page);
 });
 
-test('item: a post repost of a carousel', async ({ page }) => {
+test('feed: carousels swipe sideways; reposts credit the original', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(`/item/${CAROUSEL}`);
+  const slide = feed(page).locator('.islide[data-i="1"]');
+  await expect(slide.locator('.idots span')).toHaveCount(3);
+  await slide.locator('.imedia').evaluate((el) => el.scrollTo({ left: el.clientWidth * 2 }));
+  await expect(slide.locator('.idots span').nth(2)).toHaveClass('on');
+  await page.goto(`/item/${STORY_REPOST}`);
+  const r = feed(page).locator('.islide[data-i="3"]');
+  await expect(r.locator('.imeta')).toContainText('Reel by @oceanlab');
+  await expect(r.getByRole('link', { name: '@oceanlab' })).toHaveAttribute('href', 'https://www.instagram.com/reel/DMockOrig1/');
   await page.goto(`/item/${POST_REPOST}`);
-  await expect(page.locator('.pane.original figcaption')).toContainText('Post by @mountainclub');
-  await expect(page.locator('.pane.original .counter')).toHaveText('1/2');
+  await expect(feed(page).locator('.islide[data-i="6"] .imeta')).toContainText('Post by @mountainclub');
+});
+
+test('feed: a highlight context from a section panel opens the story viewer', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('region', { name: 'About the owner' }).getByRole('link', { name: /^Travel/ }).click();
+  await expect(page.getByRole('region', { name: 'Highlight: Travel' })).toBeVisible();
 });
 
 test('highlight: story viewer with progress bars, taps, keys and close', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('navigation', { name: 'Highlights' }).getByRole('link', { name: 'Travel' }).click();
+  await page.getByRole('region', { name: 'About the owner' }).getByRole('link', { name: /^Travel/ }).click();
   const viewer = page.getByRole('region', { name: 'Highlight: Travel' });
   await expect(viewer).toBeVisible();
-  await expect(viewer.getByRole('heading', { name: 'Travel' })).toBeVisible();
   await expect(viewer.locator('.bar')).toHaveCount(2);
   await expect(viewer.getByRole('status')).toContainText('Story 1 of 2');
-  await expect(page).toHaveURL(/item=ig_3400000000000000003/);
-  // The progress bar moves.
   await expect.poll(() => viewer.locator('.bar').first().locator('.bar-fill').evaluate((e) => getComputedStyle(e).transform), { timeout: 4000 }).not.toBe('matrix(0, 0, 0, 1, 0, 0)');
-  // Pause, so the image timer cannot move on by itself while we tap.
   await page.keyboard.press(' ');
   await expect(viewer.getByRole('button', { name: 'Play' })).toBeVisible();
-  // Tap the right side for the next story.
-  const stage = viewer.locator('.story-stage');
-  const box = (await stage.boundingBox())!;
+  const box = (await viewer.locator('.story-stage').boundingBox())!;
   await page.mouse.click(box.x + box.width * 0.8, box.y + box.height * 0.5);
   await expect(viewer.getByRole('status')).toContainText('Story 2 of 2');
   await page.keyboard.press('ArrowLeft');
   await expect(viewer.getByRole('status')).toContainText('Story 1 of 2');
-  await page.keyboard.press(' ');
-  await expect(viewer.getByRole('button', { name: 'Pause' })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page).toHaveURL(/\/$/);
-  await expect(tiles(page).first()).toBeVisible();
 });
 
 test('highlight: images advance on their own, then the next highlight', async ({ page }) => {
@@ -174,23 +190,14 @@ test('highlight: images advance on their own, then the next highlight', async ({
   await expect(page).toHaveURL(/\/highlight\/hl_9003/);
 });
 
-test('category page', async ({ page }) => {
+test('category page as a panel', async ({ page }) => {
   await page.goto('/category/food');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Food');
-  await expect(tiles(page)).toHaveCount(4);
+  await expect(page.locator('.hero .kpi').first()).toContainText('4');
+  await expect(rows(page)).toHaveCount(4);
   await page.getByRole('group', { name: 'Kind' }).getByRole('button', { name: 'Reels' }).click();
-  await expect(tiles(page)).toHaveCount(1);
+  await expect(rows(page)).toHaveCount(1);
   await noHorizontalScroll(page);
-});
-
-test('navigation: open an item from the grid and come back', async ({ page }) => {
-  await page.goto('/');
-  await tiles(page).nth(1).click();
-  await expect(page).toHaveURL(new RegExp(`/item/${CAROUSEL}`));
-  await expect(page.getByRole('heading', { level: 1 })).toBeFocused();
-  await page.getByRole('link', { name: 'Archive' }).click();
-  await expect(page).toHaveURL(/\/$/);
-  await expect.poll(() => tiles(page).count()).toBeGreaterThanOrEqual(24);
 });
 
 test('share tags are in the HTML of every main route', async ({ request }) => {
@@ -244,55 +251,8 @@ test('keyboard: skip link and visible focus', async ({ page, browserName }) => {
 test('reduced motion is respected', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
-  const d = await page.locator('.tile img').first().evaluate((e) => getComputedStyle(e).transitionDuration);
+  const d = await page.locator('.cell').first().evaluate((e) => getComputedStyle(e).transitionDuration);
   expect(parseFloat(d)).toBeLessThan(0.01);
-});
-
-test('tag cloud: sized by count, a click filters the items', async ({ page }) => {
-  await page.goto('/');
-  const cloud = page.getByRole('region', { name: 'Tags' });
-  await expect(cloud).toBeVisible();
-  const nature = cloud.getByRole('button', { name: /^Nature, category, 10 items$/ });
-  const mira = cloud.getByRole('button', { name: /^@mira\.sails, person, 1 item$/ });
-  await expect(nature).toBeVisible();
-  const big = await nature.evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
-  const small = await mira.evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
-  expect(big).toBeGreaterThan(small);
-  await mira.click();
-  await expect(page).toHaveURL(/tag=%40mira\.sails/);
-  await expect(tiles(page)).toHaveCount(1);
-  await expect(tiles(page).first()).toHaveAttribute('href', `/item/${REEL}`);
-  await cloud.getByRole('group', { name: 'Tag type' }).getByRole('button', { name: 'Keywords' }).click();
-  await cloud.getByRole('button', { name: /^squash, keyword/ }).click();
-  await expect(tiles(page)).toHaveCount(2);
-  await page.getByRole('button', { name: 'Clear' }).click();
-  await expect(tiles(page)).toHaveCount(24);
-  await noHorizontalScroll(page);
-});
-
-test('view toggle: everything by date, remembered across visits', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Everything, by date' }).click();
-  await expect(page.getByRole('region', { name: 'Tags' })).toHaveCount(0);
-  await expect(page.locator('.tl-month').first().getByRole('heading')).toHaveText('October 2026');
-  const dates = await page.locator('.tl-row time').evaluateAll((ts) => ts.map((t) => t.getAttribute('datetime')!));
-  expect(dates.length).toBeGreaterThan(10);
-  expect([...dates].sort().reverse()).toEqual(dates);
-  await page.reload();
-  await expect(page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Everything, by date' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('.tl-row').first()).toBeVisible();
-  await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Tag cloud' }).click();
-  await page.reload();
-  await expect(page.getByRole('region', { name: 'Tags' })).toBeVisible();
-});
-
-test('video covers: the chosen frame, else the thumbnail', async ({ page }) => {
-  await page.goto(`/item/${REEL}`);
-  await expect(page.locator('.viewer video')).toHaveAttribute('poster', /reel-sunset\.cover\.jpg/);
-  await page.goto('/item/ig_3400000000000000006');
-  await expect(page.locator('.viewer video')).toHaveAttribute('poster', /story-market\.thumb\.jpg/);
-  await page.goto('/?kind=reel');
-  await expect(tiles(page).first().locator('img')).toHaveAttribute('src', /\.cover\.jpg/);
 });
 
 test('app links: the association files are served as JSON', async ({ request }) => {
@@ -406,14 +366,13 @@ test('detected: by confidence, labels, publish to Home, fetch more, fullscreen',
   await noHorizontalScroll(page);
 });
 
-test('home: published hits and the fullscreen mode', async ({ page }) => {
+test('home: published hits play in the fullscreen mode', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Detected and published' }).first()).toBeVisible();
   await page.getByRole('button', { name: /Fullscreen: City council/ }).click();
-  const dlg = page.getByRole('dialog', { name: 'Watch' });
+  const dlg = page.getByRole('dialog', { name: 'Detected and published' });
   await expect(dlg).toBeVisible();
-  // Two published hits, then the archive's videos.
-  await expect(dlg.locator('.vfeed-slide')).toHaveCount(2 + 4);
+  await expect(dlg.locator('.vfeed-slide')).toHaveCount(2);
+  await expect(dlg).toContainText('Тарас Маслов');
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(dlg).toHaveCount(0);
 });
@@ -435,23 +394,6 @@ test('status and settings for the owner: health, activity, stats, phrases', asyn
   await expect(page.getByText('Instagram asked to slow down; waiting 15 min')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Activity' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Monitor stats' })).toContainText('cpu per audio');
-});
-
-test('home in two parts: the owner’s dedicated highlights first, then the common ones', async ({ page }) => {
-  await page.goto('/');
-  const ded = page.getByRole('region', { name: 'About the owner' });
-  const com = page.getByRole('region', { name: 'Everything else' });
-  await expect(ded).toBeVisible();
-  await expect(com).toBeVisible();
-  const a = (await ded.boundingBox())!, b = (await com.boundingBox())!;
-  expect(a.y).toBeLessThan(b.y);
-  // Travel is dedicated: its highlight and its two items are in the first part.
-  await expect(ded.getByRole('navigation', { name: 'Highlights' }).getByRole('link')).toHaveText(['Travel']);
-  await expect(ded.getByRole('list', { name: 'Items in these highlights' }).locator('.tile')).toHaveCount(2);
-  await expect(com.getByRole('navigation', { name: 'Highlights' }).getByRole('link')).toHaveText(['Food', 'Ocean']);
-  // Published hits go to the section chosen at publish.
-  await expect(ded.getByRole('button', { name: /Fullscreen: City council/ })).toBeVisible();
-  await expect(com.getByRole('button', { name: /Fullscreen: Regional news/ })).toBeVisible();
 });
 
 test('detected: the suggested section and reason; + publishes into the chosen section', async ({ page }) => {

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'preact/hooks';
 import { HitCard, hitSlide } from '../components/MonitorCard';
 import { VideoFeed } from '../components/VideoFeed';
-import { fetchMore, getHits, setPublished, type Hit } from '../monitor';
+import { fetchMore, getHits, labelOf, setPublished, type Hit } from '../monitor';
 import { navigate, type Route } from '../router';
 import { setMeta } from '../util';
 import { withParam } from './Home';
+import { Bars, Kpis } from '../components/Charts';
 import { hitSection, hitSuggestion, SECTION_TITLE, SECTIONS, type SectionId } from '../sections';
 
 const KINDS: [string | undefined, string][] = [[undefined, 'All'], ['name', 'Names'], ['language', 'Language']];
@@ -67,6 +68,22 @@ export function DetectedPage({ route }: { route: Route }) {
         </form>
         <p class="muted small" role="status">{msg}</p>
       </header>
+      {!!hits?.length && (
+        <section class="ipanel" aria-labelledby="det-sum">
+          <header class="ipanel-head"><h2 id="det-sum">At a glance</h2><p class="muted">The hits loaded below</p></header>
+          <Kpis items={[
+            { label: 'Hits', value: hits.length }, { label: 'Likely', value: hits.filter((h) => labelOf(h) === 'likely').length },
+            { label: 'Possible', value: hits.filter((h) => labelOf(h) === 'possible').length }, { label: 'Low confidence', value: hits.filter((h) => labelOf(h) === 'low confidence').length },
+            { label: 'Published', value: hits.filter((h) => h.published_at).length },
+          ]} />
+          <div class="sec-cols">
+            <div><h3>Confidence</h3><Bars label="Hits by confidence" onPick={() => undefined}
+              rows={[9, 8, 7, 6, 5, 4, 3, 2, 1, 0].map((b) => ({ id: String(b), name: `${b * 10}–${b * 10 + 9}%`, count: hits.filter((h) => Math.min(9, Math.floor((h.confidence ?? 0) * 10)) === b).length })).filter((r) => r.count)} /></div>
+            <div><h3>Where</h3><Bars label="Hits by platform" onPick={() => undefined}
+              rows={Object.entries(hits.reduce((m, h) => { const k = h.source?.name || h.platform || '?'; m[k] = (m[k] || 0) + 1; return m; }, {} as Record<string, number>)).map(([name, count]) => ({ id: name, name, count })).sort((a, b) => b.count - a.count)} /></div>
+          </div>
+        </section>
+      )}
       {err ? <p class="error" role="alert">Could not load the hits: {err}</p>
         : !hits ? <p class="muted">Loading…</p>
         : !hits.length ? <p class="empty">Nothing detected yet.</p>

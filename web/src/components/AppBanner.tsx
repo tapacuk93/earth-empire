@@ -62,7 +62,7 @@ export function AppBanner({ route }: { route: Route }) {
   };
 
   return (
-    <aside class="app-banner" aria-label="Open in the app">
+    <aside class={`app-banner ${route.path.startsWith('/item/') ? 'on-feed' : ''}`} aria-label="Open in the app">
       <span class="logo" aria-hidden="true" />
       <span class="app-banner-text"><b>{SITE_NAME}</b><span>Open this page in the app</span></span>
       <a class="btn small" href={appUrl(p)} onClick={open}>Open</a>

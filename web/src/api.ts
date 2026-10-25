@@ -67,7 +67,9 @@ async function mockItems(q: ItemQuery): Promise<ItemPage> {
 
 // Until the API serves /v1/tags (and items?tag=), tags come from every item, read once.
 let allItems: Promise<Item[]> | null = null;
-function getAllItems(): Promise<Item[]> {
+/** Every public item, read once (the infographics are computed from them). */
+export function getAllItems(): Promise<Item[]> {
+  if (MOCK) return loadFixture().then((f) => { remember(f.items); return f.items.slice().sort((a, b) => b.taken_at.localeCompare(a.taken_at)); });
   return (allItems ??= (async () => {
     const out: Item[] = [];
     let before: string | undefined;

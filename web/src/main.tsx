@@ -49,14 +49,14 @@ function App() {
     if (first.current) { first.current = false; return; }
     const h1 = mainRef.current?.querySelector('h1') as HTMLElement | null;
     const target = h1 || mainRef.current;
-    if (target && seg[0] !== 'highlight') { target.setAttribute('tabindex', '-1'); target.focus({ preventScroll: true }); }
+    if (target && seg[0] !== 'highlight' && seg[0] !== 'item') { target.setAttribute('tabindex', '-1'); target.focus({ preventScroll: true }); }
   }, [route.path]);
 
   if (seg[0] === 'highlight' && seg[1] && seg.length === 2) return <main id="main" ref={mainRef}><HighlightPage id={seg[1]} route={route} /></main>;
 
   let page;
   if (seg.length === 0) page = <Home route={route} />;
-  else if (seg[0] === 'item' && seg[1] && seg.length === 2) page = <ItemPage id={seg[1]} />;
+  else if (seg[0] === 'item' && seg[1] && seg.length === 2) page = <ItemPage id={seg[1]} route={route} />;
   else if (seg[0] === 'category' && seg[1] && seg.length === 2) page = <CategoryPage slug={seg[1]} route={route} />;
   else if ((seg[0] === 'detected' || seg[0] === 'monitor') && seg.length === 1) page = <OwnerOnly><DetectedPage route={route} /></OwnerOnly>;
   else if (seg[0] === 'status' && seg.length === 1) page = <OwnerOnly><StatusPage /></OwnerOnly>;

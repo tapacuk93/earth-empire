@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { getStatus, type Component, type State, type Status } from '../live';
 import { getMonitorStatus } from '../monitor';
 import { useData } from '../components/Profile';
+import { Kpis } from '../components/Charts';
 import { fmtDateTime, setMeta } from '../util';
 
 const STATE_LABEL: Record<State, string> = { ok: 'Working', degraded: 'Degraded', down: 'Down', off: 'Off' };
@@ -85,6 +86,8 @@ export function StatusPage() {
       </header>
       {st && (
         <>
+          <Kpis items={(['ok', 'degraded', 'down', 'off'] as State[]).map((s) => ({ label: STATE_LABEL[s], value: st.components.filter((c) => c.state === s).length }))
+            .concat([{ label: 'Running now', value: st.activity?.jobs?.length || 0 }])} />
           <section aria-labelledby="comp-h">
             <h2 id="comp-h" class="sr-only">Components</h2>
             <ul class="comps" role="list">{st.components.map((c) => <ComponentCard key={c.id} c={c} />)}</ul>

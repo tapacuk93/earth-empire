@@ -4,13 +4,14 @@ import type { Item, ItemQuery } from '../types';
 import { settleScroll } from '../router';
 import { altFor, cover, fmtDate, fmtShort, KIND_LABEL } from '../util';
 import { Icon } from './icons';
+import { itemHref } from '../context';
 
 interface State { items: Item[]; next: string | null; done: boolean; error?: string }
 // Lists already loaded, so going back to one shows it at once, as far as it was scrolled.
 const memo = new Map<string, State>();
 const PAGE = 24;
 
-export function Feed({ query, emptyText = 'Nothing here yet.', layout = 'grid' }: { query: ItemQuery; emptyText?: string; layout?: 'grid' | 'timeline' }) {
+export function Feed({ query, emptyText = 'Nothing here yet.', layout = 'grid', ctx = 'all' }: { query: ItemQuery; emptyText?: string; layout?: 'grid' | 'timeline'; ctx?: string }) {
   const key = JSON.stringify(query);
   const [st, setSt] = useState<State>(() => memo.get(key) || { items: [], next: null, done: false });
   const [loading, setLoading] = useState(false);
@@ -62,7 +63,7 @@ export function Feed({ query, emptyText = 'Nothing here yet.', layout = 'grid' }
   return (
     <section class="feed" aria-label="Items" aria-busy={loading}>
       <p class="sr-only" role="status" aria-live="polite">{status}</p>
-      {st.items.length > 0 && (layout === 'timeline' ? <Timeline items={st.items} /> : (
+      {st.items.length > 0 && (layout === 'timeline' ? <Timeline items={st.items} ctx={ctx} /> : (
         <ul class="grid" role="list">
           {st.items.map((it, i) => <Tile key={it.id} item={it} eager={i < 6} />)}
         </ul>
@@ -111,7 +112,7 @@ export function Tile({ item, eager }: { item: Item; eager?: boolean }) {
 const monthFmt = new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 /** Everything in date order, newest first, grouped by month. */
-function Timeline({ items }: { items: Item[] }) {
+function Timeline({ items, ctx }: { items: Item[]; ctx: string }) {
   const groups: { key: string; label: string; items: Item[] }[] = [];
   for (const it of items) {
     const d = new Date(it.taken_at);
@@ -130,7 +131,7 @@ function Timeline({ items }: { items: Item[] }) {
               const src = cover(it);
               return (
                 <li key={it.id}>
-                  <a class="tl-row" href={`/item/${encodeURIComponent(it.id)}`}>
+                  <a class="tl-row" href={itemHref(it.id, ctx)}>
                     {src ? <img src={src} alt="" width={72} height={72} loading="lazy" decoding="async" /> : <span class="tl-ph" />}
                     <span class="tl-text">
                       <span class="tl-meta"><time dateTime={it.taken_at}>{fmtDate(it.taken_at)}</time> · {KIND_LABEL[it.kind]}{it.repost_of ? ` · sharing @${it.repost_of.author}` : ''}</span>

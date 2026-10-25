@@ -1,0 +1,11 @@
+[Unit]
+Description=Earth Empire collector, about every 45 minutes (stories expire after 24h)
+
+[Timer]
+OnBootSec=5min
+OnUnitInactiveSec=40min
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

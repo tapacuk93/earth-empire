@@ -10,7 +10,6 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-PLACEHOLDER_MARKERS = ("placeholder", "changeme", "change-me", "todo", "xxx", "<", "example")
 
 
 def env(name: str, default: str | None = None) -> str | None:
@@ -85,6 +84,8 @@ class Secrets:
         return val
 
     def ingest_token(self) -> str:
+        if env("EE_INGEST_TOKEN"):  # local tests against the mock backend
+            return env("EE_INGEST_TOKEN")
         s = self.get("earth-empire/ingest-token")
         tok = s.get("token") or s.get("value") if isinstance(s, dict) else s
         return str(tok)
@@ -109,7 +110,8 @@ class Secrets:
 
 
 def is_placeholder(v: str | None) -> bool:
-    if not v:
+    if not v or not str(v).strip():
         return True
-    low = str(v).lower()
-    return any(m in low for m in PLACEHOLDER_MARKERS)
+    low = str(v).strip().lower()
+    return low.startswith("<") or any(m in low for m in ("placeholder", "changeme", "change-me")) \
+        or low in ("todo", "tbd", "xxx", "username", "password", "example")

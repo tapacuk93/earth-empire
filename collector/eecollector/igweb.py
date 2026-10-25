@@ -15,11 +15,15 @@ from __future__ import annotations
 import json
 import logging
 import os
+import platform
 import random
+import sys
 import time
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import urlencode
+
+from playwright.sync_api import Error as PWError
 
 from .config import Settings, is_placeholder
 
@@ -27,6 +31,7 @@ log = logging.getLogger("ee.ig")
 
 IG = "https://www.instagram.com"
 APP_ID = "936619743392459"
+CHALLENGE_PATHS = ("/challenge", "/checkpoint", "/accounts/suspended", "/auth_platform/", "/accounts/disabled")
 
 
 class IGStop(RuntimeError):
@@ -77,7 +82,7 @@ def classify(status: int, body: Any, url: str = "") -> IGStop | None:
             return IGStop("checkpoint", f"Instagram feedback_required / spam flag: {msg[:200]}")
     if status == 429 or "wait a few minutes" in msg.lower():
         return IGStop("rate_limit", f"Instagram rate limit ({status}: {msg[:120]})")
-    if "/challenge/" in url or "/accounts/suspended" in url or "/checkpoint/" in url:
+    if any(x in url for x in CHALLENGE_PATHS):
         return IGStop("checkpoint", f"Instagram redirected to {url.split('?')[0]}")
     return None
 
@@ -126,7 +131,7 @@ class IGBrowser:
         return self
 
     def _stable_ua(self) -> str:
-        """A Chrome-on-Linux UA fixed per box (stored once), without "HeadlessChrome"."""
+        """The browser's own UA minus "HeadlessChrome", fixed per profile (stored once), true to the OS."""
         f = self.s.profile_dir / "user-agent.txt"
         if f.exists():
             return f.read_text().strip()
@@ -136,7 +141,11 @@ class IGBrowser:
             b = self.pw.chromium.launch(headless=True)
         major = b.version.split(".")[0]
         b.close()
-        ua = f"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
+        if sys.platform == "darwin":
+            osname = "Macintosh; Intel Mac OS X 10_15_7"
+        else:
+            osname = f"X11; Linux {platform.machine() or 'x86_64'}"
+        ua = f"Mozilla/5.0 ({osname}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{major}.0.0.0 Safari/537.36"
         f.write_text(ua)
         return ua
 
@@ -227,11 +236,18 @@ class IGBrowser:
         self.goto(IG + "/accounts/login/")
         self._dismiss_cookie_banner()
         p = self.page
-        p.wait_for_selector('input[name="username"]', timeout=30000)
-        self._type('input[name="username"]', creds["username"])
-        self._type('input[name="password"]', creds["password"])
+        user_sel = 'input[name="username"], input[name="email"], input[autocomplete*="username"]'
+        pass_sel = 'input[name="password"], input[name="pass"], input[type="password"]'
+        p.wait_for_selector(user_sel, timeout=30000)
+        self._type(user_sel, creds["username"])
+        self._type(pass_sel, creds["password"])
         p.wait_for_timeout(random.randint(600, 1500))
-        p.click('button[type="submit"]')
+        btn = p.query_selector('[role="button"][aria-label="Log In"], [role="button"][aria-label="Log in"], '
+                               'button[type="submit"]')
+        if btn and btn.get_attribute("aria-disabled") != "true":
+            btn.click()
+        else:
+            p.press(pass_sel, "Enter")
         result = self._await_login(creds)
         if result != "ok":
             if self.state is not None:
@@ -246,44 +262,61 @@ class IGBrowser:
         deadline = time.monotonic() + 60
         totp_done = False
         while time.monotonic() < deadline:
-            p.wait_for_timeout(1500)
-            url = p.url
-            if "/challenge" in url or "/checkpoint" in url or "/accounts/suspended" in url:
-                return f"checkpoint at {url.split('?')[0]}"
-            if p.query_selector('input[name="verificationCode"]') or "two_factor" in url:
-                secret = creds.get("totp_secret")
-                if not secret:
-                    return "checkpoint: two-factor code required and no totp_secret is set"
-                if totp_done:
-                    continue
-                import pyotp
-                self._type('input[name="verificationCode"]', pyotp.TOTP(secret.replace(" ", "")).now())
-                p.wait_for_timeout(random.randint(500, 1200))
-                btn = p.query_selector('button[type="button"]:has-text("Confirm"), button:has-text("Confirm")')
-                (btn.click() if btn else p.keyboard.press("Enter"))
-                totp_done = True
+            try:
+                r = self._login_step(creds, totp_done)
+            except PWError as e:  # the page navigated under us; look again
+                log.debug("login: page changed (%s)", str(e)[:80])
                 continue
-            err = p.query_selector('#slfErrorAlert, [role="alert"], div:has-text("password was incorrect")')
-            if err and "/accounts/login" in url:
-                txt = (err.inner_text() or "").strip()[:200]
-                if txt:
-                    return f"refused: {txt}"
-            for label in ("Save info", "Save Info", "Not now", "Not Now"):
-                b = p.query_selector(f'button:has-text("{label}"), div[role="button"]:has-text("{label}")')
-                if b and self.logged_in():
-                    b.click()
-                    p.wait_for_timeout(1500)
-                    break
-            if self.logged_in() and "/accounts/login" not in p.url:
-                return "ok"
+            if r == "totp":
+                totp_done = True
+            elif r:
+                return r
         if "/accounts/login" in p.url:
             return "no answer from the login form within 60s"
         return "ok" if self.logged_in() else f"not logged in after submit (at {p.url.split('?')[0]})"
 
+    def _login_step(self, creds: dict, totp_done: bool) -> str | None:
+        """One look at the page after submitting: None (keep waiting), "totp", "ok" or a reason to stop."""
+        p = self.page
+        p.wait_for_timeout(1500)
+        url = p.url
+        if any(x in url for x in CHALLENGE_PATHS):
+            return f"checkpoint at {url.split('?')[0]}"
+        if p.query_selector('input[name="verificationCode"]') or "two_factor" in url:
+            secret = creds.get("totp_secret")
+            if not secret:
+                return "checkpoint: two-factor code required and no totp_secret is set"
+            if totp_done:
+                return None
+            import pyotp
+            self._type('input[name="verificationCode"]', pyotp.TOTP(secret.replace(" ", "")).now())
+            p.wait_for_timeout(random.randint(500, 1200))
+            btn = p.query_selector('button:has-text("Confirm"), [role="button"]:has-text("Confirm")')
+            (btn.click() if btn else p.keyboard.press("Enter"))
+            return "totp"
+        if "/accounts/login" in url:
+            for sel in ('#slfErrorAlert', '[role="alert"]', 'span:has-text("password was incorrect")',
+                        'span:has-text("password you entered")', 'div:has-text("Sorry, ") >> nth=-1'):
+                err = p.query_selector(sel)
+                txt = (err.inner_text() or "").strip()[:200] if err else ""
+                if txt:
+                    return f"refused: {txt}"
+        if self.logged_in():
+            for label in ("Save info", "Save Info", "Not now", "Not Now"):
+                b = p.query_selector(f'button:has-text("{label}"), [role="button"]:has-text("{label}")')
+                if b:
+                    b.click()
+                    p.wait_for_timeout(1500)
+                    break
+            if "/accounts/login" not in p.url:
+                return "ok"
+        return None
+
     def _type(self, sel: str, text: str) -> None:
-        self.page.click(sel)
+        el = self.page.locator(sel).first
+        el.click()
         self.page.wait_for_timeout(random.randint(200, 600))
-        self.page.type(sel, text, delay=random.randint(60, 140))
+        el.press_sequentially(text, delay=random.randint(60, 140))
 
     def _dismiss_cookie_banner(self) -> None:
         for label in ("Allow all cookies", "Decline optional cookies", "Only allow essential cookies"):
@@ -344,6 +377,11 @@ class IGBrowser:
                 log.warning("IG %s %s -> %d %s", method, path.split("?")[0], r["status"], r["text"][:200])
                 raise IGError(f"{path.split('?')[0]} -> {r['status']}")
             log.debug("IG %s %s -> %d", method, path.split("?")[0], r["status"])
+            rec = os.environ.get("EE_RECORD_DIR")
+            if rec:  # raw responses for building fixtures; local only, never committed
+                Path(rec).mkdir(parents=True, exist_ok=True)
+                name = path.split("?")[0].strip("/").replace("/", "_")
+                Path(rec, f"{int(time.time()*1000)}_{name}.json").write_text(json.dumps(body))
             return body
         raise IGStop("rate_limit", "still rate-limited after backing off")
 

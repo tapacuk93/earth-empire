@@ -1,0 +1,21 @@
+[Unit]
+Description=Earth Empire collector: the whole account, resumable (start by hand)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=earth
+Group=earth
+EnvironmentFile=-/etc/earth-empire/env
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/earth-empire/ms-playwright
+Environment=PYTHONPATH=/opt/earth-empire/repo/collector
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/earth-empire/collector-venv/bin/python -m eecollector backfill
+# continue from the checkpoint after a crash or a rate limit, but never after a
+# checkpoint/challenge (3), a logged-out session (4) or missing config (2)
+Restart=on-failure
+RestartSec=30min
+RestartPreventExitStatus=2 3 4 6
+Nice=5
+MemoryMax=2500M

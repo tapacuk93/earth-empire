@@ -1,0 +1,15 @@
+#!/bin/bash
+# ee-collector <backfill|incremental|login|auto-login|import-session|status> [...]
+# Runs as the user earth with the box's config. See collector/README.md.
+set -euo pipefail
+if [ "$(id -un)" != earth ]; then
+  exec sudo -u earth -H "$0" "$@"
+fi
+set -a
+[ -r /etc/earth-empire/env ] && . /etc/earth-empire/env
+set +a
+export PLAYWRIGHT_BROWSERS_PATH=/opt/earth-empire/ms-playwright
+export PYTHONPATH=${EE_REPO:-/opt/earth-empire/repo}/collector
+export PYTHONUNBUFFERED=1
+if [ "${1:-}" = login ]; then export DISPLAY=${DISPLAY:-:99}; fi
+exec /opt/earth-empire/collector-venv/bin/python -m eecollector "$@"

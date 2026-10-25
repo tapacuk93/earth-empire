@@ -239,11 +239,15 @@ Public:
 
 - `GET /v1/layout` → `{"halves": {"top": [Tile], "bottom": [Tile]}, "updated_at"}`, newest first, where
   `Tile = {"id", "kind": "item" | "hit", "x": 0-1, "y": 0-1, "size": 0.15-1, "label": "<highlight
-  name, source name for a hit, else Reels/Posts/Stories>", "taken_at"}`. A hit's `id` is its hit id
-  (details in `/v1/published`).
+  name, source name for a hit, else Reels/Posts/Stories>", "taken_at", "attached_to"?: "<video id>"}`.
+  A hit's `id` is its hit id (details in `/v1/published`). **Images are never tiles of their own:**
+  an item without video carries `attached_to`, its most similar video (the same half first), sits
+  right beside it in that video's half, and is under half its size. Items with a video are laid out
+  by similarity as above.
 - `GET /v1/items/{id}/related?limit=20` → `{"related": [{"id", "kind", "half", "score", "item"?: Item}]}`:
   the most similar from the same half first (about three quarters of `limit`), then the most similar
-  from the other half; equal scores go to the newer item. Also takes a hit id.
+  from the other half; equal scores go to the newer item, and an image follows its video. Also takes a
+  hit id.
 - `GET /v1/tags/graph?max_nodes=300` → `{"nodes": [{"tag", "kinds": ["keyword", …], "count", "level"}],
   "edges": [{"a", "b", "count", "weight"}]}`. `level` 0 holds the 12 broadest tags (by count), 1 the
   next 36, 2 the next 96, then 3, so zooming in reveals deeper levels. Edges are co-occurrence on the
@@ -281,7 +285,12 @@ backoff without blocking other items. Every transition is logged.
 1. **Downloaded:** the collector has ingested it (a post, carousel, reel, story, highlight story, or
    a repost together with its original).
 2. **Analyzed:** the backend has written `analysis`, `categories`, `summary` and `description`.
-   The public API shows an item only from this point on. `published_at` is when that happened.
+   The public API shows an item only from this point on, and never an **image-only repost**: an item
+   with `repost_of` and no video, in its own media or the original's (someone else's photo, shared
+   in a post or a story). Such an item is kept and analyzed, but its `site`, `x` and `facebook`
+   steps are `skipped`. It never appears in `/v1/items`, `/v1/layout`, related lists, the tag graph
+   or the site. A repost of a video is public as usual, and so is every photo the account posted
+   itself. `published_at` is when that happened.
    Analysis spends money, so the backend caps how many items it analyzes per day. The owner raises
    the cap to work through the backlog.
 3. **Published** to each destination, with its own state for each: `pending`, `posted` (with the

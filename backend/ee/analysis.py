@@ -385,19 +385,25 @@ def apply_result(c, item_id: str, out: dict, model: str) -> list[str]:
         analysis.update({"model": model, "analyzed_at": ts})
         imp = out.get("importance")
         imp = min(1.0, max(0.0, float(imp))) if isinstance(imp, (int, float)) else None
+        data = json.loads(c.execute("SELECT data FROM items WHERE id=?", (item_id,)).fetchone()["data"])
+        public, why = store.publishable(data)
         c.execute("""UPDATE items SET analysis=?, categories=?, summary=?, description=?, importance=?,
-                     published_at=COALESCE(published_at, ?) WHERE id=?""",
-                  (j(analysis), j(cats), out.get("summary"), out.get("description"), imp, ts, item_id))
+                     published_at=CASE WHEN ? THEN COALESCE(published_at, ?) ELSE NULL END WHERE id=?""",
+                  (j(analysis), j(cats), out.get("summary"), out.get("description"), imp, 1 if public else 0,
+                   ts, item_id))
         c.execute("DELETE FROM item_categories WHERE item_id=?", (item_id,))
         for s in cats:
             c.execute("INSERT INTO item_categories VALUES (?,?)", (item_id, s))
-        data = json.loads(c.execute("SELECT data FROM items WHERE id=?", (item_id,)).fetchone()["data"])
         c.execute("DELETE FROM item_tags WHERE item_id=?", (item_id,))
         for tag, kind in tags_for(data, out, cats):
             c.execute("INSERT OR IGNORE INTO item_tags VALUES (?,?,?)", (item_id, tag, kind))
         store.index_item(c, item_id)
         store._set_step(c, item_id, "analyze", "done", note=f"categories {cats}, new {added}")
-        store._set_step(c, item_id, "site", "posted", remote_id=item_id, note="public")
+        if public:
+            store._set_step(c, item_id, "site", "posted", remote_id=item_id, note="public")
+        else:   # kept and analyzed, never shown or posted anywhere
+            for step in ("site", "x", "facebook"):
+                store._set_step(c, item_id, step, "skipped", note=why)
     return cats
 
 

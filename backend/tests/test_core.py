@@ -86,6 +86,17 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(store.fts_query('beach "x" OR'), '"beach"* "x"* "OR"*')
 
 
+class PublishRuleTest(unittest.TestCase):
+    def test_image_only_reposts_are_never_public(self):
+        img = {"type": "image", "url": "items/x/0.jpg"}
+        vid = {"type": "video", "url": "items/x/0.mp4"}
+        self.assertFalse(store.publishable({"media": [img], "repost_of": {"author": "zuck", "media": [img]}})[0])
+        self.assertFalse(store.publishable({"kind": "story", "media": [img], "repost_of": {"author": "a"}})[0])
+        self.assertTrue(store.publishable({"media": [img], "repost_of": {"author": "a", "media": [vid]}})[0])
+        self.assertTrue(store.publishable({"media": [img], "repost_of": None})[0])   # the owner's own photo
+        self.assertTrue(store.publishable({"media": [vid]})[0])
+
+
 class StatusTest(unittest.TestCase):
     def test_scrub_removes_secrets_paths_and_queries(self):
         from ee import status

@@ -259,7 +259,8 @@ def site_once(c) -> None:
         return
     row = c.execute("SELECT id, published_at FROM items WHERE published_at IS NOT NULL "
                     "ORDER BY published_at DESC, id DESC LIMIT 1").fetchone()
-    if not row or row["published_at"] <= (setting(c, "site.built_at") or ""):
+    force = setting(c, "site.force")
+    if not row or (row["published_at"] <= (setting(c, "site.built_at") or "") and not force):
         return
     newest, newest_id = row["published_at"], row["id"]
     _last["site"] = time.time()
@@ -275,6 +276,8 @@ def site_once(c) -> None:
     from .db import set_setting
     if p.returncode == 0 and live:
         set_setting(c, "site.built_at", newest)
+        if force and setting(c, "site.force") == force:
+            set_setting(c, "site.force", "")
         event("site.built", seconds=round(time.time() - t0), newest=newest, item=newest_id, out=p.stdout[-300:])
         store.record(c, "site", "build", f"site rebuilt and published in {round(time.time() - t0)} s")
     elif p.returncode == 0:

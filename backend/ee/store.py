@@ -69,6 +69,20 @@ def content_hash(item: dict) -> str:
     return hashlib.sha256(j(basis).encode()).hexdigest()[:24]
 
 
+# ------------------------------------------------------------------ what may be public
+def has_video(d: dict) -> bool:
+    media = (d.get("media") or []) + ((d.get("repost_of") or {}).get("media") or [])
+    return any((m or {}).get("type") == "video" for m in media)
+
+
+def publishable(d: dict) -> tuple[bool, str | None]:
+    """An image-only repost (someone else's photo, in a post or a story) is never public.
+    A repost of a video is, and so is everything the account posted itself."""
+    if d.get("repost_of") and not has_video(d):
+        return False, "image-only repost: someone else's photo"
+    return True, None
+
+
 # ------------------------------------------------------------------ ingest
 def upsert_items(c: sqlite3.Connection, items: list[dict]) -> dict:
     counts = {"inserted": 0, "updated": 0, "changed": 0, "unchanged": 0}

@@ -47,6 +47,7 @@ def main(argv=None):
     p = sub.add_parser("importance"); p.add_argument("--n", type=int, default=1000)
     sub.add_parser("backup")
     p = sub.add_parser("restore"); p.add_argument("--date"); p.add_argument("--only"); p.add_argument("--dry-run", action="store_true")
+    sub.add_parser("unpublish-rule")
     p = sub.add_parser("delete"); p.add_argument("ids", nargs="*"); p.add_argument("--tests", action="store_true")
     a = ap.parse_args(argv)
     if a.cmd in ("backup", "restore"):   # never hold the database open around these
@@ -196,6 +197,22 @@ def main(argv=None):
         from . import importance
         for r in importance.run(c, a.n):
             print(json.dumps(r, ensure_ascii=False))
+    elif a.cmd == "unpublish-rule":
+        n = 0
+        for r in c.execute("SELECT id, data FROM items WHERE published_at IS NOT NULL").fetchall():
+            ok, why = store.publishable(json.loads(r["data"]))
+            if not ok:
+                with db.tx(c):
+                    c.execute("UPDATE items SET published_at=NULL WHERE id=?", (r["id"],))
+                    c.execute("DELETE FROM layout WHERE id=?", (r["id"],))
+                    c.execute("DELETE FROM embeddings WHERE id=?", (r["id"],))
+                    for step in ("site", "x", "facebook"):
+                        store._set_step(c, r["id"], step, "skipped", note=why)
+                print("unpublished", r["id"], "-", why)
+                n += 1
+        if n:
+            db.set_setting(c, "site.force", db.now())   # the worker rebuilds the site without them
+        print(f"{n} unpublished")
     elif a.cmd == "delete":
         ids = list(a.ids)
         if a.tests:

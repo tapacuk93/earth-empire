@@ -170,9 +170,11 @@ def members(c) -> dict[str, dict]:
     for r in c.execute("SELECT item_id, highlight_id FROM item_highlights"):
         item_hls.setdefault(r["item_id"], []).append(r["highlight_id"])
     out = {}
+    from .store import has_video
     for r in c.execute("SELECT id, kind, taken_at, importance, data FROM items WHERE published_at IS NOT NULL"):
         hls = item_hls.get(r["id"], [])
         d = json.loads(r["data"])
+        video = has_video(d)
         for h in d.get("highlights") or []:
             if isinstance(h, dict) and h.get("id") and h["id"] not in hls:
                 hls.append(h["id"])
@@ -181,12 +183,12 @@ def members(c) -> dict[str, dict]:
         half = "top" if top else "bottom"
         label_hl = (top or hls or [None])[0]
         label = hl_titles.get(label_hl) if label_hl else None
-        out[r["id"]] = {"half": half, "kind": "item", "taken_at": r["taken_at"],
+        out[r["id"]] = {"half": half, "kind": "item", "taken_at": r["taken_at"], "video": video,
                         "importance": r["importance"], "label": label or {"reel": "Reels", "story": "Stories"}.get(
                             r["kind"], "Posts")}
     for h in published_hits():
         d = h["data"]
-        out["hit:" + h["id"]] = {"half": "top" if h["section"] == "dedicated" else "bottom", "kind": "hit",
+        out["hit:" + h["id"]] = {"half": "top" if h["section"] == "dedicated" else "bottom", "kind": "hit", "video": True,
                                  "taken_at": (d.get("video") or {}).get("posted_at") or h["published_at"],
                                  "importance": d.get("importance") if isinstance(d.get("importance"), (int, float))
                                  else None, "label": (d.get("source") or {}).get("name") or "Detected"}
@@ -234,14 +236,14 @@ def update_layout(c) -> dict:
     placed = {r["id"]: dict(r) for r in c.execute("SELECT * FROM layout")}
     stats = {}
     with tx(c):
-        for i in [i for i in placed if i not in mem or i not in vec]:   # unpublished or gone
-            c.execute("DELETE FROM layout WHERE id=?", (i,))
+        for i in [i for i in placed if i not in mem or i not in vec or not mem[i]["video"]]:
+            c.execute("DELETE FROM layout WHERE id=?", (i,))   # unpublished, gone, or an image (attached)
         for i, p in placed.items():   # moved to the other half: place again
             if i in mem and mem[i]["half"] != p["half"]:
                 c.execute("DELETE FROM layout WHERE id=?", (i,))
     placed = {r["id"]: dict(r) for r in c.execute("SELECT * FROM layout")}
     for half in ("top", "bottom"):
-        ids = [i for i, m in mem.items() if m["half"] == half and i in vec]
+        ids = [i for i, m in mem.items() if m["half"] == half and i in vec and m["video"]]
         if not ids:
             continue
         have = [i for i in ids if i in placed]
@@ -284,6 +286,28 @@ def update_layout(c) -> dict:
     return stats
 
 
+def attachments(c, mem=None, vec=None) -> dict[str, str]:
+    """Each of the account's own images (an item without video) -> its most similar video:
+    from the same half when there is one, else from any. Images are never tiles of their own."""
+    import numpy as np
+    mem = mem or members(c)
+    vec = vec if vec is not None else vectors(c, set(mem))
+    vids = [i for i, m in mem.items() if m["video"] and i in vec]
+    out = {}
+    if not vids:
+        return out
+    V = np.stack([vec[i] for i in vids])
+    for i, m in mem.items():
+        if m["video"] or i not in vec:
+            continue
+        sims = V @ vec[i]
+        same = [k for k, v in enumerate(vids) if mem[v]["half"] == m["half"]]
+        pool = same or list(range(len(vids)))
+        best = max(pool, key=lambda k: (sims[k], mem[vids[k]]["taken_at"] or ""))
+        out[i] = vids[best]
+    return out
+
+
 def size_of(taken_at: str | None, importance: float | None) -> float:
     """Recency leads (a year-long half-life), importance scales it: 0.15-1.0."""
     try:
@@ -298,16 +322,36 @@ def size_of(taken_at: str | None, importance: float | None) -> float:
 
 def layout(c) -> dict:
     mem = members(c)
+    vec = vectors(c, set(mem))
     halves = {"top": [], "bottom": []}
+    tiles = {}
     for r in c.execute("SELECT * FROM layout"):
         m = mem.get(r["id"])
         if not m:
             continue
         hid = r["id"]
-        halves[m["half"]].append({"id": hid[4:] if hid.startswith("hit:") else hid, "kind": m["kind"],
-                                  "x": round(r["x"], 4), "y": round(r["y"], 4),
-                                  "size": size_of(m["taken_at"], m["importance"]),
-                                  "label": m["label"], "taken_at": m["taken_at"]})
+        t = {"id": hid[4:] if hid.startswith("hit:") else hid, "kind": m["kind"],
+             "x": round(r["x"], 4), "y": round(r["y"], 4), "size": size_of(m["taken_at"], m["importance"]),
+             "label": m["label"], "taken_at": m["taken_at"]}
+        tiles[hid] = t
+        halves[m["half"]].append(t)
+    # images sit beside their video, smaller, in the video's half
+    by_video: dict[str, list] = {}
+    for img, vid in attachments(c, mem, vec).items():
+        by_video.setdefault(vid, []).append(img)
+    for vid, imgs in by_video.items():
+        v = tiles.get(vid)
+        if not v:
+            continue
+        imgs.sort(key=lambda i: mem[i]["taken_at"] or "", reverse=True)
+        for k, img in enumerate(imgs):
+            ang = math.pi / 4 + k * (2 * math.pi / max(len(imgs), 6))
+            rad = 0.012 + 0.018 * v["size"]
+            halves[mem[vid]["half"]].append({
+                "id": img, "kind": "item", "attached_to": v["id"],
+                "x": round(min(max(v["x"] + rad * math.cos(ang), 0), 1), 4),
+                "y": round(min(max(v["y"] + rad * math.sin(ang), 0), 1), 4),
+                "size": round(max(0.1, v["size"] * 0.45), 3), "label": v["label"], "taken_at": mem[img]["taken_at"]})
     for h in halves.values():
         h.sort(key=lambda t: (t["taken_at"] or "", t["id"]), reverse=True)   # newest first
     return {"halves": halves, "updated_at": setting(c, "home.layout_at") or None}
@@ -335,6 +379,15 @@ def related(c, item_id: str, limit: int = 20) -> list[dict]:
     other = order([s for s in scored if mem[s[2]]["half"] != mem[key]["half"]])
     n_same = min(len(same), max(limit - min(len(other), max(1, limit // 4)), 0))
     pick = same[:n_same] + other[:limit - n_same]
+    att = attachments(c, mem, vec)   # an image follows its video when both are listed
+    ids = [p[2] for p in pick]
+    moved = [p for p in pick if att.get(p[2]) in ids]
+    pick = [p for p in pick if p not in moved]
+    for p in sorted(moved, key=lambda p: -p[0]):
+        pos = next(k for k, q in enumerate(pick) if q[2] == att[p[2]])
+        while pos + 1 < len(pick) and att.get(pick[pos + 1][2]) == att[p[2]]:
+            pos += 1
+        pick.insert(pos + 1, p)
     return [{"id": i[4:] if i.startswith("hit:") else i, "kind": mem[i]["kind"], "half": mem[i]["half"],
              "score": round(sc, 4)} for sc, _, i in pick]
 

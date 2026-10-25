@@ -119,6 +119,7 @@ DEFAULT_SETTINGS = {
     "x.paused_until": "",
     "site.auto_build": "1",     # rebuild and publish the site when items go public
     "site.built_at": "",
+    "site.force": "",           # set when items leave the site: rebuild even with nothing new
 }
 
 STEPS = ("analyze", "site", "x", "facebook")

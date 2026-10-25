@@ -5,7 +5,16 @@
 set -euo pipefail
 set -a; . /etc/earth-empire/env; set +a
 export PATH=/opt/earth-empire/node/bin:$PATH
-SRC=/opt/earth-empire/repo/web
+REPO=/opt/earth-empire/repo
+SRC=$REPO/web
+# Build what is on main now, never a stale checkout: fast-forward first, as the checkout's owner
+# (earth). If that fails, publish nothing.
+if [ "$(id -un)" = earth ]; then git_() { git -C "$REPO" "$@"; }; else git_() { sudo -u earth git -C "$REPO" "$@"; }; fi
+if ! git_ fetch -q origin main || ! git_ merge -q --ff-only origin/main; then
+  echo "build-site: could not fast-forward $REPO to origin/main; not publishing a stale build" >&2
+  exit 3
+fi
+echo "build-site: building $(git_ rev-parse --short HEAD)"
 BUILD=/var/lib/earth-empire/backend/site-build
 [ -f "$SRC/package.json" ] || { echo "no web/ in the checkout yet"; exit 0; }
 mkdir -p "$BUILD"

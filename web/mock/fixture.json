@@ -241,7 +241,33 @@
      "duration": 9
     }
    ],
-   "description": "Two people run along a cliff path at sunset toward a lighthouse. The camera turns to the sea as the sun touches the horizon, and the runner ahead waves at the end. It was sunset at Cape Lumen Lighthouse, Portugal. Part of a running series: the on-screen \"Day 12\" counts days of a coastal trip that earlier posts started."
+   "description": "Two people run along a cliff path at sunset toward a lighthouse. The camera turns to the sea as the sun touches the horizon, and the runner ahead waves at the end. It was sunset at Cape Lumen Lighthouse, Portugal. Part of a running series: the on-screen \"Day 12\" counts days of a coastal trip that earlier posts started.",
+   "detection": {
+    "matched": true,
+    "hits": [
+     {
+      "kind": "name",
+      "phrase": "тарас",
+      "lang": "uk",
+      "media": 0,
+      "at": 3.2,
+      "confidence": 0.82,
+      "excerpt": "Тарасе, дивись на маяк!",
+      "translation": "Taras, look at the lighthouse!"
+     },
+     {
+      "kind": "name",
+      "phrase": "тарас",
+      "media": 0,
+      "at": 7.1,
+      "confidence": 0.55,
+      "excerpt": "Тарас біжить",
+      "translation": "Taras is running"
+     }
+    ],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockCaro1",
@@ -366,7 +392,13 @@
      "duration": null
     }
    ],
-   "description": "A carousel of a city walk: a steep blue street at dusk, a wall of pink tiles, and rooftops after dark. It was evening at Alfama, Lisbon, Portugal. Second stop of the same coastal trip as the sunset reel."
+   "description": "A carousel of a city walk: a steep blue street at dusk, a wall of pink tiles, and rooftops after dark. It was evening at Alfama, Lisbon, Portugal. Second stop of the same coastal trip as the sunset reel.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": null,
@@ -458,7 +490,13 @@
      "duration": null
     }
    ],
-   "description": "A wide shot of orange dunes under a yellow sky with a poll sticker. It was midday at Dunas Altas, Portugal. Poll story; the next story in the Travel highlight shows the answer."
+   "description": "A wide shot of orange dunes under a yellow sky with a poll sticker. It was midday at Dunas Altas, Portugal. Poll story; the next story in the Travel highlight shows the answer.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": null,
@@ -572,7 +610,13 @@
      "duration": 6
     }
    ],
-   "description": "The owner shares a reel by @oceanlab of plankton glowing blue in a dark bay, with a mention sticker. The original is by @oceanlab. A share, not the owner's own footage; credited to @oceanlab."
+   "description": "The owner shares a reel by @oceanlab of plankton glowing blue in a dark bay, with a mention sticker. The original is by @oceanlab. A share, not the owner's own footage; credited to @oceanlab.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockPost1",
@@ -653,7 +697,13 @@
      "duration": null
     }
    ],
-   "description": "Top-down photo of a bowl of roasted squash, rice and herbs on a wooden table. It was lunch at home kitchen. Pairs with the cooking reel that shows the recipe."
+   "description": "Top-down photo of a bowl of roasted squash, rice and herbs on a wooden table. It was lunch at home kitchen. Pairs with the cooking reel that shows the recipe.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": null,
@@ -774,7 +824,13 @@
      "duration": 6
     }
    ],
-   "description": "The camera walks between fruit stalls in a covered market. It was at Mercado Central, Portugal. In both the Travel and Food highlights."
+   "description": "The camera walks between fruit stalls in a covered market. It was at Mercado Central, Portugal. In both the Travel and Food highlights.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockPost2",
@@ -868,7 +924,13 @@
      "duration": null
     }
    ],
-   "description": "A repost of a two-photo post about a mountain ridge route, with the owner's invitation in the caption. It was at north ridge (unnamed). The original is by @mountainclub. Plans for a climb next month."
+   "description": "A repost of a two-photo post about a mountain ridge route, with the owner's invitation in the caption. It was at north ridge (unnamed). The original is by @mountainclub. Plans for a climb next month.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockReel2",
@@ -983,7 +1045,23 @@
      "duration": 10
     }
    ],
-   "description": "A sped-up recipe: squash is cut, roasted, plated on rice and finished with chili oil. The recipe for the Sunday bowl post."
+   "description": "A sped-up recipe: squash is cut, roasted, plated on rice and finished with chili oil. The recipe for the Sunday bowl post.",
+   "detection": {
+    "matched": true,
+    "hits": [
+     {
+      "kind": "language",
+      "lang": "ru",
+      "media": 0,
+      "at": 5,
+      "confidence": 0.36,
+      "excerpt": "много кинзы",
+      "translation": "lots of coriander"
+     }
+    ],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockCaro2",
@@ -1073,7 +1151,13 @@
      "duration": 5
     }
    ],
-   "description": "A purple-lit studio photo followed by a five-second clip of the mixing desk. It was at recording studio. Mixed media carousel: image then video."
+   "description": "A purple-lit studio photo followed by a five-second clip of the mixing desk. It was at recording studio. Mixed media carousel: image then video.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": null,
@@ -1151,7 +1235,13 @@
      "duration": null
     }
    ],
-   "description": "A cup of coffee on a café counter with a question sticker."
+   "description": "A cup of coffee on a café counter with a question sticker.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF1",
@@ -1212,7 +1302,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 1 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 1 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF2",
@@ -1274,7 +1370,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 2 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 2 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF3",
@@ -1335,7 +1437,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 3 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 3 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF4",
@@ -1396,7 +1504,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 4 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 4 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF5",
@@ -1458,7 +1572,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 5 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 5 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF6",
@@ -1519,7 +1639,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 6 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 6 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF7",
@@ -1580,7 +1706,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 7 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 7 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF8",
@@ -1642,7 +1774,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 8 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 8 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF9",
@@ -1703,7 +1841,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 9 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 9 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF10",
@@ -1764,7 +1908,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 10 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 10 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF11",
@@ -1826,7 +1976,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 11 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 11 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF12",
@@ -1887,7 +2043,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 12 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 12 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF13",
@@ -1948,7 +2110,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 13 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 13 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF14",
@@ -2010,7 +2178,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 14 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 14 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF15",
@@ -2071,7 +2245,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 15 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 15 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF16",
@@ -2132,7 +2312,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 16 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 16 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF17",
@@ -2194,7 +2380,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 17 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 17 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   },
   {
    "shortcode": "DMockF18",
@@ -2255,7 +2447,13 @@
      "duration": null
     }
    ],
-   "description": "An abstract gradient image, number 18 in an older series. Older series of colour studies."
+   "description": "An abstract gradient image, number 18 in an older series. Older series of colour studies.",
+   "detection": {
+    "matched": true,
+    "hits": [],
+    "model": "mock",
+    "scanned_at": "2026-10-25T09:00:00Z"
+   }
   }
  ]
 }

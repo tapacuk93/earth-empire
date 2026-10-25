@@ -10,7 +10,9 @@ import { modesTopSaved, saveModesTop } from '../components/zoom';
 import { VideoFeed } from '../components/VideoFeed';
 import { SITE_NAME } from '../config';
 import { itemHref } from '../context';
-import { buildMosaic, buildTagGraph, type Tile } from '../layout';
+import { attachMap, buildMosaic, buildTagGraph, graphFromApi, mosaicFromLayout, placeAttached, type Tile } from '../layout';
+import { getLayout, getTagGraph, tagItems } from '../homeData';
+import { ctxItems } from '../context';
 import { getPublished } from '../monitor';
 import { navigate, settleScroll, type Route } from '../router';
 import { hitSection, SECTION_TITLE, sectionHighlights, sectionItems, type SectionId } from '../sections';
@@ -63,51 +65,67 @@ export function Home({ route }: { route: Route }) {
   const hl = highlights.data || [];
   const hits = published.data || [];
   const ready = !!all.data && !!highlights.data;
+  const lay = useData(getLayout);
+  const tg = useData(getTagGraph);
   const halves = useMemo(() => {
-    if (!ready) return null;
+    if (!ready || lay.loading) return null;
+    const L = lay.data;
+    const attach = attachMap(items, L ? [...L.top, ...L.bottom] : undefined);
+    const byId = new Map(items.map((it) => [it.id, it]));
+    const hitById = new Map(hits.map((h) => [h.id, h]));
     return (['dedicated', 'common'] as SectionId[]).map((id) => ({
-      id, mosaic: buildMosaic(sectionItems(id, items, hl), sectionHighlights(id, hl), hits.filter((h) => hitSection(h) === id)),
+      id,
+      mosaic: placeAttached(L
+        ? mosaicFromLayout(id === 'dedicated' ? L.top : L.bottom, byId, hitById)
+        : buildMosaic(sectionItems(id, items, hl), sectionHighlights(id, hl), hits.filter((h) => hitSection(h) === id)), attach),
     }));
-  }, [ready, items, hl, hits]);
-  const graph = useMemo(() => (ready ? buildTagGraph(items, tagsOf(items)) : null), [ready, items]);
+  }, [ready, lay.loading, items, hl, hits]);
+  const graph = useMemo(() => (tg.loading || !ready ? null : tg.data ? graphFromApi(tg.data.nodes, tg.data.edges) : buildTagGraph(items, tagsOf(items))), [ready, tg.loading, items]);
+  const openTag = async (tag: string) => {
+    const list = (await tagItems(tag)) || ctxItems(`tag:${tag}`, items, hl);
+    if (list.length) navigate(itemHref(list[0].id, `tag:${tag}`));
+  };
   const tagLabel = (n: { tag: string; kind: string }) => n.kind === 'category' ? categories.data?.find((c) => c.slug === n.tag)?.name || n.tag : n.kind === 'hashtag' ? '#' + n.tag : n.tag;
   const hrefFor = (id: SectionId) => (t: Tile) => (t.hit ? withParam(route, 'watch', t.id) : itemHref(t.id, `rel:${id}:${t.id}`));
   const first = items[items.length - 1], last = items[0];
   const modes = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState(0);
   const onModesScroll = () => { const el = modes.current; if (el?.clientHeight) { saveModesTop(el.scrollTop); setMode(Math.round(el.scrollTop / el.clientHeight)); } };
-  useEffect(() => { const el = modes.current; if (el && ready) { el.scrollTop = modesTopSaved(); onModesScroll(); } }, [ready]);
+  useEffect(() => {
+    if (!ready) return;
+    const want = modesTopSaved();
+    let n = 0;
+    const go = () => { const el = modes.current; if (!el) return; el.scrollTop = want; onModesScroll(); if (Math.abs(el.scrollTop - want) > 2 && ++n < 40) setTimeout(go, 50); };
+    go();
+  }, [ready]);
   const openHit = (id?: string) => navigate(withParam(route, 'watch', id), { replace: !!watch || !id, keepScroll: true });
 
   return (
     <>
       <div class="modes" ref={modes} onScroll={onModesScroll}>
         <section class="mode mode-mosaic" id="mode-mosaic" aria-label="Mosaic mode">
-          <header class="hero compact">
-        <p class="eyebrow">{profile.data ? <>The Instagram archive of <a href={`https://www.instagram.com/${profile.data.username}/`} rel="external noopener">@{profile.data.username}</a>, described by Claude</> : 'An Instagram archive, described by Claude'}</p>
-        <h1>{SITE_NAME}, in data</h1>
-        {all.error ? <p class="error" role="alert">Could not load the archive: {all.error.message}</p> : all.data && (
-          <p class="stats-line">
-            <b>{items.length}</b> videos{first && last && <> · <b>{spanOf(first.taken_at, last.taken_at)}</b> ({fmtShort(first.taken_at)} – {fmtShort(last.taken_at)})</>}
-            {' '}· <b>{places(items).length}</b> places · <b>{people(items).length}</b> people named · <b>{months(items).filter((m) => m.total).length}</b> active months
-          </p>
-        )}
-      </header>
           {!halves ? <div class="skeleton-cloud" aria-hidden="true" /> : halves.map((h) => h.mosaic.tiles.length > 0 && (
             <MosaicView key={h.id} id={`m-${h.id}`} title={SECTION_TITLE[h.id]} mosaic={h.mosaic} hrefFor={hrefFor(h.id)} />
           ))}
         </section>
         <section class="mode" id="mode-tags" aria-label="Tag graph mode">
           {graph && graph.nodes.length > 0 && (
-            <TagGraphView nodes={graph.nodes} edges={graph.edges} labelFor={tagLabel}
-              hrefFor={(tag) => { const it = items.find((x) => tagsOf([x]).some((t) => t.tag === tag)); return it ? itemHref(it.id, `tag:${tag}`) : '/'; }} />
+            <TagGraphView nodes={graph.nodes} edges={graph.edges} labelFor={tagLabel} onOpen={openTag} />
           )}
         </section>
         <section class="mode" id="mode-time" aria-label="Timeline mode">
           {all.data && <TimelineView items={items} hrefFor={(it) => itemHref(it.id)} />}
         </section>
       </div>
-      <nav class="mode-dots" aria-label="Modes">
+      <header class="home-pill fui">
+        <h1><span class="logo" aria-hidden="true" />{SITE_NAME}</h1>
+        {all.error ? <p class="error" role="alert">Could not load the archive: {all.error.message}</p> : all.data && (
+          <p class="stats-line">
+            <b>{items.length}</b> videos{first && last && <> · <b>{spanOf(first.taken_at, last.taken_at)}</b></>} · <b>{places(items).length}</b> places · <b>{people(items).length}</b> people
+          </p>
+        )}
+      </header>
+      <nav class="mode-dots fui" aria-label="Modes">
         {MODES.map(([mid, label], i) => (
           <button key={mid} aria-label={label} aria-current={mode === i ? 'true' : undefined} title={label}
             onClick={() => document.getElementById(mid)?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth' })}>

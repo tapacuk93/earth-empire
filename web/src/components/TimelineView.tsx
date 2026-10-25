@@ -3,7 +3,7 @@ import type { Item } from '../types';
 import { navigate } from '../router';
 import { cover, fmtShort } from '../util';
 import { savedViews, attachPanZoom, claimPlayback, fitCanvas, image, zoomBy, type View } from './zoom';
-import { Icon } from './icons';
+import { ZoomCtl } from './ZoomCtl';
 
 interface T { it: Item; x: number; y: number; video?: string; src?: string }
 const DAY = 864e5;
@@ -132,15 +132,8 @@ export function TimelineView({ items, hrefFor }: { items: Item[]; hrefFor: (it: 
 
   return (
     <section class="mosaic timeline-mode" aria-labelledby="tl-mode-h">
-      <header class="mosaic-head">
-        <h2 id="tl-mode-h">Timeline</h2>
-        <span class="muted small">newest at the top · zoom for months, then days</span>
-        <span class="spacer" />
-        <span class="muted small zoom-level" role="status">{zoom.toFixed(1)}×</span>
-        <button class="icon-btn" onClick={() => zoomBtn(1.8)} aria-label="Zoom in: timeline">+</button>
-        <button class="icon-btn" onClick={() => zoomBtn(1 / 1.8)} aria-label="Zoom out: timeline">−</button>
-        <button class="icon-btn" onClick={fit} aria-label="Show all: timeline"><Icon name="auto" size={18} /></button>
-      </header>
+      <h2 id="tl-mode-h" class="mosaic-label fui">Timeline <span>newest at the top</span></h2>
+      <ZoomCtl title="timeline" zoom={zoom} onIn={() => zoomBtn(1.8)} onOut={() => zoomBtn(1 / 1.8)} onFit={fit} />
       <div class="mosaic-box">
         <canvas ref={canvas} class="mosaic-canvas" aria-hidden="true" />
         <video ref={vid} class="mosaic-video" muted loop playsinline preload="none" aria-hidden="true" tabIndex={-1}

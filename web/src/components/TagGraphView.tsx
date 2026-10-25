@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { GEdge, GNode } from '../layout';
-import { navigate } from '../router';
 import { savedViews, attachPanZoom, fitCanvas, zoomBy, type View } from './zoom';
-import { Icon } from './icons';
+import { ZoomCtl } from './ZoomCtl';
 
 const MIN = 0.2, MAX = 40;
 const COLOR: Record<string, string> = { person: '--g-people', place: '--g-places', country: '--g-places', object: '--g-things', animal: '--g-things', brand: '--g-things', category: '--g-cats' };
 
 /** Tags as nodes sized by count, edges for tags that appear together; zooming in reveals finer tags. */
-export function TagGraphView({ nodes, edges, hrefFor, labelFor }: { nodes: GNode[]; edges: GEdge[]; hrefFor: (tag: string) => string; labelFor: (n: GNode) => string }) {
+export function TagGraphView({ nodes, edges, onOpen, labelFor }: { nodes: GNode[]; edges: GEdge[]; onOpen: (tag: string) => void; labelFor: (n: GNode) => string }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const view = useRef<View>({ k: 1, x: 0, y: 0 });
   const base = useRef(1);
@@ -83,7 +82,7 @@ export function TagGraphView({ nodes, edges, hrefFor, labelFor }: { nodes: GNode
     const off = attachPanZoom(c, view.current, {
       min: MIN * base.current, max: MAX * base.current,
       onChange: () => { savedViews.set('tags', { ...view.current }); setZoom(view.current.k / base.current); schedule(); },
-      onTap: (x, y) => { const n = nodeAt(x, y); if (n) navigate(hrefFor(n.tag)); },
+      onTap: (x, y) => { const n = nodeAt(x, y); if (n) onOpen(n.tag); },
       onHover: (x, y) => { const n = nodeAt(x, y); if (hover.current !== n) { hover.current = n; schedule(); } c.style.cursor = n ? 'pointer' : 'grab'; },
       onLeave: () => { hover.current = null; schedule(); },
     });
@@ -95,18 +94,11 @@ export function TagGraphView({ nodes, edges, hrefFor, labelFor }: { nodes: GNode
 
   return (
     <section class="mosaic tag-graph" aria-labelledby="tg-h">
-      <header class="mosaic-head">
-        <h2 id="tg-h">Tags</h2>
-        <span class="muted small">{Math.min(nodes.length, shown())} of {nodes.length} shown; zoom in for finer tags</span>
-        <span class="spacer" />
-        <span class="muted small zoom-level" role="status">{zoom.toFixed(1)}×</span>
-        <button class="icon-btn" onClick={() => zoomBtn(1.6)} aria-label="Zoom in: tags">+</button>
-        <button class="icon-btn" onClick={() => zoomBtn(1 / 1.6)} aria-label="Zoom out: tags">−</button>
-        <button class="icon-btn" onClick={fit} aria-label="Show all: tags"><Icon name="auto" size={18} /></button>
-      </header>
+      <h2 id="tg-h" class="mosaic-label fui">Tags <span>{Math.min(nodes.length, shown())} of {nodes.length} · zoom for finer tags</span></h2>
+      <ZoomCtl title="tags" zoom={zoom} onIn={() => zoomBtn(1.6)} onOut={() => zoomBtn(1 / 1.6)} onFit={fit} />
       <div class="mosaic-box"><canvas ref={canvas} class="mosaic-canvas" aria-hidden="true" /></div>
       <ul class="mosaic-list" aria-label="Tags, most used first">
-        {nodes.map((n) => <li key={n.tag}><a href={hrefFor(n.tag)}>{labelFor(n)}: {n.count} video{n.count === 1 ? '' : 's'}</a></li>)}
+        {nodes.map((n) => <li key={n.tag}><a href={`/?tag=${encodeURIComponent(n.tag)}`} onClick={(e) => { e.preventDefault(); onOpen(n.tag); }}>{labelFor(n)}: {n.count} video{n.count === 1 ? '' : 's'}</a></li>)}
       </ul>
     </section>
   );

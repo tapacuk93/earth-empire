@@ -56,7 +56,7 @@ export function VideoFeed({ videos, start, title, onClose, onIndex }: {
         else if (e.key === 'ArrowUp' || e.key === 'k') { e.preventDefault(); go(cur - 1); }
         else if (e.key === 'm') setMuted(!muted);
       }}>
-      <div class="vfeed-top">
+      <div class="vfeed-top fui">
         <h2 class="vfeed-title">{title} <span class="muted">{cur + 1}/{videos.length}</span></h2>
         <button class="icon-btn" onClick={() => setMuted(!muted)} aria-label={muted ? 'Unmute' : 'Mute'} aria-pressed={!muted}><Icon name={muted ? 'mute' : 'sound'} /></button>
         <button class="icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
@@ -71,7 +71,7 @@ export function VideoFeed({ videos, start, title, onClose, onIndex }: {
           </section>
         ))}
       </div>
-      <div class="vfeed-nav">
+      <div class="vfeed-nav fui">
         <button class="icon-btn" onClick={() => go(cur - 1)} disabled={cur === 0} aria-label="Previous video"><Icon name="left" class="up" /></button>
         <button class="icon-btn" onClick={() => go(cur + 1)} disabled={cur === videos.length - 1} aria-label="Next video"><Icon name="right" class="down" /></button>
       </div>

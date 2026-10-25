@@ -4,6 +4,8 @@ import { AnalysisView } from '../components/Analysis';
 import { Icon } from '../components/icons';
 import { useCategories, useData, useHighlights } from '../components/Profile';
 import { ctxItems, ctxLabel, itemHref } from '../context';
+import { getLayout, getRelated, tagItems } from '../homeData';
+import { attachMap, withAttachments } from '../layout';
 import { canGoBack, navigate, type Route } from '../router';
 import type { Item, Media } from '../types';
 import { altFor, cover, fmtCount, fmtDate, fmtDateTime, igProfile, itemTitle, posterOf, prefersReducedMotion, setMeta } from '../util';
@@ -85,8 +87,20 @@ export function ItemPage({ id, route }: { id: string; route: Route }) {
   const cats = useCategories();
   const [solo, setSolo] = useState<Item | null>();
   const [err, setErr] = useState<Error>();
-  const ready = all.data && (!NEEDS_HL.test(ctx) || hl.data);
-  const list = ready ? ctxItems(ctx, all.data!, hl.data || []) : undefined;
+  const lay = useData(getLayout);
+  // The API's order where it has one: related videos for rel:, a tag's items for tag:.
+  const [served, setServed] = useState<Item[] | null | undefined>(undefined);
+  useEffect(() => {
+    setServed(undefined);
+    const byId = new Map((all.data || []).map((x) => [x.id, x]));
+    if (ctx.startsWith('rel:')) {
+      getRelated(id).then((r) => setServed(r ? [byId.get(id), ...r.map((x) => x.item || byId.get(x.id))].filter((x): x is Item => !!x && x.media !== undefined) : null));
+    } else if (ctx.startsWith('tag:')) tagItems(ctx.slice(4)).then(setServed);
+    else setServed(null);
+  }, [ctx, !!all.data]);
+  const ready = all.data && (!NEEDS_HL.test(ctx) || hl.data) && served !== undefined && !lay.loading;
+  const base = ready ? (served && served.length ? served : ctxItems(ctx, all.data!, hl.data || [])) : undefined;
+  const list = base && withAttachments(base, attachMap(all.data!, lay.data ? [...lay.data.top, ...lay.data.bottom] : undefined), id);
   const inList = !!list?.some((x) => x.id === id);
 
   useEffect(() => {
@@ -173,7 +187,7 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
         else if (e.key === 'm') setMuted(!muted);
         else if (e.key === 'i') setInfo(!info);
       }}>
-      <div class="ifeed-top">
+      <div class="ifeed-top fui">
         <button class="icon-btn" onClick={close} aria-label="Close"><Icon name="close" /></button>
         <p class="ifeed-ctx"><b>{label}</b> <span>{cur + 1} / {items.length}</span></p>
         <button class="icon-btn pb-btn" onClick={cyclePb} aria-label={`Playback: ${PB_LABEL[pb]}. Change it.`} title={PB_LABEL[pb]}><Icon name={PB_ICON[pb]} /></button>
@@ -192,7 +206,7 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
           </section>
         ))}
       </div>
-      <div class="ifeed-nav">
+      <div class="ifeed-nav fui">
         <button class="icon-btn" onClick={() => go(cur - 1)} disabled={cur === 0} aria-label="Previous item"><Icon name="left" class="up" /></button>
         <button class="icon-btn" onClick={() => go(cur + 1)} disabled={cur === items.length - 1} aria-label="Next item"><Icon name="right" class="down" /></button>
       </div>
@@ -234,6 +248,17 @@ function Slide({ item, active, muted, onTapVideo, info, setInfo, loop, onEnded }
     });
   }, [m, active]);
   const place = item.location?.name || item.analysis?.where?.place;
+  const hits = item.detection?.hits || [];
+  const first = hits[0];
+  const started = useRef(false);
+  const [t, setT] = useState({ cur: 0, dur: 0 });
+  // A video starts a moment before its first matched hit.
+  const onMeta = (e: Event, i: number) => {
+    const v = e.currentTarget as HTMLVideoElement;
+    if (!started.current && first && (first.media ?? 0) === i && typeof first.at === 'number') { started.current = true; v.currentTime = Math.max(0, first.at - 1.5); }
+  };
+  useEffect(() => { if (first && (first.media ?? 0) !== m && active && !started.current) { const el = row.current; if (el) el.scrollLeft = (first.media ?? 0) * el.clientWidth; } }, [active]);
+  const curHits = hits.filter((h) => (h.media ?? 0) === m);
   return (
     <>
       <div class="imedia" ref={row} onScroll={(e) => { const el = e.currentTarget as HTMLElement; const i = Math.round(el.scrollLeft / (el.clientWidth || 1)); if (i !== m) setM(i); }}
@@ -241,14 +266,29 @@ function Slide({ item, active, muted, onTapVideo, info, setInfo, loop, onEnded }
         {media.map((md, i) => (
           <div key={i} class="imedia-slide" data-n={i} data-on={i === m ? '1' : '0'}>
             {md.type === 'video'
-              ? <video src={md.url} poster={posterOf(md)} muted={muted} loop={loop} onEnded={() => { if (i === media.length - 1) onEnded(); else { row.current?.scrollTo({ left: (i + 1) * (row.current.clientWidth || 0) }); setM(i + 1); } }} playsinline autoplay={active && i === m} preload={active ? 'auto' : 'metadata'}
+              ? <video src={md.url} poster={posterOf(md)} muted={muted} loop={loop} onLoadedMetadata={(e) => onMeta(e, i)}
+                  onTimeUpdate={(e) => { if (i === m) { const v = e.currentTarget as HTMLVideoElement; setT({ cur: v.currentTime, dur: v.duration || 0 }); } }} onEnded={() => { if (i === media.length - 1) onEnded(); else { row.current?.scrollTo({ left: (i + 1) * (row.current.clientWidth || 0) }); setM(i + 1); } }} playsinline autoplay={active && i === m} preload={active ? 'auto' : 'metadata'}
                   aria-label={altFor(item, i, md)} onClick={onTapVideo} />
               : <img src={md.url} alt={altFor(item, i, md)} decoding="async" draggable={false} />}
           </div>
         ))}
       </div>
       {media.length > 1 && <div class="idots" aria-hidden="true">{media.map((_, i) => <span key={i} class={i === m ? 'on' : ''} />)}</div>}
-      {muted && active && media[m]?.type === 'video' && <button class="unmute" onClick={onTapVideo}><Icon name="mute" size={16} /> Tap to unmute</button>}
+      {muted && active && media[m]?.type === 'video' && <button class="unmute fui" onClick={onTapVideo}><Icon name="mute" size={16} /> Tap to unmute</button>}
+      {active && first && (
+        <div class="hit-chip fui" role="note" aria-label="Why this is here">
+          <span class={`conf ${confLabel(first.confidence) === 'low confidence' ? 'low' : ''}`}>{confLabel(first.confidence)}</span>
+          {first.excerpt && <span class="hit-ex">“{first.excerpt}”</span>}
+          {first.translation && first.translation !== first.excerpt && <span class="hit-tr">{first.translation}</span>}
+          {hits.length > 1 && <span class="hit-n">{hits.length} moments</span>}
+        </div>
+      )}
+      {active && media[m]?.type === 'video' && t.dur > 0 && (
+        <div class="hit-bar" aria-hidden="true">
+          <span class="hit-bar-fill" style={{ width: `${(t.cur / t.dur) * 100}%` }} />
+          {curHits.map((h, k) => typeof h.at === 'number' && <span key={k} class="hit-mark" style={{ left: `${(h.at / t.dur) * 100}%` }} />)}
+        </div>
+      )}
       <div class={`ioverlay ${info ? 'open' : ''}`}>
         <p class="imeta"><time dateTime={item.taken_at}>{fmtDate(item.taken_at)}</time>{place && ` · ${place}`}
           {r && <> · Original by <a href={r.source_url || igProfile(r.author)} rel="external noopener">@{r.author}</a></>}</p>
@@ -273,6 +313,8 @@ function Slide({ item, active, muted, onTapVideo, info, setInfo, loop, onEnded }
     </>
   );
 }
+
+const confLabel = (c?: number) => (typeof c !== 'number' ? 'possible' : c >= 0.7 ? 'likely' : c >= 0.4 ? 'possible' : 'low confidence');
 
 /** A few facts at a glance: who, where, when, mood. */
 function CompactAnalysis({ item }: { item: Item }) {

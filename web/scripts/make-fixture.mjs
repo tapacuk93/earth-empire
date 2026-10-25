@@ -234,6 +234,11 @@ for (const it of items) {
   const a = it.analysis || {};
   it.description = [a.what, a.where?.place && `It was ${a.when?.time_of_day ? a.when.time_of_day + ' at ' : 'at '}${a.where.place}${a.where.country ? ', ' + a.where.country : ''}.`, it.repost_of && `The original is by @${it.repost_of.author}.`, a.context].filter(Boolean).join(' ') || null;
 }
+const det = {
+  ig_3400000000000000001: [{ kind: 'name', phrase: 'тарас', lang: 'uk', media: 0, at: 3.2, confidence: 0.82, excerpt: 'Тарасе, дивись на маяк!', translation: 'Taras, look at the lighthouse!' }, { kind: 'name', phrase: 'тарас', media: 0, at: 7.1, confidence: 0.55, excerpt: 'Тарас біжить', translation: 'Taras is running' }],
+  ig_3400000000000000008: [{ kind: 'language', lang: 'ru', media: 0, at: 5.0, confidence: 0.36, excerpt: 'много кинзы', translation: 'lots of coriander' }],
+};
+for (const it of items) it.detection = det[it.id] ? { matched: true, hits: det[it.id], model: 'mock', scanned_at: stamp.updated_at } : { matched: true, hits: [], model: 'mock', scanned_at: stamp.updated_at };
 items.sort((a, b) => b.taken_at.localeCompare(a.taken_at));
 const out = fileURLToPath(new URL('../mock/fixture.json', import.meta.url));
 writeFileSync(out, JSON.stringify({ profile, highlights, categories, items }, null, 1) + '\n');

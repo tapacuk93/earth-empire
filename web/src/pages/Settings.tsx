@@ -23,7 +23,7 @@ export function OwnerToken({ onChange, inputRef }: { onChange: (ok: boolean) => 
         <button class="btn small" type="submit" disabled={!token.trim()}>Check and keep</button>
         {has && <button class="btn small ghost" type="button" onClick={() => { setAdminToken(''); setToken(''); setMsg('Signed out on this device.'); onChange(false); }}>Sign out</button>}
       </div>
-      <p class="muted small" role="status">{msg || 'Kept only in this browser. It turns on the owner’s buttons here and in Monitor.'}</p>
+      <p class="muted small" role="status">{msg || 'Kept only in this browser. It turns on the owner’s screens: Detected, Settings and Status.'}</p>
     </form>
   );
 }

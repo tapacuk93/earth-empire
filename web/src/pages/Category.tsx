@@ -31,7 +31,7 @@ export function CategoryPage({ slug, route }: { slug: string; route: Route }) {
         ]} />}
       </header>
       <section class="ipanel" aria-labelledby="cat-media">
-        <header class="ipanel-head"><h2 id="cat-media">Media</h2>{items.length > 0 && <a class="btn small" href={itemHref(items[0].id, ctx)}>Open the feed</a>}</header>
+        <header class="ipanel-head"><h2 id="cat-media">Media</h2>{items.length > 0 && <a class="btn small" href={itemHref(items[0].id, ctx)}>Play all</a>}</header>
         <MediaStrip items={items} ctx={ctx} label={`Media in ${cat?.name || slug}`} />
         {cats.data && (
           <nav class="chips" aria-label="Other categories">

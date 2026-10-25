@@ -8,6 +8,7 @@ import { cover } from './util';
 
 export interface Tile {
   id: string;
+  attachedTo?: string;               // an image shown beside the video it belongs with
   hit?: Hit;
   item?: Item;
   x: number; y: number; r: number;   // centre and half-size, in layout units
@@ -32,6 +33,8 @@ export function similarity(a: Set<string>, b: Set<string>): number {
 }
 
 function importance(it: Item): number {
+  const given = (it as { importance?: number }).importance;
+  if (typeof given === 'number') return Math.max(0, Math.min(1, given));
   const c = it.counts || {};
   const engagement = Math.log10(1 + (c.likes || 0) + (c.views || 0) / 10 + (c.plays || 0) / 10) / 5;
   const people = Math.min(1, (it.analysis?.people?.length || 0) / 3);
@@ -51,7 +54,7 @@ export function buildMosaic(items: Item[], halfHighlights: Highlight[], hits: Hi
   const tiles: Tile[] = [];
   for (const it of items) {
     const m = it.media[0] || it.repost_of?.media?.[0];
-    const g = (it.highlights || []).find((h) => hlIds.has(h.id))?.title || 'Feed';
+    const g = (it.highlights || []).find((h) => hlIds.has(h.id))?.title || '';
     const s = 0.6 + 1.6 * recency(it.taken_at, newest) * importance(it);
     tiles.push({ id: it.id, item: it, x: 0, y: 0, r: s, cover: cover(it), video: m?.type === 'video' ? m.url : undefined, group: g,
       date: it.taken_at, text: it.summary || it.caption || '', tags: tagSet(it) });
@@ -95,6 +98,10 @@ export function buildMosaic(items: Item[], halfHighlights: Highlight[], hits: Hi
       a.x += fx; a.y += fy;
     }
   }
+  return finish(tiles, names, byGroup);
+}
+
+function finish(tiles: Tile[], names: string[], byGroup: Map<string, Tile[]>): Mosaic {
   const groups: Group[] = names.map((name) => {
     const ts = byGroup.get(name)!;
     const x = ts.reduce((s, t) => s + t.x, 0) / ts.length, y = ts.reduce((s, t) => s + t.y, 0) / ts.length;
@@ -133,6 +140,10 @@ export function buildTagGraph(items: Item[], tags: Tag[], max = 160): { nodes: G
     for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) { const k = `${ids[i]}:${ids[j]}`; co.set(k, (co.get(k) || 0) + 1); }
   }
   const edges: GEdge[] = [...co.entries()].map(([k, w]) => { const [a, b] = k.split(':').map(Number); return { a, b, w }; });
+  return layoutGraph(top, edges);
+}
+
+function layoutGraph(top: Tag[], edges: GEdge[]): { nodes: GNode[]; edges: GEdge[] } {
   const maxC = Math.max(1, ...top.map((t) => t.count));
   const nodes: GNode[] = top.map((t, i) => {
     const a = i * 2.39996, d = Math.sqrt(i) * 3;
@@ -154,4 +165,180 @@ export function buildTagGraph(items: Item[], tags: Tag[], max = 160): { nodes: G
     nodes.forEach((p) => { p.x *= 0.995; p.y *= 0.995; });
   }
   return { nodes, edges };
+}
+
+const FEEDISH = new Set(['reels', 'posts', 'stories', 'feed', '']);
+
+/** The API's layout for one half (x, y in 0..1, size 0.15..1) as a mosaic. */
+export function mosaicFromLayout(lt: { id: string; kind: string; x: number; y: number; size: number; label?: string; taken_at?: string }[], items: Map<string, Item>, hits: Map<string, Hit>): Mosaic {
+  const span = Math.max(6, Math.sqrt(lt.length) * 4.5);
+  const tiles: Tile[] = [];
+  for (const t of lt) {
+    const it = t.kind === 'item' ? items.get(t.id) : undefined;
+    const h = t.kind === 'hit' ? hits.get(t.id) : undefined;
+    if (!it && !h) continue;
+    const label = (t.label || '').trim();
+    const group = h ? (label || 'Detected') : FEEDISH.has(label.toLowerCase()) ? '' : label;
+    const m = it ? it.media[0] || it.repost_of?.media?.[0] : undefined;
+    tiles.push({
+      id: t.id, item: it, hit: h, x: (t.x - 0.5) * span, y: (t.y - 0.5) * span, r: 0.5 + 1.3 * Math.max(0.15, Math.min(1, t.size)),
+      cover: it ? cover(it) : h!.frame || h!.video?.thumbnail || undefined, video: it ? (m?.type === 'video' ? m.url : undefined) : h!.clip || undefined,
+      group, date: it?.taken_at || t.taken_at || h?.video?.posted_at || undefined, text: it ? it.summary || it.caption || '' : `${whatOf(h!)} · ${titleOf(h!)}`,
+      tags: it ? tagSet(it) : hitTags(h!),
+    });
+  }
+  // Nudge overlapping tiles apart; the API's positions stay the backbone.
+  for (let step = 0; step < 60; step++) {
+    for (let i = 0; i < tiles.length; i++) for (let j = i + 1; j < tiles.length; j++) {
+      const a = tiles[i], b = tiles[j];
+      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01, min = (a.r + b.r) * 1.05;
+      if (d < min) { const f = (min - d) / 2 / d; a.x -= dx * f; a.y -= dy * f; b.x += dx * f; b.y += dy * f; }
+    }
+  }
+  const byGroup = new Map<string, Tile[]>();
+  tiles.forEach((t) => byGroup.set(t.group, [...(byGroup.get(t.group) || []), t]));
+  const names = [...byGroup.keys()].sort((a, b) => byGroup.get(b)!.length - byGroup.get(a)!.length);
+  return finish(tiles, names, byGroup);
+}
+
+/** The API's tag graph (levels 0..3) laid out in the browser. */
+export function graphFromApi(nodesIn: { tag: string; kinds?: string[]; count: number; level: number }[], edgesIn: { a: string; b: string; count: number }[]): { nodes: GNode[]; edges: GEdge[] } {
+  const sorted = nodesIn.slice().sort((a, b) => a.level - b.level || b.count - a.count);
+  const tags: Tag[] = sorted.map((n) => ({ tag: n.tag, kind: n.kinds?.[0] || 'keyword', count: n.count }));
+  const index = new Map(tags.map((t, i) => [t.tag, i]));
+  const edges: GEdge[] = edgesIn.map((e) => ({ a: index.get(e.a)!, b: index.get(e.b)!, w: e.count })).filter((e) => e.a !== undefined && e.b !== undefined);
+  return layoutGraph(tags, edges);
+}
+
+export const isVideo = (it: Item) => (it.media[0] || it.repost_of?.media?.[0])?.type === 'video' || (it.media.length > 1 && it.media.some((m) => m.type === 'video'));
+
+/** image id -> the video it is attached to: the API's `attached_to`, else its most similar video. */
+export function attachMap(items: Item[], given?: { id: string; attached_to?: string | null }[]): Map<string, string> {
+  const out = new Map<string, string>();
+  given?.forEach((t) => { if (t.attached_to) out.set(t.id, t.attached_to); });
+  const videos = items.filter(isVideo);
+  for (const it of items) {
+    if (isVideo(it) || out.has(it.id) || !videos.length) continue;
+    const a = tagSet(it);
+    let best = videos[0], bs = -1;
+    for (const v of videos) { const sc = similarity(a, tagSet(v)); if (sc > bs || (sc === bs && v.taken_at > best.taken_at)) { best = v; bs = sc; } }
+    out.set(it.id, best.id);
+  }
+  return out;
+}
+
+/** In the wheel an image follows the video it is attached to; when that video is not in the list, it keeps its place. */
+export function withAttachments(list: Item[], attach: Map<string, string>, keep?: string): Item[] {
+  const byParent = new Map<string, Item[]>();
+  const ids = new Set(list.map((x) => x.id));
+  list.forEach((x) => { const p = attach.get(x.id); if (p && ids.has(p)) byParent.set(p, [...(byParent.get(p) || []), x]); });
+  const out: Item[] = [];
+  for (const x of list) {
+    const p = attach.get(x.id);
+    if (p && ids.has(p) && x.id !== keep) continue;
+    out.push(x);
+    (byParent.get(x.id) || []).forEach((img) => { if (img.id !== keep) out.push(img); });
+  }
+  return out;
+}
+
+/** Places attached image tiles as small neighbours beside their video's tile; orphans are dropped. */
+export function placeAttached(m: Mosaic, attach: Map<string, string>): Mosaic {
+  const byId = new Map(m.tiles.map((t) => [t.id, t]));
+  const count = new Map<string, number>();
+  const tiles = m.tiles.filter((t) => {
+    const p = attach.get(t.id);
+    if (!p) return true;
+    const parent = byId.get(p);
+    if (!parent || attach.has(parent.id)) return false;
+    const n = count.get(p) || 0;
+    count.set(p, n + 1);
+    t.attachedTo = p;
+    t.r = parent.r * 0.38;
+    t.x = parent.x + parent.r + t.r + 0.08;
+    t.y = parent.y - parent.r + t.r + n * (2 * t.r + 0.08);
+    t.group = parent.group;
+    return true;
+  });
+  return { ...m, tiles };
+}
+
+// ---- packing: a gapless, ordered treemap over the whole half ----
+export interface Packed { tile: Tile; x: number; y: number; w: number; h: number }
+
+function hilbert(n: number, x: number, y: number): number {
+  let d = 0;
+  for (let s = n >> 1; s > 0; s >>= 1) {
+    const rx = (x & s) > 0 ? 1 : 0, ry = (y & s) > 0 ? 1 : 0;
+    d += s * s * ((3 * rx) ^ ry);
+    if (ry === 0) { if (rx === 1) { x = s - 1 - x; y = s - 1 - y; } [x, y] = [y, x]; }
+  }
+  return d;
+}
+
+/** Squarified treemap that keeps the given order, so neighbours in the order stay neighbours. */
+function squarifyOrdered<T>(data: { v: number; d: T }[], x0: number, y0: number, W: number, H: number): { d: T; x: number; y: number; w: number; h: number }[] {
+  const out: { d: T; x: number; y: number; w: number; h: number }[] = [];
+  const total = data.reduce((s, e) => s + e.v, 0) || 1;
+  let rest = data.map((e) => ({ ...e, a: (e.v / total) * W * H }));
+  let r = { x: x0, y: y0, w: W, h: H };
+  while (rest.length) {
+    const short = Math.min(r.w, r.h) || 1;
+    let row: typeof rest = [], worst = Infinity;
+    for (const e of rest) {
+      const next = [...row, e];
+      const sum = next.reduce((s, q) => s + q.a, 0);
+      let mx = 0, mn = Infinity;
+      for (const q of next) { mx = Math.max(mx, q.a); mn = Math.min(mn, q.a); }
+      const w = Math.max((short * short * mx) / (sum * sum), (sum * sum) / (short * short * mn));
+      if (w > worst) break;
+      worst = w; row = next;
+    }
+    const sum = row.reduce((s, q) => s + q.a, 0);
+    const last = row.length === rest.length;
+    const thick = last ? (r.w >= r.h ? r.w : r.h) : sum / short;
+    let off = 0;
+    for (const e of row) {
+      const len = (e.a / sum) * short;
+      out.push(r.w >= r.h ? { d: e.d, x: r.x, y: r.y + off, w: thick, h: len } : { d: e.d, x: r.x + off, y: r.y, w: len, h: thick });
+      off += len;
+    }
+    r = r.w >= r.h ? { x: r.x + thick, y: r.y, w: r.w - thick, h: r.h } : { x: r.x, y: r.y + thick, w: r.w, h: r.h - thick };
+    rest = rest.slice(row.length);
+  }
+  return out;
+}
+
+/**
+ * Packs a half into W×H with no free space: videos ordered along a Hilbert curve through their
+ * similarity positions, areas by size (recency × importance), attached images in a slice of their
+ * video's tile.
+ */
+export function pack(m: Mosaic, W: number, H: number): Packed[] {
+  const kids = new Map<string, Tile[]>();
+  m.tiles.forEach((t) => { if (t.attachedTo) kids.set(t.attachedTo, [...(kids.get(t.attachedTo) || []), t]); });
+  const parents = m.tiles.filter((t) => !t.attachedTo);
+  if (!parents.length) return [];
+  let [x0, x1, y0, y1] = [Infinity, -Infinity, Infinity, -Infinity];
+  parents.forEach((t) => { x0 = Math.min(x0, t.x); x1 = Math.max(x1, t.x); y0 = Math.min(y0, t.y); y1 = Math.max(y1, t.y); });
+  const N = 256, sx = (x1 - x0) || 1, sy = (y1 - y0) || 1;
+  const order = parents.map((t) => ({ t, h: hilbert(N, Math.min(N - 1, Math.floor(((t.x - x0) / sx) * (N - 1))), Math.min(N - 1, Math.floor(((t.y - y0) / sy) * (N - 1)))) }))
+    .sort((a, b) => a.h - b.h).map((e) => e.t);
+  const cells = squarifyOrdered(order.map((t) => ({ v: t.r * t.r * (1 + 0.3 * (kids.get(t.id)?.length || 0)), d: t })), 0, 0, W, H);
+  const out: Packed[] = [];
+  for (const c of cells) {
+    const ks = kids.get(c.d.id) || [];
+    if (!ks.length) { out.push({ tile: c.d, x: c.x, y: c.y, w: c.w, h: c.h }); continue; }
+    // The video keeps most of its cell; its images share a strip along the long side.
+    if (c.w >= c.h) {
+      const sw = c.w * 0.26;
+      out.push({ tile: c.d, x: c.x, y: c.y, w: c.w - sw, h: c.h });
+      ks.forEach((k, i) => out.push({ tile: k, x: c.x + c.w - sw, y: c.y + (i * c.h) / ks.length, w: sw, h: c.h / ks.length }));
+    } else {
+      const sh = c.h * 0.26;
+      out.push({ tile: c.d, x: c.x, y: c.y, w: c.w, h: c.h - sh });
+      ks.forEach((k, i) => out.push({ tile: k, x: c.x + (i * c.w) / ks.length, y: c.y + c.h - sh, w: c.w / ks.length, h: sh }));
+    }
+  }
+  return out;
 }

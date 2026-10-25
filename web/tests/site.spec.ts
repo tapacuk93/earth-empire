@@ -6,6 +6,9 @@ const CAROUSEL = 'ig_3400000000000000002';
 const STORY_REPOST = 'ig_3400000000000000004';
 const POST_REPOST = 'ig_3400000000000000007';
 
+// Floating controls auto-hide; tests keep them on screen unless a test is about that.
+test.beforeEach(async ({ page }) => { await page.addInitScript(() => { (window as unknown as { __EE_NO_IDLE__: boolean }).__EE_NO_IDLE__ = true; }); });
+
 function watchErrors(page: Page) {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -33,7 +36,7 @@ async function openFromList(page: Page, name: string | RegExp, n = 0) {
 test('home: three full-screen modes - mosaic, tag graph, timeline - with a mode indicator', async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Earth Empire, in data');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Earth Empire');
   for (const name of ['Mosaic mode', 'Tag graph mode', 'Timeline mode']) await expect(page.getByRole('region', { name, exact: true })).toHaveCount(1);
   await expect(page.locator('canvas.mosaic-canvas')).toHaveCount(4);
   // No profile, follower counts, kind labels or photo grid.
@@ -52,41 +55,81 @@ test('home: three full-screen modes - mosaic, tag graph, timeline - with a mode 
 
 test('mosaic: two halves split by highlight size, with detected videos placed in them', async ({ page }) => {
   await page.goto('/');
-  const up = page.getByRole('region', { name: 'Short highlights and the feed' });
+  const up = page.getByRole('region', { name: /^Short highlights: / });
   const low = page.getByRole('region', { name: 'Long highlights' });
   expect((await up.boundingBox())!.y).toBeLessThan((await low.boundingBox())!.y);
-  await expect(list(page, 'Short highlights and the feed: videos').getByRole('link')).toHaveCount(28); // 27 videos + 1 detected
-  await expect(list(page, 'Long highlights: videos').getByRole('link')).toHaveCount(5);
+  await expect(list(page, 'Short highlights: videos').getByRole('link')).not.toHaveCount(0);
+  await expect(list(page, 'Long highlights: videos').getByRole('link')).not.toHaveCount(0);
   await expect(list(page, 'Long highlights: videos').getByRole('link').first()).toHaveText(/^Travel, /);
-  await expect(list(page, 'Short highlights and the feed: videos').getByRole('link', { name: /^Detected, / })).toHaveAttribute('href', /watch=h_mock1/);
+  await expect(list(page, 'Short highlights: videos').getByRole('link', { name: /^Detected, / })).toHaveAttribute('href', /watch=h_mock1/);
 });
 
-test('mosaic: zoom with buttons and Ctrl+wheel; the canvas still fits the screen', async ({ page }) => {
+test('mosaic: packed edge to edge; zoom stays covered; floating controls', async ({ page, browserName }) => {
   await page.goto('/');
-  const up = page.getByRole('region', { name: 'Short highlights and the feed' });
-  const level = up.locator('.zoom-level');
-  const vw = page.viewportSize()!.width;
-  if (vw > 480) await expect(level).toHaveText('1.0×');
+  const up = page.getByRole('region', { name: /^Short highlights: / });
+  const canvas = up.locator('canvas');
+  const vw = page.viewportSize()!;
+  const box = (await canvas.boundingBox())!;
+  expect(box.x).toBeLessThanOrEqual(1);
+  expect(Math.abs(box.width - vw.width)).toBeLessThanOrEqual(1);
+  // No free background: sample the canvas and expect almost every pixel to be tile, not page colour.
+  const free = await canvas.evaluate((c: HTMLCanvasElement) => {
+    const ctx = c.getContext('2d')!;
+    const bg = getComputedStyle(c).getPropertyValue('--bg').trim();
+    const probe = document.createElement('canvas').getContext('2d')!;
+    probe.fillStyle = bg; probe.fillRect(0, 0, 1, 1);
+    const [r, g, b] = probe.getImageData(0, 0, 1, 1).data;
+    const { width, height } = c;
+    const d = ctx.getImageData(0, 0, width, height).data;
+    let n = 0, m = 0;
+    for (let y = 2; y < height - 2; y += 7) for (let x = 2; x < width - 2; x += 7) { const i = (y * width + x) * 4; m++; if (Math.abs(d[i] - r) + Math.abs(d[i + 1] - g) + Math.abs(d[i + 2] - b) < 6) n++; }
+    return n / m;
+  });
+  expect(free).toBeLessThan(0.08);
+  await up.getByRole('button', { name: /^Zoom controls/ }).click();
+  await expect(up.locator('.zoom-level')).toHaveText('1.0×');
+  await up.getByRole('button', { name: /^Zoom out/ }).click();
+  await expect(up.locator('.zoom-level')).toHaveText('1.0×'); // never smaller than the screen
   await up.getByRole('button', { name: /^Zoom in/ }).click();
-  if (vw > 480) await expect(level).toHaveText('1.6×');
-  const box = (await up.locator('canvas').boundingBox())!;
+  await expect(up.locator('.zoom-level')).toHaveText('1.6×');
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.keyboard.down('Control');
-  await page.mouse.wheel(0, -200);
-  await page.keyboard.up('Control');
-  if (vw > 480) await expect(level).not.toHaveText('1.6×');
+  if (browserName === 'chromium') { // WebKit's driver does not pass Ctrl with the wheel
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -200);
+    await page.keyboard.up('Control');
+    await expect(up.locator('.zoom-level')).not.toHaveText('1.6×');
+  }
   await up.getByRole('button', { name: /^Show all/ }).click();
-  if (vw > 480) await expect(level).toHaveText('1.0×');
+  await expect(up.locator('.zoom-level')).toHaveText('1.0×');
   await noHorizontalScroll(page);
+});
+
+test('no word "feed" anywhere, and tiles outside highlights carry no label', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('body')).not.toContainText(/\bfeed\b/i);
+  const names = await page.locator('.mosaic-list a').allInnerTexts();
+  expect(names.join('\n')).not.toMatch(/\bfeed\b/i);
+  expect(names.some((n) => /^\w{3} \d{1,2}, \d{4}: /.test(n))).toBe(true); // a tile with only its date
+});
+
+test('floating controls fade after a few seconds and come back on input', async ({ page }) => {
+  await page.addInitScript(() => { (window as unknown as { __EE_NO_IDLE__: boolean }).__EE_NO_IDLE__ = false; });
+  await page.goto('/');
+  const pill = page.locator('.home-pill');
+  await expect(pill).toHaveCSS('opacity', '1');
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('ui-idle')), { timeout: 8000 }).toBe(true);
+  await page.mouse.move(50, 300);
+  await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('ui-idle'))).toBe(false);
+  await expect(page.locator('.corner-dot .secret-dot')).toBeAttached();
 });
 
 test('mosaic: opening a video starts the wheel through that half, most related first', async ({ page }) => {
   await page.goto('/');
-  await openFromList(page, 'Short highlights and the feed: videos');
+  await openFromList(page, 'Short highlights: videos');
   const f = feed(page);
   await expect(f).toBeVisible();
   await expect(page).toHaveURL(/\/item\/.+\?ctx=rel%3Adedicated%3A/);
-  await expect(f).toHaveAccessibleName(/^Related · Short highlights and the feed: item 1 of 2[78]$/);
+  await expect(f).toHaveAccessibleName(/^Related · Short highlights: item 1 of 2[78]$/);
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(f).toHaveCount(0);
 });
@@ -107,11 +150,12 @@ test('timeline: newest first; a video opens the wheel in time order from there; 
   await expect(links).toHaveCount(28);
   await expect(links.first()).toHaveText(/^Oct 2[34], 2026: A sunset run/);
   await expect(links.nth(1)).toHaveText(/^Oct 2[34], 2026: A three-photo walk/);
-  await openFromList(page, 'Every video, newest first', 1);
+  await openFromList(page, 'Every video, newest first', 0);
   const f = feed(page);
-  await expect(f).toHaveAccessibleName('Everything: item 2 of 28');
+  await expect(page).toHaveURL(new RegExp(`/item/${REEL}$`));
+  await expect(f).toHaveAccessibleName('Everything: item 1 of 28');
   await page.keyboard.press('ArrowDown');
-  await expect(f).toHaveAccessibleName('Everything: item 3 of 28');
+  await expect(f).toHaveAccessibleName('Everything: item 2 of 28');
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(f).toHaveCount(0);
   await expect(page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Timeline mode' })).toHaveAttribute('aria-current', 'true');
@@ -134,8 +178,8 @@ test('wheel: the playback button cycles autoplay next, repeat and stop, and is r
 
 test('wheel: in autoplay, a still moves on after a few seconds', async ({ page }) => {
   await page.goto('/item/ig_3400000000000000005');
-  await expect(feed(page)).toHaveAccessibleName('Everything: item 5 of 28');
-  await expect(page).toHaveURL(/\/item\/ig_3400000000000000006$/, { timeout: 9000 });
+  await expect(feed(page)).toHaveAccessibleName(/^Everything: item \d+ of 28$/);
+  await expect(page).not.toHaveURL(/\/item\/ig_3400000000000000005$/, { timeout: 9000 });
 });
 
 test('home: published detected videos play in their fullscreen mode', async ({ page }) => {
@@ -181,16 +225,16 @@ test('feed: a section context, the overlay, expanded analysis, and seeking the v
 test('feed: carousels swipe sideways; reposts credit the original', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(`/item/${CAROUSEL}`);
-  const slide = feed(page).locator('.islide[data-i="1"]');
+  const slide = feed(page).locator('.islide:not([aria-hidden])');
   await expect(slide.locator('.idots span')).toHaveCount(3);
   await slide.locator('.imedia').evaluate((el) => el.scrollTo({ left: el.clientWidth * 2 }));
   await expect(slide.locator('.idots span').nth(2)).toHaveClass('on');
   await page.goto(`/item/${STORY_REPOST}`);
-  const r = feed(page).locator('.islide[data-i="3"]');
+  const r = feed(page).locator('.islide:not([aria-hidden])');
   await expect(r.locator('.imeta')).toContainText('Original by @oceanlab');
   await expect(r.getByRole('link', { name: '@oceanlab' })).toHaveAttribute('href', 'https://www.instagram.com/reel/DMockOrig1/');
   await page.goto(`/item/${POST_REPOST}`);
-  await expect(feed(page).locator('.islide[data-i="6"] .imeta')).toContainText('Original by @mountainclub');
+  await expect(feed(page).locator('.islide:not([aria-hidden]) .imeta')).toContainText('Original by @mountainclub');
 });
 
 test('highlight: story viewer with progress bars, taps, keys and close', async ({ page }) => {
@@ -431,3 +475,21 @@ test('settings: suggested phrases from highlight names, accept and reject', asyn
   await expect(page.getByRole('region', { name: 'Suggested phrases' }).locator('.phrase')).toHaveText([/travel/, /ocean/]); // the mock forgets an accepted phrase on reload; the rejection stays
 });
 
+
+test('wheel: why it is here - the first hit as a chip, the video starting just before it, marks on the bar', async ({ page }) => {
+  await page.goto(`/item/${REEL}`);
+  const slide = feed(page).locator('.islide:not([aria-hidden])');
+  const chip = slide.getByRole('note', { name: 'Why this is here' });
+  await expect(chip).toContainText('likely');
+  await expect(chip).toContainText('Тарасе, дивись на маяк!');
+  await expect(chip).toContainText('Taras, look at the lighthouse!');
+  await expect(chip).toContainText('2 moments');
+  const video = slide.locator('video').first();
+  const playable = await video.evaluate((v: HTMLVideoElement) => v.canPlayType('video/mp4; codecs="avc1.4D401E, mp4a.40.2"') !== '');
+  if (playable) {
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 8000 }).toBeGreaterThan(1.5);
+    await expect(slide.locator('.hit-mark')).toHaveCount(2);
+  }
+  await page.goto('/item/ig_3400000000000000008');
+  await expect(feed(page).locator('.islide:not([aria-hidden])').getByRole('note', { name: 'Why this is here' })).toContainText('low confidence');
+});

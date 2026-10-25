@@ -97,7 +97,7 @@ export function DetectedPage({ route }: { route: Route }) {
 
   return (
     <div class="det">
-      <div class="det-bar">
+      <div class="det-bar fui">
         <h1 class="det-h">Detected</h1>
         <div class="kinds" role="group" aria-label="Kind of hit">
           {KINDS.map(([k, l]) => <button key={l} class="kind" aria-pressed={kind === k} onClick={() => navigate(withParam(route, 'kind', k), { replace: true })}>{l}</button>)}
@@ -138,7 +138,7 @@ export function DetectedPage({ route }: { route: Route }) {
                 </section>
               ))}
             </div>
-            <div class="wheel-side">
+            <div class="wheel-side fui">
               <button class="icon-btn" onClick={() => setMuted(!muted)} aria-label={muted ? 'Unmute' : 'Mute'} aria-pressed={!muted}><Icon name={muted ? 'mute' : 'sound'} /></button>
               <button class="icon-btn" onClick={() => go(cur - 1)} disabled={cur === 0} aria-label="Previous hit"><Icon name="left" class="up" /></button>
               <button class="icon-btn" onClick={() => go(cur + 1)} disabled={cur >= hits.length - 1} aria-label="Next hit"><Icon name="right" class="down" /></button>

@@ -128,3 +128,13 @@ navigation, live regions for result counts and the story position, real buttons 
 `prefers-reduced-motion` and `forced-colors` support, and light and dark themes (auto, or chosen
 and remembered). The layout is fluid from 320 px phones to 4K (3 to 6 grid columns, safe-area
 insets). Targets: Safari 14+, Chrome/Edge/Samsung Internet 90+, Firefox 90+.
+
+## Rules shared with the apps (iOS and Android follow the same)
+
+- **Everything is fullscreen.** Every screen (mosaic, tag graph, timeline, the TikTok wheel, Detected, Settings, Status, 404) fills the viewport edge to edge (`100dvh`, safe areas respected), with no fixed header, footer, side bar, page margins or framing cards. Settings and Status are scrollable panes.
+- **Every control floats**: the mode indicator, zoom, playback mode, close, share, "+", the owner tab switcher and the token prompt are small translucent buttons and chips over the content. They fade after about 3.5 s without input and come back on any tap, move, key or scroll (`src/idle.ts`, class `fui`). The admin gesture's "." is a tiny dot in the bottom-left corner that never hides.
+- **The mosaic is packed**: an ordered, squarified treemap per half (`pack()` in `src/layout.ts`). It is ordered along a Hilbert curve through the similarity positions from `/v1/layout`, so related videos are neighbours, and areas follow recency × importance. Covers fill each tile, with 1 px gaps. Zoom never goes below the full view and panning stays inside it, so the screen is always covered. One non-empty half takes the whole screen.
+- **No word "feed"**: tiles outside any highlight have no label, and the halves have no visible names (screen readers get "Short highlights" and "Long highlights").
+- **Images** (only the owner's own) are never standalone tiles. Each takes a slice of its video's tile (`attached_to`, else its most similar video), and in the wheel it follows that video as a 5-second still.
+- **Why it is public**: the wheel starts a video 1.5 s before `detection.hits[0].at`. A floating chip shows the excerpt, the translation and the confidence level (likely, possible or low confidence), and the progress bar is marked at every hit. Mosaic tiles show a small hit-count badge once they are big enough.
+- **The app banner** never covers a fullscreen view. On Home it shows once, as a toast, after the first interaction.

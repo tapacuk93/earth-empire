@@ -75,7 +75,12 @@ export interface Item {
   description?: string | null;
   analysis?: Analysis | null;
   published_at?: string | null;
+  importance?: number | null;
+  /** Why the item is public (CONTRACT.md): the monitor's matched moments. */
+  detection?: { matched?: boolean; hits?: DetectionHit[]; model?: string; scanned_at?: string } | null;
 }
+
+export interface DetectionHit { kind: 'name' | 'language'; phrase?: string | null; lang?: string | null; media?: number; at?: number; confidence?: number; excerpt?: string; translation?: string | null }
 
 export interface Highlight { id: string; title: string; cover?: string | null; item_ids: string[]; updated_at?: string }
 export interface Category { slug: string; name: string; description?: string | null; count?: number }

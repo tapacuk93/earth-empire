@@ -46,8 +46,22 @@ export function AppBanner({ route }: { route: Route }) {
   useItunesMeta(route);
   const [p] = useState(platform);
   const [hidden, setHidden] = useState(dismissed);
+  // On Home it waits for a first interaction and then shows once, as a toast.
+  const [touched, setTouched] = useState(false);
+  useEffect(() => {
+    if (touched) return;
+    const on = () => setTouched(true);
+    addEventListener('pointerdown', on, { once: true });
+    return () => removeEventListener('pointerdown', on);
+  }, [touched]);
+  useEffect(() => {
+    if (!touched || route.path !== '/' || hidden) return;
+    remember(); // shown once
+    const t = window.setTimeout(() => setHidden(true), 9000);
+    return () => clearTimeout(t);
+  }, [touched]);
   const ownBannerOnly = p === 'ios' && IOS_APP_ID && isIosSafari();
-  if (!p || hidden || ownBannerOnly || route.path.startsWith('/highlight/') || route.path.startsWith('/item/') || route.query.has('watch')) return null; // never over a fullscreen viewer
+  if (!p || hidden || ownBannerOnly || route.path.startsWith('/highlight/') || route.path.startsWith('/item/') || route.query.has('watch') || (route.path === '/' && !touched)) return null; // never over a fullscreen viewer
 
   const open = (e: Event) => {
     if (p !== 'ios') return; // the intent URL falls back to the store by itself
@@ -62,7 +76,7 @@ export function AppBanner({ route }: { route: Route }) {
   };
 
   return (
-    <aside class="app-banner" aria-label="Open in the app">
+    <aside class={`app-banner ${route.path === '/' ? 'toast' : ''}`} aria-label="Open in the app">
       <span class="logo" aria-hidden="true" />
       <span class="app-banner-text"><b>{SITE_NAME}</b><span>Open this page in the app</span></span>
       <a class="btn small" href={appUrl(p)} onClick={open}>Open</a>

@@ -113,7 +113,9 @@ export function ItemPage({ id, route }: { id: string; route: Route }) {
     setServed(undefined);
     const byId = new Map((all.data || []).map((x) => [x.id, x]));
     if (ctx.startsWith('rel:')) {
-      getRelated(id).then((r) => setServed(r ? [byId.get(id), ...r.map((x) => x.item || byId.get(x.id))].filter((x): x is Item => !!x && x.media !== undefined) : null));
+      // The opened video first, even when it is newer than the item list in memory.
+      Promise.all([getRelated(id), byId.get(id) ? Promise.resolve(byId.get(id)) : getItem(id).catch(() => undefined)]).then(([r, anchor]) =>
+        setServed(r ? [anchor, ...r.map((x) => x.item || byId.get(x.id))].filter((x): x is Item => !!x && x.media !== undefined) : null));
     } else if (ctx.startsWith('tag:')) tagItems(ctx.slice(4)).then(setServed);
     else setServed(null);
   }, [ctx, !!all.data]);
@@ -121,6 +123,7 @@ export function ItemPage({ id, route }: { id: string; route: Route }) {
   const base = ready ? (served && served.length ? served : ctxItems(ctx, all.data!, hl.data || [])) : undefined;
   const list = base && withAttachments(base, attachMap(all.data!, lay.data ? [...lay.data.top, ...lay.data.bottom] : undefined), id);
   const inList = !!list?.some((x) => x.id === id);
+  // A served list (related, a tag's items) can hold items newer than the list in memory.
 
   useEffect(() => {
     if (!ready || inList) return;

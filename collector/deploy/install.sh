@@ -25,9 +25,10 @@ fi
 $VENV/bin/pip install -q --upgrade pip
 $VENV/bin/pip install -q -r $C/requirements.txt
 
-mkdir -p $PLAYWRIGHT_BROWSERS_PATH
-$VENV/bin/python -m playwright install --with-deps chromium
-chmod -R a+rX $PLAYWRIGHT_BROWSERS_PATH
+# the shared browsers dir belongs to earth (CONTRACT.md): system libraries as root, browsers as earth
+install -d -o earth -g earth $PLAYWRIGHT_BROWSERS_PATH
+$VENV/bin/python -m playwright install-deps chromium
+sudo -u earth -H env PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH $VENV/bin/python -m playwright install chromium
 
 install -d -o earth -g earth -m 750 /var/lib/earth-empire/collector
 install -d -o earth -g earth -m 700 /var/lib/earth-empire/browser

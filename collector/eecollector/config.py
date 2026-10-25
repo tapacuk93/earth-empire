@@ -73,7 +73,9 @@ class Secrets:
                 try:
                     val = json.loads(raw)
                 except json.JSONDecodeError:
-                    val = {"value": raw}
+                    val = raw
+                if not isinstance(val, dict):
+                    val = {"value": str(val)}
             except ClientError as e:
                 code = e.response.get("Error", {}).get("Code")
                 if code != "ResourceNotFoundException" or required:
@@ -87,8 +89,7 @@ class Secrets:
         if env("EE_INGEST_TOKEN"):  # local tests against the mock backend
             return env("EE_INGEST_TOKEN")
         s = self.get("earth-empire/ingest-token")
-        tok = s.get("token") or s.get("value") if isinstance(s, dict) else s
-        return str(tok)
+        return str(s.get("token") or s.get("value"))
 
     def instagram(self) -> dict:
         return self.get("earth-empire/instagram")

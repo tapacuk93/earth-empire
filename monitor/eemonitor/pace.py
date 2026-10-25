@@ -57,7 +57,10 @@ def wait(c, platform: str) -> None:
 
 def halt(c, e: Stop) -> None:
     """Record and log a stop. Rate limits pause for an hour; everything else until the owner clears it."""
-    seconds = 3600 if e.kind == "rate_limit" else 24 * 3600 if e.kind == "cap" else None
+    # rate limits pause an hour; a missing Instagram session is looked at again every 3 hours (it
+    # appears when the owner logs the collector in); everything else waits for the owner
+    seconds = 3600 if e.kind == "rate_limit" else 3 * 3600 if (e.kind == "login" and e.platform == "instagram") \
+        else 24 * 3600 if e.kind == "cap" else None
     if e.kind == "cap":
         return  # a cap is not a stop; it resets at midnight UTC
     if c is not None:

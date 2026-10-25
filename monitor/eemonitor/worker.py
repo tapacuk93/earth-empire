@@ -570,7 +570,8 @@ def repost_seeds(c) -> int:
         for i, m in enumerate(rep.get("media") or []):
             if m.get("type") != "video" or not m.get("url"):
                 continue
-            url = m["url"] if m["url"].startswith("http") else f"{MEDIA_BASE}/{m['url'].lstrip('/')}"
+            key = m["url"][4:] if m["url"].startswith("key:") else m["url"]
+            url = key if key.startswith("http") else f"{MEDIA_BASE}/{key.lstrip('/')}"
             sid = None
             if author:
                 sid = "ig_" + registry.slug(author)

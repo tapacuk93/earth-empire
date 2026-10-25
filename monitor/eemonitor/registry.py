@@ -14,7 +14,10 @@ from pathlib import Path
 
 from . import db
 
-FILE = Path(__file__).resolve().parents[1] / "sources.json"
+import os
+FILE = Path(os.environ.get("EE_MONITOR_SOURCES") or (Path(__file__).resolve().parents[1] / "sources.json"))
+if not FILE.exists():
+    FILE = Path("/opt/earth-empire/repo/monitor/sources.json")
 PLATFORMS = ("youtube", "telegram", "x", "instagram", "facebook", "tiktok", "vk", "rutube")
 SCANNED = ("youtube", "telegram", "x", "instagram", "facebook")
 

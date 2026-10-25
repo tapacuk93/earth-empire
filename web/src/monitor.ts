@@ -1,6 +1,6 @@
 // The monitor: videos from official accounts that mention the watched phrases.
-// PROVISIONAL: CONTRACT.md's Monitor section is not written yet. Everything the site reads from
-// those endpoints passes through `normalize`, so adapting to the final shape touches only this file.
+// The endpoints and the Hit shape are in CONTRACT.md "Monitor": one entry here per hit (a moment in a
+// video). Everything read passes through `normalize`, which also still accepts the mock's shape.
 import { ApiError } from './api';
 import { API_BASE, MOCK } from './config';
 import { adminToken } from './live';
@@ -30,6 +30,7 @@ export const LOW_CONFIDENCE = 0.6;
 type Raw = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export function normalize(r: Raw): MonitorVideo {
+  if (r.video && typeof r.video === 'object' && r.kind) return fromHit(r);
   const m0 = Array.isArray(r.media) ? r.media.find((m: Raw) => m.type === 'video') || r.media[0] : null;
   const src: Raw = r.source && typeof r.source === 'object' ? r.source : {};
   let conf = r.confidence ?? r.score ?? null;
@@ -55,7 +56,33 @@ export function normalize(r: Raw): MonitorVideo {
   };
 }
 
-const list = (j: Raw): Raw[] => j.videos || j.items || j.published || [];
+/** A Hit (CONTRACT.md "Monitor") as one found moment. */
+function fromHit(h: Raw): MonitorVideo {
+  const v: Raw = h.video || {};
+  const src: Raw = h.source || {};
+  const ex: Raw = h.excerpt || {};
+  const what = h.kind === 'language' ? `${String(h.matched).toUpperCase()} speech` : h.matched;
+  return {
+    id: String(h.id),
+    title: v.title || `${what} in a ${h.platform || ''} video`.trim(),
+    url: h.at_url || v.url,
+    cover: h.frame || v.thumbnail || undefined,
+    account: h.account ? String(h.account).replace(/^@/, '') : undefined,
+    accountName: src.name || undefined,
+    platform: h.platform || undefined,
+    sourceUrl: v.url || undefined,
+    takenAt: v.posted_at || undefined,
+    foundAt: h.found_at || undefined,
+    confidence: typeof h.confidence === 'number' ? h.confidence : undefined,
+    low: h.confidence_label ? h.confidence_label === 'low confidence' : (h.confidence ?? 0) < LOW_CONFIDENCE,
+    matches: [{ phrase: h.phrase || (h.kind === 'language' ? `${h.matched} speech` : undefined), text: what, at: h.start ?? null }],
+    transcript: [ex.text, ex.en && ex.en !== ex.text ? `(${ex.en})` : null].filter(Boolean).join(' ') || undefined,
+    published: !!h.published_at,
+    item: undefined,
+  };
+}
+
+const list = (j: Raw): Raw[] => j.hits || j.videos || j.items || j.published || [];
 
 async function get(path: string): Promise<Raw> {
   const r = await fetch(API_BASE + path, { headers: { Accept: 'application/json' } });
@@ -73,7 +100,7 @@ export async function getMonitorVideos(before?: string): Promise<VideoPage> {
     const all = (await mockVideos()).slice().sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
     return { videos: all, next: null };
   }
-  const j = await get(`/v1/monitor/videos?sort=confidence&limit=50${before ? '&before=' + encodeURIComponent(before) : ''}`);
+  const j = await get(`/v1/monitor/hits?sort=confidence&limit=50${before ? '&before=' + encodeURIComponent(before) : ''}`);
   const videos = list(j).map(normalize).sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
   return { videos, next: j.next ?? null };
 }
@@ -92,6 +119,6 @@ export async function publishVideo(id: string): Promise<void> {
     (await mockVideos()).forEach((v) => { if (v.id === id) v.published = true; });
     return;
   }
-  const r = await fetch(`${API_BASE}/v1/monitor/videos/${encodeURIComponent(id)}/publish`, { method: 'POST', headers: { Authorization: `Bearer ${adminToken()}` } });
+  const r = await fetch(`${API_BASE}/v1/monitor/hits/${encodeURIComponent(id)}/publish`, { method: 'POST', headers: { Authorization: `Bearer ${adminToken()}` } });
   if (!r.ok) throw new ApiError(r.status, `${r.status} publishing ${id}`);
 }

@@ -276,7 +276,8 @@ def discover(c, browsers: bool = True) -> int:
     if db.setting(c, "instagram.enabled") == "1" and not db.stopped(c, "instagram") and instagram.session_exists():
         if due_accounts(c, "instagram", 1) or not db.setting(c, "instagram.following_synced"):
             n += browser_round(c, "instagram")
-    if db.setting(c, "tiktok.enabled") == "1" and not db.stopped(c, "tiktok") and due_accounts(c, "tiktok", 1):
+    if db.setting(c, "tiktok.enabled") == "1" and not db.stopped(c, "tiktok") and tiktok.session_exists() \
+            and due_accounts(c, "tiktok", 1):
         n += browser_round(c, "tiktok", max_accounts=3)
     return n
 

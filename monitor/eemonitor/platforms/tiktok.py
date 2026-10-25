@@ -39,7 +39,20 @@ def session_state():
 
 
 def session_exists() -> bool:
-    return (PROFILE / "Default" / "Cookies").exists() or bool(session_state())
+    """A TikTok sessionid in the profile's cookies or in the handed-over storageState (no network)."""
+    import sqlite3
+    for db_path in (PROFILE / "Default" / "Cookies", PROFILE / "Default" / "Network" / "Cookies"):
+        if db_path.exists():
+            try:
+                con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=5)
+                ok = con.execute("SELECT 1 FROM cookies WHERE host_key LIKE '%tiktok.com' AND name='sessionid'").fetchone()
+                con.close()
+                if ok:
+                    return True
+            except sqlite3.Error:
+                pass
+    st = session_state()
+    return bool(st) and any(ck.get("name") == "sessionid" for ck in st.get("cookies", []))
 
 
 # ------------------------------------------------------------------ parsing (pure)

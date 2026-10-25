@@ -1,4 +1,4 @@
-"""The archive's reads and writes: ingest upserts, rendering for the API, search, pipeline steps."""
+"""Earth Empire's item store - reads and writes: ingest upserts, rendering for the API, search, pipeline steps."""
 from __future__ import annotations
 
 import base64
@@ -85,7 +85,7 @@ def publishable(d: dict) -> tuple[bool, str | None]:
 
 
 def gate(c, item_id: str) -> tuple[bool, str]:
-    """Is this archive item public? Every mirrored item of the account is, once analyzed, unless it
+    """Is this item from the owner's profile public? Every mirrored item of the account is, once analyzed, unless it
     is an image-only repost. A monitor detection is context (shown and used as a start point), never
     a condition. Apply the answer: publish (site step posted, the posters may post) or unpublish
     (site skipped; X/Facebook skipped unless they already posted)."""

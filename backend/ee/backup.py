@@ -9,7 +9,7 @@ API (consistent while its owner keeps writing), gzipped and uploaded:
 
 The bucket expires daily copies after 35 days. `ee restore` (backend/deploy/restore-state.sh
 stops the services around it) brings them back, so a rebuilt box starts where the old one stopped:
-the archive, the pipeline and posting state, the collector's and the monitor's state.
+Earth Empire's items, the pipeline and posting state, the collector's and the monitor's state.
 """
 from __future__ import annotations
 

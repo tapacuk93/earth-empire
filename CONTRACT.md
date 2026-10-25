@@ -1,8 +1,10 @@
 # Earth Empire — contract between the parts
 
-An archive of one Instagram account (the owner's), mirrored to **https://empire.earth**, an iOS
-app **Earth Empire**, and the owner's X account. Claude, on the backend, sorts every item into
-categories.
+**Earth Empire** is the project. It takes the owner's Instagram account (posts, reels, stories,
+highlights), describes and sorts every item with Claude, and publishes it at
+**https://empire.earth**, in the Earth Empire apps (iOS and Android), and on the owner's X and
+Facebook. It also watches public videos elsewhere for moments that concern the owner. The collector,
+backend, monitor, site, apps and posters are its parts.
 
 One public repository, github.com/tapacuk93/earth-empire - so no secret, password, token or
 account detail is ever committed; they live in AWS Secrets Manager.
@@ -13,6 +15,7 @@ account detail is ever committed; they live in AWS Secrets Manager.
 | `collector/` | the headless browser in AWS that reads the account and feeds the API |
 | `web/` | the site at `empire.earth` - a static app over the API, every browser and screen size |
 | `ios/` | the iOS app Earth Empire (`com.oeaio.earthempire`) over the API |
+| `android/` | the Android app Earth Empire over the API |
 | `monitor/` | the monitor: public videos of official (and followed, reposted, recommended) accounts, transcribed on the box and searched for the owner's phrases and out-of-place Ukrainian/Russian; its API under `/v1/monitor/` and `/v1/published` |
 
 Each part changes only its own folder. This file is shared; change it only together with every

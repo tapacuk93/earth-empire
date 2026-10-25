@@ -23,9 +23,9 @@ SCHEMA = {
     "required": ["importance", "categories", "new_categories"],
 }
 
-PROMPT = """This is the stored analysis of one item from the owner's Instagram archive. Judge:
-- importance, 0 to 1: how significant the moment or content is in the owner's life and in this
-  archive. About 0.1 something trivial, 0.3-0.5 an everyday moment, 0.7 a notable trip, event,
+PROMPT = """This is the stored analysis of one item from the owner's Instagram, published by Earth Empire. Judge:
+- importance, 0 to 1: how significant the moment or content is in the owner's life and in
+  Earth Empire. About 0.1 something trivial, 0.3-0.5 an everyday moment, 0.7 a notable trip, event,
   achievement, creation or idea, 0.9-1 a milestone (a wedding, a birth, a big move, a major launch).
   Judge the content only: a story, a reel and a post count the same, and a repost of someone else's
   video counts as much as the owner's own when its content matters as much. Never lower it for the

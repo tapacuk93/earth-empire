@@ -266,7 +266,7 @@ async def ingest_items(request: Request):
 
 @app.put("/v1/ingest/detections", dependencies=[Depends(require_token)])
 async def ingest_detections(request: Request):
-    """The monitor's scan of archive items (CONTRACT.md "Detection"): stored as context on each item."""
+    """The monitor's scan of the owner's items (CONTRACT.md "Detection"): stored as context on each item."""
     body = await request.json()
     rows = body.get("detections") if isinstance(body, dict) else None
     if not isinstance(rows, list):

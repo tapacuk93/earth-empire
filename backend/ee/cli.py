@@ -17,7 +17,7 @@
   ee backup                           back up every part's databases to S3 now
   ee restore [--date D] [--dry-run]   restore them (use deploy/restore-state.sh, which stops services)
   ee admin-token                      check that earth-empire/admin-token exists (never prints it)
-  ee delete <id>... | --tests         remove items from the archive (--tests: every ig_test_* fixture)
+  ee delete <id>... | --tests         remove items for good (--tests: every ig_test_* fixture)
 """
 from __future__ import annotations
 

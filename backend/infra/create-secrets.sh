@@ -14,7 +14,7 @@ create() { # create <name> <description> <json value>
 }
 create earth-empire/instagram "Downloader account: {username, password, totp_secret?}" \
   '{"username":"PLACEHOLDER","password":"PLACEHOLDER"}'
-create earth-empire/target "The archived account: {username}" '{"username":"PLACEHOLDER"}'
+create earth-empire/target "The owner's Instagram account Earth Empire publishes: {username}" '{"username":"PLACEHOLDER"}'
 if ! aws secretsmanager describe-secret --secret-id earth-empire/ingest-token >/dev/null 2>&1; then
   TOKEN=$(aws secretsmanager get-random-password --password-length 48 --exclude-punctuation \
     --query RandomPassword --output text)

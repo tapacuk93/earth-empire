@@ -112,8 +112,8 @@ def extract_audio(src: Path, dest: Path) -> Path | None:
 
 
 # ------------------------------------------------------------------ prompt
-SYSTEM = """You analyze one item from an archive of a single Instagram account (the owner's own) \
-for the archive's website, app and social mirrors. You see every image, frames sampled from every \
+SYSTEM = """You analyze one item from the owner's own Instagram account for Earth Empire, the \
+project that publishes it on its website, apps, X and Facebook. You see every image, frames sampled from every \
 video (each labelled with its time in seconds), a transcript of the speech, and all metadata.
 
 Rules:
@@ -139,8 +139,8 @@ caption is not English, otherwise English. The date, the highlight names and the
 are always shown next to it, so do not repeat them or quote the caption. For a repost, describe \
 the original and credit its author. Never invent names, never speculate about private matters. \
 Proofread it: no fragments, no stray punctuation.
-- importance: 0 to 1, how significant this moment or content is in the owner's life and in this \
-archive: about 0.1 for something trivial, 0.3-0.5 for an everyday moment, 0.7 for a notable trip, \
+- importance: 0 to 1, how significant this moment or content is in the owner's life and in \
+Earth Empire: about 0.1 for something trivial, 0.3-0.5 for an everyday moment, 0.7 for a notable trip, \
 event, achievement, creation or idea, 0.9-1 for a milestone (a wedding, a birth, a big move, a major \
 launch). Judge the content only: a story, a reel and a post count the same, and a repost of someone \
 else's video counts as much as the owner's own when its content matters as much. Never lower it for \

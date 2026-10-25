@@ -1,4 +1,4 @@
-"""SQLite: the archive, its pipeline states, runs and costs.
+"""SQLite: Earth Empire's items, their pipeline states, runs and costs.
 
 One file on the box's disk, WAL mode, backed up to S3 daily (ee backup). Every item's own fields
 are kept as the JSON the collector sent (media URLs reduced to keys); what the backend adds lives in

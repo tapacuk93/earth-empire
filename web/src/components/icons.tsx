@@ -20,13 +20,16 @@ const P = {
   external: 'M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5',
   back: 'M19 12H5M11 6l-6 6 6 6',
   key: 'M14.5 4a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11zM10.6 13.4L3 21M6 18l2.5 2.5M8 16l2 2',
+  repeat1: 'M17 2l3 3-3 3M3 11V9a4 4 0 0 1 4-4h13M7 22l-3-3 3-3M21 13v2a4 4 0 0 1-4 4H4M11 10l1.5-1v6',
+  next: 'M5 4l10 8-10 8zM19 5v14',
+  stop: 'M6 6h12v12H6z',
   share: 'M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6',
 } as const;
 
 export type IconName = keyof typeof P;
 
 export function Icon({ name, size = 20, class: cls }: { name: IconName; size?: number; class?: string }) {
-  const filled = name === 'play' || name === 'pause';
+  const filled = name === 'play' || name === 'pause' || name === 'stop';
   return (
     <svg class={`icon ${cls || ''}`} width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false"
       fill={filled ? 'currentColor' : 'none'} stroke="currentColor" stroke-width={filled ? 0 : 1.8} stroke-linecap="round" stroke-linejoin="round">

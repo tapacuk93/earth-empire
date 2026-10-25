@@ -66,7 +66,16 @@ export function Details({ item }: { item: Item }) {
 }
 
 
-const NEEDS_HL = /^(section|hl):/;
+const NEEDS_HL = /^(section|hl|rel):/;
+
+// What happens at the end of a video: loop it, go on to the next item, or stop. Remembered per visitor.
+type Playback = 'repeat' | 'next' | 'stop';
+const PB_KEY = 'ee-playback';
+const PB_NEXT: Record<Playback, Playback> = { next: 'repeat', repeat: 'stop', stop: 'next' };
+const PB_LABEL: Record<Playback, string> = { next: 'Autoplay next', repeat: 'Repeat', stop: 'Stop at the end' };
+const PB_ICON = { next: 'next', repeat: 'repeat1', stop: 'stop' } as const;
+const IMAGE_MS = 5000;
+function readPlayback(): Playback { try { const v = localStorage.getItem(PB_KEY); return v === 'repeat' || v === 'stop' ? v : 'next'; } catch { return 'next'; } }
 
 /** An item opened from the infographics: the vertical feed of its context. */
 export function ItemPage({ id, route }: { id: string; route: Route }) {
@@ -101,7 +110,17 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
   const [cur, setCur] = useState(() => Math.max(0, items.findIndex((x) => x.id === start)));
   const [muted, setMuted] = useState(true);
   const [info, setInfo] = useState(false);
+  const [pb, setPb] = useState<Playback>(readPlayback);
+  const cyclePb = () => { const n = PB_NEXT[pb]; setPb(n); try { localStorage.setItem(PB_KEY, n); } catch { /* storage blocked */ } };
   const item = items[cur];
+  // Stills advance by themselves in autoplay mode.
+  useEffect(() => {
+    if (pb !== 'next' || info || !item) return;
+    const m = item.media.length ? item.media : item.repost_of?.media || [];
+    if (m.some((x) => x.type === 'video')) return;
+    const t = window.setTimeout(() => go(cur + 1), IMAGE_MS);
+    return () => clearTimeout(t);
+  }, [cur, pb, info]);
 
   useLayoutEffect(() => {
     const el = list.current!;
@@ -157,6 +176,7 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
       <div class="ifeed-top">
         <button class="icon-btn" onClick={close} aria-label="Close"><Icon name="close" /></button>
         <p class="ifeed-ctx"><b>{label}</b> <span>{cur + 1} / {items.length}</span></p>
+        <button class="icon-btn pb-btn" onClick={cyclePb} aria-label={`Playback: ${PB_LABEL[pb]}. Change it.`} title={PB_LABEL[pb]}><Icon name={PB_ICON[pb]} /></button>
         <button class="icon-btn" onClick={() => setMuted(!muted)} aria-label={muted ? 'Unmute' : 'Mute'} aria-pressed={!muted}><Icon name={muted ? 'mute' : 'sound'} /></button>
         <ShareButton title={item ? itemTitle(item) : ''} />
       </div>
@@ -166,7 +186,8 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
         {items.map((it, i) => (
           <section key={it.id} class="islide" data-i={i} aria-hidden={i !== cur ? 'true' : undefined}>
             {Math.abs(i - cur) <= 1
-              ? <Slide item={it} active={i === cur} muted={muted} onTapVideo={() => setMuted(!muted)} info={info && i === cur} setInfo={setInfo} />
+              ? <Slide item={it} active={i === cur} muted={muted} onTapVideo={() => setMuted(!muted)} info={info && i === cur} setInfo={setInfo}
+                  loop={pb === 'repeat'} onEnded={() => { if (pb === 'next' && i === cur) go(cur + 1); }} />
               : <span class="islide-ph" />}
           </section>
         ))}
@@ -192,7 +213,7 @@ function ShareButton({ title }: { title: string }) {
   return <><button class="icon-btn" onClick={share} aria-label="Share"><Icon name="share" /></button><span class="share-msg" role="status">{msg}</span></>;
 }
 
-function Slide({ item, active, muted, onTapVideo, info, setInfo }: { item: Item; active: boolean; muted: boolean; onTapVideo: () => void; info: boolean; setInfo: (v: boolean) => void }) {
+function Slide({ item, active, muted, onTapVideo, info, setInfo, loop, onEnded }: { item: Item; active: boolean; muted: boolean; onTapVideo: () => void; info: boolean; setInfo: (v: boolean) => void; loop: boolean; onEnded: () => void }) {
   const r = item.repost_of;
   const media: Media[] = item.media.length ? item.media : r?.media || [];
   const row = useRef<HTMLDivElement>(null);
@@ -220,7 +241,7 @@ function Slide({ item, active, muted, onTapVideo, info, setInfo }: { item: Item;
         {media.map((md, i) => (
           <div key={i} class="imedia-slide" data-n={i} data-on={i === m ? '1' : '0'}>
             {md.type === 'video'
-              ? <video src={md.url} poster={posterOf(md)} muted={muted} loop playsinline autoplay={active && i === m} preload={active ? 'auto' : 'metadata'}
+              ? <video src={md.url} poster={posterOf(md)} muted={muted} loop={loop} onEnded={() => { if (i === media.length - 1) onEnded(); else { row.current?.scrollTo({ left: (i + 1) * (row.current.clientWidth || 0) }); setM(i + 1); } }} playsinline autoplay={active && i === m} preload={active ? 'auto' : 'metadata'}
                   aria-label={altFor(item, i, md)} onClick={onTapVideo} />
               : <img src={md.url} alt={altFor(item, i, md)} decoding="async" draggable={false} />}
           </div>

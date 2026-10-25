@@ -1,19 +1,23 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { getAllItems } from '../api';
-import { Bars, DotMap, Kpis, MediaStrip, MonthBand, Treemap } from '../components/Charts';
-import { Feed } from '../components/Feed';
 import { Icon } from '../components/icons';
 import { hitSlide } from '../components/MonitorCard';
+import { MosaicView } from '../components/MosaicView';
 import { useCategories, useData, useHighlights, useProfile } from '../components/Profile';
+import { TagGraphView } from '../components/TagGraphView';
+import { TimelineView } from '../components/TimelineView';
+import { modesTopSaved, saveModesTop } from '../components/zoom';
 import { VideoFeed } from '../components/VideoFeed';
 import { SITE_NAME } from '../config';
-import { ctxItems, itemHref } from '../context';
-import { getPublished, titleOf, whatOf, type Hit } from '../monitor';
+import { itemHref } from '../context';
+import { buildMosaic, buildTagGraph, type Tile } from '../layout';
+import { getPublished } from '../monitor';
 import { navigate, settleScroll, type Route } from '../router';
-import { hitSection, SECTION_TITLE, SECTIONS, sectionHighlights, sectionItems, type SectionId } from '../sections';
-import { categoryCounts, moments, months, people, places, tagsOf } from '../stats';
-import type { Highlight, Item } from '../types';
-import { fmtShort, fmtTime, setMeta } from '../util';
+import { hitSection, SECTION_TITLE, sectionHighlights, sectionItems, type SectionId } from '../sections';
+import { months, people, places, tagsOf } from '../stats';
+import { fmtShort, prefersReducedMotion, setMeta } from '../util';
+
+const MODES: [string, string][] = [['mode-mosaic', 'Mosaic mode'], ['mode-tags', 'Tag graph mode'], ['mode-time', 'Timeline mode']];
 
 export function withParam(r: Route, name: string, value: string | undefined): string {
   const q = new URLSearchParams(r.query);
@@ -21,21 +25,17 @@ export function withParam(r: Route, name: string, value: string | undefined): st
   const s = q.toString();
   return r.path + (s ? '?' + s : '');
 }
-const setParam = (r: Route, name: string, value: string | undefined) => navigate(withParam(r, name, value), { replace: true, keepScroll: true });
 
 export function SearchBox({ route }: { route: Route }) {
   const q = route.query.get('q') || '';
   const [v, setV] = useState(q);
   const timer = useRef<number>();
-  useEffect(() => { if (document.activeElement?.id !== 'q') setV(q); }, [q]);
-  const commit = (val: string) => setParam(route, 'q', val.trim() || undefined);
+  const commit = (val: string) => navigate(withParam(route, 'q', val.trim() || undefined), { replace: true, keepScroll: true });
   return (
     <form class="search" role="search" onSubmit={(e) => { e.preventDefault(); clearTimeout(timer.current); commit(v); }}>
       <label class="sr-only" for="q">Search the archive</label>
       <Icon name="search" size={18} />
-      <input id="q" type="search" placeholder="Search captions, places, people, what happens…" value={v} enterKeyHint="search"
-        autocomplete="off" spellcheck={false}
-        onInput={(e) => { const val = (e.target as HTMLInputElement).value; setV(val); clearTimeout(timer.current); timer.current = window.setTimeout(() => commit(val), 350); }} />
+      <input id="q" type="search" placeholder="Search" value={v} onInput={(e) => { const val = (e.target as HTMLInputElement).value; setV(val); clearTimeout(timer.current); timer.current = window.setTimeout(() => commit(val), 350); }} />
     </form>
   );
 }
@@ -45,171 +45,75 @@ function spanOf(a: string, b: string): string {
   return days >= 730 ? `${Math.round(days / 365)} years` : days >= 60 ? `${Math.round(days / 30.4)} months` : `${Math.max(1, Math.round(days))} days`;
 }
 
-const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
-
-function Panel({ id, title, sub, children, class: cls }: { id: string; title: string; sub?: string; children: preact.ComponentChildren; class?: string }) {
-  return (
-    <section class={`ipanel ${cls || ''}`} aria-labelledby={id}>
-      <header class="ipanel-head"><h2 id={id}>{title}</h2>{sub && <p class="muted">{sub}</p>}</header>
-      {children}
-    </section>
-  );
-}
-
-function Selection({ title, items, ctx, onClear }: { title?: string; items: Item[]; ctx: string; onClear: () => void }) {
-  if (!title) return null;
-  return (
-    <div class="selection" role="status">
-      <p class="sel-head"><b>{title}</b> · {plural(items.length, 'item')}
-        {items.length > 0 && <a class="btn small" href={itemHref(items[0].id, ctx)}>Open the feed</a>}
-        <button class="btn small ghost" onClick={onClear}>Clear</button></p>
-      <MediaStrip items={items} ctx={ctx} label={`Items: ${title}`} />
-    </div>
-  );
-}
-
-function SectionPanel({ id, items, highlights, hits, onHit }: { id: SectionId; items: Item[]; highlights: Highlight[]; hits: Hit[]; onHit: (id: string) => void }) {
-  const ctx = `section:${id}`;
-  const ppl = people(items).slice(0, 8);
-  const plc = places(items).slice(0, 8);
-  const mom = moments(items, 6);
-  return (
-    <Panel id={`sec-${id}`} title={SECTION_TITLE[id]} class={`sec sec-${id}`}
-      sub={highlights.length ? `Highlights: ${highlights.map((h) => h.title).join(', ')}` : undefined}>
-      <Kpis items={[
-        { label: 'Videos', value: items.length }, { label: 'Places', value: plc.length }, { label: 'People named', value: ppl.length },
-        ...(hits.length ? [{ label: 'Detected', value: hits.length }] : []),
-      ]} />
-      <div class="sec-cols">
-        {ppl.length > 0 && (
-          <div><h3>People</h3><ul class="chips-list">{ppl.map((p) => (
-            <li key={p.who}><a class="chip" href={itemHref(p.items[0], `person:${p.who}`)}>{p.who}<span class="chip-count">{p.count}</span></a></li>))}</ul></div>
-        )}
-        {plc.length > 0 && (
-          <div><h3>Places</h3><ul class="chips-list">{plc.map((p) => (
-            <li key={p.name}><a class="chip" href={itemHref(p.items[0], `place:${p.name}`)}>{p.name}<span class="chip-count">{p.count}</span></a></li>))}</ul></div>
-        )}
-        {highlights.length > 0 && (
-          <div><h3>Highlights</h3><ul class="chips-list">{highlights.map((h) => (
-            <li key={h.id}><a class="chip" href={`/highlight/${encodeURIComponent(h.id)}`}>{h.title}<span class="chip-count">{h.item_ids.length}</span></a></li>))}</ul></div>
-        )}
-      </div>
-      {mom.length > 0 && (
-        <div><h3>Key moments</h3>
-          <ol class="moments">{mom.map((m) => (
-            <li key={m.item.id + m.text}>
-              <a href={itemHref(m.item.id, ctx)}><time dateTime={m.item.taken_at}>{fmtShort(m.item.taken_at)}</time>
-                {typeof m.at === 'number' && <span class="at">{fmtTime(m.at)}</span>}<span>{m.text}</span></a>
-            </li>))}</ol>
-        </div>
-      )}
-      {hits.length > 0 && (
-        <div><h3>Detected and published</h3>
-          <ul class="strip" aria-label={`Detected and published: ${SECTION_TITLE[id]}`}>
-            {hits.map((h) => {
-              const img = h.frame || h.video?.thumbnail;
-              return (
-                <li key={h.id}>
-                  <button class="strip-btn" onClick={() => onHit(h.id)} aria-label={`Fullscreen: ${titleOf(h)}`}>
-                    {img ? <img src={img} alt="" loading="lazy" width={120} height={160} /> : <span class="strip-ph">{whatOf(h)}</span>}
-                    <span class="strip-meta" aria-hidden="true">▶ {whatOf(h)}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-      <h3>Videos and media</h3>
-      <MediaStrip items={items} ctx={ctx} label={`Media: ${SECTION_TITLE[id]}`} videosFirst />
-    </Panel>
-  );
-}
-
 export function Home({ route }: { route: Route }) {
   const profile = useProfile();
   const highlights = useHighlights();
   const categories = useCategories();
   const all = useData(getAllItems);
   const published = useData(getPublished);
-  const sel = { m: route.query.get('m') || undefined, p: route.query.get('p') || undefined, t: route.query.get('t') || undefined, c: route.query.get('c') || undefined };
-  const q = route.query.get('q') || undefined;
   const watch = route.query.get('watch') || undefined;
 
   useEffect(() => {
     const p = profile.data;
-    setMeta(SITE_NAME, p ? `The archive of @${p.username} as data: when, where, who and what, from every video and highlight.` : undefined, p?.avatar || undefined);
+    setMeta(SITE_NAME, p ? `The archive of @${p.username} as a map of videos: what is related sits together.` : undefined, p?.avatar || undefined);
   }, [profile.data]);
   useEffect(() => { if (all.data) settleScroll(); }, [!!all.data]);
 
   const items = all.data || [];
   const hl = highlights.data || [];
   const hits = published.data || [];
-  const mo = months(items);
-  const pl = places(items);
-  const ppl = people(items);
-  const tagLabel = (t: { tag: string; kind: string }) => t.kind === 'category' ? categories.data?.find((c) => c.slug === t.tag)?.name || t.tag : t.kind === 'hashtag' ? '#' + t.tag : t.tag;
-  const seen = new Set<string>();
-  const tags = tagsOf(items).filter((t) => t.kind !== 'category' && t.tag.length <= 32 && !seen.has(t.tag) && seen.add(t.tag)).slice(0, 36).map((t) => ({ ...t, label: tagLabel(t) }));
-  const cats = categoryCounts(items, categories.data || []);
-  const sections = SECTIONS.map((id) => ({ id, hl: sectionHighlights(id, hl), items: sectionItems(id, items, hl), hits: hits.filter((h) => hitSection(h) === id) }))
-    .filter((s) => s.items.length || s.hits.length);
+  const ready = !!all.data && !!highlights.data;
+  const halves = useMemo(() => {
+    if (!ready) return null;
+    return (['dedicated', 'common'] as SectionId[]).map((id) => ({
+      id, mosaic: buildMosaic(sectionItems(id, items, hl), sectionHighlights(id, hl), hits.filter((h) => hitSection(h) === id)),
+    }));
+  }, [ready, items, hl, hits]);
+  const graph = useMemo(() => (ready ? buildTagGraph(items, tagsOf(items)) : null), [ready, items]);
+  const tagLabel = (n: { tag: string; kind: string }) => n.kind === 'category' ? categories.data?.find((c) => c.slug === n.tag)?.name || n.tag : n.kind === 'hashtag' ? '#' + n.tag : n.tag;
+  const hrefFor = (id: SectionId) => (t: Tile) => (t.hit ? withParam(route, 'watch', t.id) : itemHref(t.id, `rel:${id}:${t.id}`));
   const first = items[items.length - 1], last = items[0];
+  const modes = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState(0);
+  const onModesScroll = () => { const el = modes.current; if (el?.clientHeight) { saveModesTop(el.scrollTop); setMode(Math.round(el.scrollTop / el.clientHeight)); } };
+  useEffect(() => { const el = modes.current; if (el && ready) { el.scrollTop = modesTopSaved(); onModesScroll(); } }, [ready]);
   const openHit = (id?: string) => navigate(withParam(route, 'watch', id), { replace: !!watch || !id, keepScroll: true });
-  const pick = (name: string) => (v: string | undefined) => setParam(route, name, v);
 
   return (
     <>
-      <header class="hero">
+      <div class="modes" ref={modes} onScroll={onModesScroll}>
+        <section class="mode mode-mosaic" id="mode-mosaic" aria-label="Mosaic mode">
+          <header class="hero compact">
         <p class="eyebrow">{profile.data ? <>The Instagram archive of <a href={`https://www.instagram.com/${profile.data.username}/`} rel="external noopener">@{profile.data.username}</a>, described by Claude</> : 'An Instagram archive, described by Claude'}</p>
         <h1>{SITE_NAME}, in data</h1>
-        {all.error ? <p class="error" role="alert">Could not load the archive: {all.error.message}</p> : !all.data ? <div class="kpis skeleton-kpis" aria-hidden="true" /> : (
-          <Kpis items={[
-            { label: 'Videos', value: items.length },
-            { label: 'Time span', value: first && last ? spanOf(first.taken_at, last.taken_at) : '—', hint: first && last ? `${fmtShort(first.taken_at)} – ${fmtShort(last.taken_at)}` : undefined },
-            { label: 'Places', value: pl.length }, { label: 'People named', value: ppl.length }, { label: 'Active months', value: mo.filter((m) => m.total).length },
-          ]} />
+        {all.error ? <p class="error" role="alert">Could not load the archive: {all.error.message}</p> : all.data && (
+          <p class="stats-line">
+            <b>{items.length}</b> videos{first && last && <> · <b>{spanOf(first.taken_at, last.taken_at)}</b> ({fmtShort(first.taken_at)} – {fmtShort(last.taken_at)})</>}
+            {' '}· <b>{places(items).length}</b> places · <b>{people(items).length}</b> people named · <b>{months(items).filter((m) => m.total).length}</b> active months
+          </p>
         )}
       </header>
-
-      {mo.length > 0 && (
-        <Panel id="p-time" title="Timeline" sub="Activity by month. Pick a month to see it.">
-          <MonthBand months={mo} active={sel.m} onPick={pick('m')} />
-          <Selection title={sel.m && mo.find((m) => m.key === sel.m)?.label} items={sel.m ? ctxItems(`month:${sel.m}`, items, hl) : []} ctx={`month:${sel.m}`} onClear={() => pick('m')(undefined)} />
-        </Panel>
-      )}
-
-      <Panel id="p-all" title="Everything, newest first" sub={`Every item mirrored from @${profile.data?.username || "the account"}, by the date it was posted.`}>
-        <div class="filters">
-          <SearchBox route={route} />
-        </div>
-        <Feed query={{ q }} layout="timeline" ctx={q ? `q:${q}` : 'all'} emptyText={q ? `Nothing matches “${q}”.` : 'Nothing here yet.'} />
-      </Panel>
-
-      {sections.map((s) => <SectionPanel key={s.id} id={s.id} items={s.items} highlights={s.hl} hits={s.hits} onHit={openHit} />)}
-
-
-      {pl.length > 0 && (
-        <Panel id="p-map" title="Places" sub="Where things happened, from locations and the analyses.">
-          <div class="map-cols">
-            <DotMap places={pl} active={sel.p} onPick={pick('p')} />
-            <Bars rows={pl.slice(0, 12).map((p) => ({ id: p.name, name: p.country ? `${p.name} · ${p.country}` : p.name, count: p.count }))} active={sel.p} onPick={pick('p')} label="Places by number of items" />
-          </div>
-          <Selection title={sel.p} items={sel.p ? ctxItems(`place:${sel.p}`, items, hl) : []} ctx={`place:${sel.p}`} onClear={() => pick('p')(undefined)} />
-        </Panel>
-      )}
-
-      {tags.length > 0 && (
-        <Panel id="p-tags" title="Themes" sub="Tags from the analyses, sized by how many items carry them; and the categories.">
-          <Treemap tags={tags} active={sel.t} onPick={pick('t')} label="Tags by number of items" />
-          <Selection title={sel.t && `Tag: ${sel.t}`} items={sel.t ? ctxItems(`tag:${sel.t}`, items, hl) : []} ctx={`tag:${sel.t}`} onClear={() => pick('t')(undefined)} />
-          {cats.length > 0 && <><h3>Categories</h3>
-            <Bars rows={cats.map((c) => ({ id: c.slug, name: c.name, count: c.count }))} active={sel.c} onPick={pick('c')} label="Categories by number of items" />
-            <Selection title={sel.c && cats.find((c) => c.slug === sel.c)?.name} items={sel.c ? ctxItems(`cat:${sel.c}`, items, hl) : []} ctx={`cat:${sel.c}`} onClear={() => pick('c')(undefined)} /></>}
-        </Panel>
-      )}
-
-
+          {!halves ? <div class="skeleton-cloud" aria-hidden="true" /> : halves.map((h) => h.mosaic.tiles.length > 0 && (
+            <MosaicView key={h.id} id={`m-${h.id}`} title={SECTION_TITLE[h.id]} mosaic={h.mosaic} hrefFor={hrefFor(h.id)} />
+          ))}
+        </section>
+        <section class="mode" id="mode-tags" aria-label="Tag graph mode">
+          {graph && graph.nodes.length > 0 && (
+            <TagGraphView nodes={graph.nodes} edges={graph.edges} labelFor={tagLabel}
+              hrefFor={(tag) => { const it = items.find((x) => tagsOf([x]).some((t) => t.tag === tag)); return it ? itemHref(it.id, `tag:${tag}`) : '/'; }} />
+          )}
+        </section>
+        <section class="mode" id="mode-time" aria-label="Timeline mode">
+          {all.data && <TimelineView items={items} hrefFor={(it) => itemHref(it.id)} />}
+        </section>
+      </div>
+      <nav class="mode-dots" aria-label="Modes">
+        {MODES.map(([mid, label], i) => (
+          <button key={mid} aria-label={label} aria-current={mode === i ? 'true' : undefined} title={label}
+            onClick={() => document.getElementById(mid)?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth' })}>
+            <span aria-hidden="true" /></button>
+        ))}
+      </nav>
       {watch && hits.length > 0 && (
         <VideoFeed title="Detected and published" videos={hits.map(hitSlide)} start={watch} onClose={() => openHit(undefined)}
           onIndex={(id) => history.replaceState(history.state, '', withParam(route, 'watch', id))} />

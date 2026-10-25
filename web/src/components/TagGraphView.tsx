@@ -1,0 +1,113 @@
+import { useEffect, useRef, useState } from 'preact/hooks';
+import type { GEdge, GNode } from '../layout';
+import { navigate } from '../router';
+import { savedViews, attachPanZoom, fitCanvas, zoomBy, type View } from './zoom';
+import { Icon } from './icons';
+
+const MIN = 0.2, MAX = 40;
+const COLOR: Record<string, string> = { person: '--g-people', place: '--g-places', country: '--g-places', object: '--g-things', animal: '--g-things', brand: '--g-things', category: '--g-cats' };
+
+/** Tags as nodes sized by count, edges for tags that appear together; zooming in reveals finer tags. */
+export function TagGraphView({ nodes, edges, hrefFor, labelFor }: { nodes: GNode[]; edges: GEdge[]; hrefFor: (tag: string) => string; labelFor: (n: GNode) => string }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const view = useRef<View>({ k: 1, x: 0, y: 0 });
+  const base = useRef(1);
+  const raf = useRef(0);
+  const hover = useRef<GNode | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const shown = () => Math.round(18 * Math.pow(view.current.k / base.current, 1.3));
+
+  const draw = () => {
+    raf.current = 0;
+    const c = canvas.current;
+    if (!c) return;
+    const { w, h, dpr } = fitCanvas(c);
+    const ctx = c.getContext('2d')!;
+    const css = getComputedStyle(c);
+    const v = view.current, limit = shown();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const sx = (n: GNode) => n.x * v.k + v.x, sy = (n: GNode) => n.y * v.k + v.y;
+    ctx.strokeStyle = css.getPropertyValue('--line').trim() || '#ccc';
+    for (const e of edges) {
+      const a = nodes[e.a], b = nodes[e.b];
+      if (a.rank >= limit || b.rank >= limit) continue;
+      ctx.lineWidth = Math.min(4, 0.5 + e.w * 0.5);
+      ctx.beginPath(); ctx.moveTo(sx(a), sy(a)); ctx.lineTo(sx(b), sy(b)); ctx.stroke();
+    }
+    ctx.textAlign = 'center';
+    const fg = css.getPropertyValue('--text').trim() || '#111';
+    for (const n of nodes) {
+      if (n.rank >= limit) continue;
+      const x = sx(n), y = sy(n), r = Math.max(3, n.r * v.k);
+      if (x + r < 0 || y + r < 0 || x - r > w || y - r > h) continue;
+      ctx.fillStyle = css.getPropertyValue(COLOR[n.kind] || '--g-tags').trim() || '#36c';
+      ctx.globalAlpha = hover.current === n ? 1 : 0.85;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      if (r >= 6 || n.rank < 12) {
+        const fs = Math.max(10, Math.min(18, r * 0.6 + 8));
+        ctx.font = `${n.rank < 10 ? 700 : 500} ${fs}px system-ui, sans-serif`;
+        ctx.fillStyle = fg;
+        ctx.fillText(labelFor(n), x, y + r + fs);
+      }
+      if (hover.current === n) { ctx.strokeStyle = fg; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, r + 2, 0, Math.PI * 2); ctx.stroke(); ctx.strokeStyle = css.getPropertyValue('--line').trim(); }
+    }
+    ctx.textAlign = 'start';
+  };
+  const schedule = () => { if (!raf.current) raf.current = requestAnimationFrame(draw); };
+  const nodeAt = (px: number, py: number) => {
+    const v = view.current, limit = shown();
+    let best: GNode | null = null, bd = Infinity;
+    for (const n of nodes) {
+      if (n.rank >= limit) continue;
+      const d = Math.hypot(n.x * v.k + v.x - px, n.y * v.k + v.y - py);
+      if (d <= Math.max(10, n.r * v.k + 4) && d < bd) { best = n; bd = d; }
+    }
+    return best;
+  };
+  const fit = () => {
+    const c = canvas.current!;
+    const top = nodes.filter((n) => n.rank < 18);
+    const ext = Math.max(4, ...top.map((n) => Math.max(Math.abs(n.x), Math.abs(n.y)) + n.r * 2));
+    const k = Math.min(c.clientWidth, c.clientHeight) / (2 * ext) * 0.9;
+    base.current = k;
+    Object.assign(view.current, { k, x: c.clientWidth / 2, y: c.clientHeight / 2 });
+    setZoom(1); schedule();
+  };
+  useEffect(() => {
+    const c = canvas.current!;
+    fit();
+    const keep = savedViews.get('tags');
+    if (keep) { Object.assign(view.current, keep); setZoom(keep.k / base.current); schedule(); }
+    const off = attachPanZoom(c, view.current, {
+      min: MIN * base.current, max: MAX * base.current,
+      onChange: () => { savedViews.set('tags', { ...view.current }); setZoom(view.current.k / base.current); schedule(); },
+      onTap: (x, y) => { const n = nodeAt(x, y); if (n) navigate(hrefFor(n.tag)); },
+      onHover: (x, y) => { const n = nodeAt(x, y); if (hover.current !== n) { hover.current = n; schedule(); } c.style.cursor = n ? 'pointer' : 'grab'; },
+      onLeave: () => { hover.current = null; schedule(); },
+    });
+    const ro = new ResizeObserver(() => schedule());
+    ro.observe(c);
+    return () => { off(); ro.disconnect(); };
+  }, [nodes]);
+  const zoomBtn = (f: number) => { const c = canvas.current!; zoomBy(view.current, c.clientWidth, c.clientHeight, f, MIN * base.current, MAX * base.current); setZoom(view.current.k / base.current); schedule(); };
+
+  return (
+    <section class="mosaic tag-graph" aria-labelledby="tg-h">
+      <header class="mosaic-head">
+        <h2 id="tg-h">Tags</h2>
+        <span class="muted small">{Math.min(nodes.length, shown())} of {nodes.length} shown; zoom in for finer tags</span>
+        <span class="spacer" />
+        <span class="muted small zoom-level" role="status">{zoom.toFixed(1)}×</span>
+        <button class="icon-btn" onClick={() => zoomBtn(1.6)} aria-label="Zoom in: tags">+</button>
+        <button class="icon-btn" onClick={() => zoomBtn(1 / 1.6)} aria-label="Zoom out: tags">−</button>
+        <button class="icon-btn" onClick={fit} aria-label="Show all: tags"><Icon name="auto" size={18} /></button>
+      </header>
+      <div class="mosaic-box"><canvas ref={canvas} class="mosaic-canvas" aria-hidden="true" /></div>
+      <ul class="mosaic-list" aria-label="Tags, most used first">
+        {nodes.map((n) => <li key={n.tag}><a href={hrefFor(n.tag)}>{labelFor(n)}: {n.count} video{n.count === 1 ? '' : 's'}</a></li>)}
+      </ul>
+    </section>
+  );
+}

@@ -3,6 +3,7 @@
 import type { Category, Highlight, Item } from './types';
 import { hasTag } from './tags';
 import { SECTION_TITLE, sectionItems, type SectionId } from './sections';
+import { relatedOrder } from './layout';
 
 export const itemHref = (id: string, ctx = 'all') => `/item/${encodeURIComponent(id)}${ctx && ctx !== 'all' ? `?ctx=${encodeURIComponent(ctx)}` : ''}`;
 
@@ -13,6 +14,14 @@ export function ctxItems(ctx: string, items: Item[], highlights: Highlight[]): I
   const lv = v.toLowerCase();
   switch (k) {
     case 'section': return sectionItems(v as SectionId, items, highlights);
+    case 'rel': {
+      // rel:<section>:<id> - that half, most related to the opened video first, then the other half's most related.
+      const [sec, ...rest] = v.split(':');
+      const anchor = items.find((it) => it.id === rest.join(':'));
+      if (!anchor) return sectionItems(sec as SectionId, items, highlights);
+      const other: SectionId = sec === 'dedicated' ? 'common' : 'dedicated';
+      return relatedOrder(anchor, sectionItems(sec as SectionId, items, highlights), sectionItems(other, items, highlights));
+    }
     case 'tag': return items.filter((it) => hasTag(it, v));
     case 'month': return items.filter((it) => it.taken_at.startsWith(v));
     case 'place': return items.filter((it) => (it.location?.name || it.analysis?.where?.place || '').toLowerCase() === lv);
@@ -36,6 +45,7 @@ export function ctxLabel(ctx: string, cats: Category[] = [], highlights: Highlig
   const [k, v] = split(ctx || 'all');
   switch (k) {
     case 'section': return SECTION_TITLE[v as SectionId] || v;
+    case 'rel': return `Related · ${SECTION_TITLE[v.split(':')[0] as SectionId] || ''}`;
     case 'tag': return `Tag: ${v}`;
     case 'month': return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(v + '-01T00:00:00Z'));
     case 'place': return v;

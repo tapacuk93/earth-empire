@@ -18,115 +18,141 @@ async function noHorizontalScroll(page: Page) {
   expect(over, 'page scrolls sideways').toBeLessThanOrEqual(1);
 }
 
-const rows = (page: Page) => page.locator('.feed .tl-row');
 const feed = (page: Page) => page.getByRole('dialog', { name: /item \d+ of \d+/ });
 
-test('home: infographics, not a profile; no sideways scroll; every image described', async ({ page }) => {
+const modes = (page: Page) => page.locator('.modes');
+const rows = (page: Page) => page.locator('.feed .tl-row');
+const list = (page: Page, name: string | RegExp) => page.getByRole('list', { name });
+async function openFromList(page: Page, name: string | RegExp, n = 0) {
+  const link = list(page, name).getByRole('link').nth(n);
+  await link.focus();
+  await expect(link).toBeVisible(); // a focused entry shows over its canvas
+  await page.keyboard.press('Enter');
+}
+
+test('home: three full-screen modes - mosaic, tag graph, timeline - with a mode indicator', async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Earth Empire, in data');
-  await expect(page.locator('.hero .kpi').first()).toContainText('28');
-  for (const name of ['Short highlights and the feed', 'Long highlights', 'Timeline', 'Places', 'Themes', 'Everything, newest first']) {
-    await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
-  }
-  // No profile header, follower counts, highlight bubbles or square grid.
+  for (const name of ['Mosaic mode', 'Tag graph mode', 'Timeline mode']) await expect(page.getByRole('region', { name, exact: true })).toHaveCount(1);
+  await expect(page.locator('canvas.mosaic-canvas')).toHaveCount(4);
+  // No profile, follower counts, kind labels or photo grid.
   await expect(page.getByText(/\d+\s+followers/)).toHaveCount(0);
-  await expect(page.locator('.hl-row, .grid .tile, .profile')).toHaveCount(0);
-  await expect(page.getByRole('list', { name: 'Months' }).or(page.locator('.band li'))).not.toHaveCount(0);
+  await expect(page.locator('.grid .tile, .profile, .hl-row')).toHaveCount(0);
+  const dots = page.getByRole('navigation', { name: 'Modes' });
+  await expect(dots.getByRole('button', { name: 'Mosaic mode' })).toHaveAttribute('aria-current', 'true');
+  await dots.getByRole('button', { name: 'Tag graph mode' }).click();
+  await expect(dots.getByRole('button', { name: 'Tag graph mode' })).toHaveAttribute('aria-current', 'true');
+  await dots.getByRole('button', { name: 'Timeline mode' }).click();
+  await expect(dots.getByRole('button', { name: 'Timeline mode' })).toHaveAttribute('aria-current', 'true');
+  await expect.poll(() => modes(page).evaluate((el) => Math.abs(el.scrollTop - 2 * el.clientHeight))).toBeLessThan(4);
   await noHorizontalScroll(page);
-  expect(await page.locator('img:not([alt])').count()).toBe(0);
   expect(errors).toEqual([]);
 });
 
-test('home: two sections split by highlight size, as panels with counts, people, places and media', async ({ page }) => {
+test('mosaic: two halves split by highlight size, with detected videos placed in them', async ({ page }) => {
   await page.goto('/');
   const up = page.getByRole('region', { name: 'Short highlights and the feed' });
   const low = page.getByRole('region', { name: 'Long highlights' });
   expect((await up.boundingBox())!.y).toBeLessThan((await low.boundingBox())!.y);
-  // Median highlight size is 2: Food (2) and Ocean (1) are short, Travel (4) is long.
-  await expect(up.getByRole('link', { name: /^Food/ })).toBeVisible();
-  await expect(up.getByRole('link', { name: /^Ocean/ })).toBeVisible();
-  await expect(low.getByRole('link', { name: /^Travel/ })).toHaveAttribute('href', '/highlight/hl_9001');
-  await expect(low.locator('.kpi').first()).toContainText('4');
-  await expect(up.locator('.kpi').first()).toContainText('27'); // every regular post plus the short highlights' stories
-  await expect(up.getByRole('link', { name: /Cape Lumen Lighthouse/ }).first()).toBeVisible();
-  await expect(low.getByRole('list', { name: 'Media: Long highlights' }).locator('li')).toHaveCount(4);
-  // Published hits sit in the section the owner chose.
-  await expect(up.getByRole('button', { name: /Fullscreen: City council/ })).toBeVisible();
-  await expect(low.getByRole('button', { name: /Fullscreen: Regional news/ })).toBeVisible();
+  await expect(list(page, 'Short highlights and the feed: videos').getByRole('link')).toHaveCount(28); // 27 videos + 1 detected
+  await expect(list(page, 'Long highlights: videos').getByRole('link')).toHaveCount(5);
+  await expect(list(page, 'Long highlights: videos').getByRole('link').first()).toHaveText(/^Travel, /);
+  await expect(list(page, 'Short highlights and the feed: videos').getByRole('link', { name: /^Detected, / })).toHaveAttribute('href', /watch=h_mock1/);
 });
 
-test('home: the split threshold is configurable', async ({ page }) => {
-  await page.goto('/?split=5');
-  await expect(page.getByRole('region', { name: 'Short highlights and the feed' }).getByRole('link', { name: /^Travel/ })).toBeVisible();
-  // Only the published hit keeps the lower section on screen.
-  await expect(page.getByRole('region', { name: 'Long highlights' }).getByRole('link', { name: /^Travel/ })).toHaveCount(0);
-});
-
-test('home: timeline, map and themes pick a context and show its items', async ({ page }) => {
+test('mosaic: zoom with buttons and Ctrl+wheel; the canvas still fits the screen', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: /^Sep 2026: \d+ items?$/ }).click();
-  await expect(page).toHaveURL(/m=2026-09/);
-  const sel = page.getByRole('region', { name: 'Timeline' }).locator('.selection');
-  await expect(sel).toContainText('Sep 2026');
-  await expect(sel.locator('.strip li')).not.toHaveCount(0);
-  await page.getByRole('region', { name: 'Places' }).getByRole('button', { name: /^Cape Lumen Lighthouse.*: 1$/ }).click();
-  await expect(page.getByRole('region', { name: 'Places' }).locator('.selection')).toContainText('1 item');
-  const theme = page.getByRole('region', { name: 'Themes' });
-  const big = theme.getByRole('button', { name: /^calm, mood, 19 items$/ });
-  const small = theme.getByRole('button', { name: /^@mira\.sails, person, 1 item$/ });
-  const area = async (l: typeof big) => { const b = (await l.boundingBox())!; return b.width * b.height; };
-  expect(await area(big)).toBeGreaterThan(await area(small));
-  await small.click();
-  await expect(page).toHaveURL(/t=%40mira\.sails/);
-  await theme.locator('.selection').getByRole('link', { name: 'Open the feed' }).click();
-  await expect(feed(page)).toBeVisible();
-  await expect(page).toHaveURL(new RegExp(`/item/${REEL}\\?ctx=tag%3A%40mira\\.sails`));
-  await page.keyboard.press('Escape');
-  await expect(page).toHaveURL(/t=%40mira\.sails/);
-  await expect(theme.locator('.selection')).toBeVisible();
+  const up = page.getByRole('region', { name: 'Short highlights and the feed' });
+  const level = up.locator('.zoom-level');
+  const vw = page.viewportSize()!.width;
+  if (vw > 480) await expect(level).toHaveText('1.0×');
+  await up.getByRole('button', { name: /^Zoom in/ }).click();
+  if (vw > 480) await expect(level).toHaveText('1.6×');
+  const box = (await up.locator('canvas').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.down('Control');
+  await page.mouse.wheel(0, -200);
+  await page.keyboard.up('Control');
+  if (vw > 480) await expect(level).not.toHaveText('1.6×');
+  await up.getByRole('button', { name: /^Show all/ }).click();
+  if (vw > 480) await expect(level).toHaveText('1.0×');
+  await noHorizontalScroll(page);
 });
 
-test('home: one flow of video, no kinds; search narrows it', async ({ page }) => {
+test('mosaic: opening a video starts the wheel through that half, most related first', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByRole('group', { name: 'Kind' })).toHaveCount(0);
-  await expect(page.locator('main').getByText(/\b(Reels?|Stories|Story|Carousels?|Posts)\b/)).toHaveCount(0);
-  await expect(page.locator('.hero .kpi').first()).toHaveText(/Videos\s*28/);
-  const box = page.getByRole('searchbox');
-  await box.fill('lighthouse');
-  await expect(page).toHaveURL(/q=lighthouse/);
-  await expect(rows(page)).toHaveCount(1);
-  await expect(rows(page).first()).toHaveAttribute('href', `/item/${REEL}?ctx=q%3Alighthouse`);
-  await box.fill('zzzz-nothing');
-  await box.press('Enter');
-  await expect(page.locator('.empty')).toContainText('Nothing matches');
-});
-
-test('search from a deep link and from a hashtag', async ({ page }) => {
-  await page.goto('/?q=%23recipe');
-  await expect(page.getByRole('searchbox')).toHaveValue('#recipe');
-  await expect(rows(page)).toHaveCount(1);
-});
-
-test('feed: one item per screen, arrows move through the context, the URL follows, close returns', async ({ page }) => {
-  await page.goto('/');
-  await rows(page).nth(1).scrollIntoViewIfNeeded();
-  const y = await page.evaluate(() => scrollY);
-  await rows(page).nth(1).click();
+  await openFromList(page, 'Short highlights and the feed: videos');
   const f = feed(page);
   await expect(f).toBeVisible();
-  await expect(f).toHaveAccessibleName('Everything: item 2 of 28');
-  await expect(page).toHaveURL(new RegExp(`/item/${CAROUSEL}$`));
-  await page.keyboard.press('ArrowDown');
-  await expect(f).toHaveAccessibleName('Everything: item 3 of 28');
-  await expect(page).toHaveURL(/\/item\/ig_3400000000000000003$/);
-  await expect(page).toHaveTitle(/dunes/);
-  await page.keyboard.press('ArrowUp');
-  await expect(f).toHaveAccessibleName('Everything: item 2 of 28');
+  await expect(page).toHaveURL(/\/item\/.+\?ctx=rel%3Adedicated%3A/);
+  await expect(f).toHaveAccessibleName(/^Related · Short highlights and the feed: item 1 of 2[78]$/);
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(f).toHaveCount(0);
-  await expect(page).toHaveURL(/\/$/);
-  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(y - 120);
+});
+
+test('tag graph: a tag opens the wheel for that tag', async ({ page }) => {
+  await page.goto('/');
+  await expect(list(page, 'Tags, most used first').getByRole('link').first()).toHaveText(/: \d+ videos?$/);
+  const calm = list(page, 'Tags, most used first').getByRole('link', { name: /^calm: 19 videos$/ });
+  await calm.focus();
+  await page.keyboard.press('Enter');
+  await expect(feed(page)).toHaveAccessibleName(/^Tag: calm: item 1 of 19$/);
+});
+
+test('timeline: newest first; a video opens the wheel in time order from there; Close returns to the timeline', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Timeline mode' }).click();
+  const links = list(page, 'Every video, newest first').getByRole('link');
+  await expect(links).toHaveCount(28);
+  await expect(links.first()).toHaveText(/^Oct 2[34], 2026: A sunset run/);
+  await expect(links.nth(1)).toHaveText(/^Oct 2[34], 2026: A three-photo walk/);
+  await openFromList(page, 'Every video, newest first', 1);
+  const f = feed(page);
+  await expect(f).toHaveAccessibleName('Everything: item 2 of 28');
+  await page.keyboard.press('ArrowDown');
+  await expect(f).toHaveAccessibleName('Everything: item 3 of 28');
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(f).toHaveCount(0);
+  await expect(page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Timeline mode' })).toHaveAttribute('aria-current', 'true');
+});
+
+test('wheel: the playback button cycles autoplay next, repeat and stop, and is remembered', async ({ page }) => {
+  await page.goto(`/item/${REEL}`);
+  const btn = page.getByRole('button', { name: /^Playback:/ });
+  await expect(btn).toHaveAccessibleName('Playback: Autoplay next. Change it.');
+  const video = feed(page).locator('.islide').first().locator('video');
+  expect(await video.evaluate((v: HTMLVideoElement) => v.loop)).toBe(false);
+  await btn.click();
+  await expect(btn).toHaveAccessibleName('Playback: Repeat. Change it.');
+  expect(await video.evaluate((v: HTMLVideoElement) => v.loop)).toBe(true);
+  await btn.click();
+  await expect(btn).toHaveAccessibleName('Playback: Stop at the end. Change it.');
+  await page.reload();
+  await expect(page.getByRole('button', { name: /^Playback:/ })).toHaveAccessibleName('Playback: Stop at the end. Change it.');
+});
+
+test('wheel: in autoplay, a still moves on after a few seconds', async ({ page }) => {
+  await page.goto('/item/ig_3400000000000000005');
+  await expect(feed(page)).toHaveAccessibleName('Everything: item 5 of 28');
+  await expect(page).toHaveURL(/\/item\/ig_3400000000000000006$/, { timeout: 9000 });
+});
+
+test('home: published detected videos play in their fullscreen mode', async ({ page }) => {
+  await page.goto('/?watch=h_mock1');
+  const dlg = page.getByRole('dialog', { name: 'Detected and published' });
+  await expect(dlg).toBeVisible();
+  await expect(dlg.locator('.vfeed-slide')).toHaveCount(2);
+  await expect(dlg).toContainText('Тарас Маслов');
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(dlg).toHaveCount(0);
+});
+
+test('reduced motion is respected', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/');
+  const d = await page.locator('.mode-dots span').first().evaluate((e) => getComputedStyle(e).transitionDuration);
+  expect(parseFloat(d)).toBeLessThan(0.01);
 });
 
 test('feed: a section context, the overlay, expanded analysis, and seeking the video', async ({ page }) => {
@@ -167,15 +193,8 @@ test('feed: carousels swipe sideways; reposts credit the original', async ({ pag
   await expect(feed(page).locator('.islide[data-i="6"] .imeta')).toContainText('Original by @mountainclub');
 });
 
-test('feed: a highlight context from a section panel opens the story viewer', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('region', { name: 'Long highlights' }).getByRole('link', { name: /^Travel/ }).click();
-  await expect(page.getByRole('region', { name: 'Highlight: Travel' })).toBeVisible();
-});
-
 test('highlight: story viewer with progress bars, taps, keys and close', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('region', { name: 'Long highlights' }).getByRole('link', { name: /^Travel/ }).click();
+  await page.goto('/highlight/hl_9001');
   const viewer = page.getByRole('region', { name: 'Highlight: Travel' });
   await expect(viewer).toBeVisible();
   await expect(viewer.locator('.bar')).toHaveCount(4);
@@ -244,23 +263,6 @@ test('theme toggle switches dark and light', async ({ page }) => {
   await expect(html).toHaveAttribute('data-theme', 'light');
   await page.reload();
   await expect(html).toHaveAttribute('data-theme', 'light');
-});
-
-test('keyboard: skip link and visible focus', async ({ page, browserName }) => {
-  await page.goto('/');
-  await page.keyboard.press('Tab');
-  const skip = page.getByRole('link', { name: 'Skip to content' });
-  if (browserName !== 'webkit') await expect(skip).toBeFocused(); // Safari skips links on Tab by default
-  await page.getByRole('searchbox').focus();
-  const outline = await page.locator('.search').evaluate((e) => getComputedStyle(e).boxShadow);
-  expect(outline).not.toBe('none');
-});
-
-test('reduced motion is respected', async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/');
-  const d = await page.locator('.cell').first().evaluate((e) => getComputedStyle(e).transitionDuration);
-  expect(parseFloat(d)).toBeLessThan(0.01);
 });
 
 test('app links: the association files are served as JSON', async ({ request }) => {
@@ -383,17 +385,6 @@ test('detected: a vertical wheel of hits by confidence, with fetch more', async 
   await noHorizontalScroll(page);
 });
 
-test('home: published hits play in the fullscreen mode', async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: /Fullscreen: City council/ }).click();
-  const dlg = page.getByRole('dialog', { name: 'Detected and published' });
-  await expect(dlg).toBeVisible();
-  await expect(dlg.locator('.vfeed-slide')).toHaveCount(2);
-  await expect(dlg).toContainText('Тарас Маслов');
-  await page.getByRole('button', { name: 'Close' }).click();
-  await expect(dlg).toHaveCount(0);
-});
-
 test('status and settings for the owner: health, activity, stats, phrases', async ({ page }) => {
   await signIn(page);
   const phrases = page.getByRole('region', { name: 'Phrases the monitor listens for' });
@@ -440,23 +431,3 @@ test('settings: suggested phrases from highlight names, accept and reject', asyn
   await expect(page.getByRole('region', { name: 'Suggested phrases' }).locator('.phrase')).toHaveText([/travel/, /ocean/]); // the mock forgets an accepted phrase on reload; the rejection stays
 });
 
-test('home: everything mirrored comes first, newest at the top', async ({ page }) => {
-  await page.goto('/');
-  // Stats band, then the timeline band, then everything.
-  const order = await page.locator('main .ipanel').evaluateAll((ps) => ps.map((p) => p.getAttribute('aria-labelledby')));
-  await expect.poll(() => rows(page).count()).toBeGreaterThanOrEqual(24);
-  expect((await page.locator('main .ipanel').evaluateAll((ps) => ps.map((p) => p.getAttribute('aria-labelledby')))).slice(0, 2)).toEqual(['p-time', 'p-all']);
-  const dates = await page.locator('.feed .tl-row time').evaluateAll((ts) => ts.map((t) => t.getAttribute('datetime')!));
-  expect([...dates].sort().reverse()).toEqual(dates);
-  expect(dates[0]).toBe('2026-10-23T22:00:00Z');
-});
-
-test('home: the upper section leads with a video that opens the reel wheel', async ({ page }) => {
-  await page.goto('/');
-  const up = page.getByRole('region', { name: 'Short highlights and the feed' });
-  const first = up.getByRole('list', { name: /^Media:/ }).getByRole('link').first();
-  await first.click();
-  await expect(feed(page)).toBeVisible();
-  await expect(page).toHaveURL(/\/item\/.+\?ctx=section%3Adedicated/);
-  await expect(feed(page).locator('.islide video').first()).toBeVisible();
-});

@@ -66,7 +66,7 @@ recommendations around seeds  ───────┘      └─ youtube: chan
 
 | Platform | Listing | Media | Status |
 |---|---|---|---|
-| Telegram | `t.me/s/<channel>`: Telegram's public preview, no login | the preview's `<video src>` | **live**. Large videos are "not supported" in the preview and are recorded `blocked`; they need the Telegram API (MTProto with an `api_id`, an owner step) |
+| Telegram | `t.me/s/<channel>`: Telegram's public preview, no login | the preview's `<video src>`; for videos too large for the preview, Telegram's API (Telethon, MIT) with the owner's session | **live**. The API route starts once the owner has run `monitor/deploy/telegram-login.py` on the Mac (phone and code typed by the owner; the session string goes to `earth-empire/telegram-session`). Public channels only, FloodWait honoured, at most `telegram_api.daily_downloads` (60) a day |
 | Facebook | the downloader account's session (`earth-empire/facebook-dl-session`), page Videos and Reels tabs; Facebook's own GraphQL JSON | the progressive MP4 URL in that JSON | **live**. The owner's own account (`earth-empire/facebook-session`) is never used here |
 | Instagram | the collector's browser and session (`collector/eecollector/igweb.py`, imported, same profile lock) | the reel's video URL | **waits for the collector's login**; checks again every 3 h, then starts by itself (following list, reels, reposts' surroundings) |
 | Reposts | backend `items.repost_of` (read-only from the backend DB) | the copy already on `media.empire.earth` | **live** (scanned without touching Instagram); recommendations around them wait for Instagram |

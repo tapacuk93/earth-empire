@@ -16,6 +16,8 @@ sys.path.insert(0, str(HERE.parent))
 sys.path.insert(0, str(HERE.parents[1] / "collector"))
 sys.path.insert(0, str(HERE.parents[1] / "backend"))
 os.environ["EE_SECRET_ADMIN_TOKEN"] = "secret-admin"
+os.environ["EE_TARGET"] = "trsmslv"
+os.environ["EE_TELEGRAM_API"] = "off"
 TMP = tempfile.mkdtemp()
 os.environ["EE_MONITOR_DB"] = str(Path(TMP) / "m.sqlite3")
 os.environ["EE_BACKEND_DB"] = str(Path(TMP) / "backend.sqlite3")
@@ -269,3 +271,22 @@ def test_tiktok_items():
     html = '<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" type="application/json">' + json.dumps(
         {"__DEFAULT_SCOPE__": {"webapp.video-detail": {"itemInfo": {"itemStruct": blob["itemList"][0]}}}}) + "</script>"
     assert [x["id"] for b in tiktok.blobs_in(html) for x in tiktok.videos_in(b)] == ["tt:7430000000000000001"]
+
+
+def test_telegram_api_unblocks_large_videos(monkeypatch, tmp_path):
+    from eemonitor.platforms import telegram_api
+    vids, _ = telegram.parse((FIX / "telegram_zelenskiy.html").read_text(), "V_Zelenskiy_official")
+    acc = c().execute("SELECT * FROM accounts WHERE handle='V_Zelenskiy_official'").fetchone()
+    for v in vids:
+        worker.insert_video(c(), v, acc, "official")
+    blocked = c().execute("SELECT COUNT(*) n FROM videos WHERE platform='telegram' AND state='blocked'").fetchone()["n"]
+    assert blocked >= 1
+    monkeypatch.setattr(telegram_api, "credentials", lambda: (1, "h", "s" * 60))
+    worker.setup(c())
+    assert c().execute("SELECT COUNT(*) n FROM videos WHERE platform='telegram' AND state='blocked'").fetchone()["n"] == 0
+    got = {}
+    monkeypatch.setattr(telegram, "refresh_media_url", lambda c_, v: None)
+    monkeypatch.setattr(telegram_api, "download", lambda c_, post, dest: got.setdefault("post", post) and dest)
+    v = c().execute("SELECT * FROM videos WHERE id=?", (vids[0]["id"],)).fetchone()
+    worker.download(c(), v, tmp_path)
+    assert got["post"] == vids[0]["extra"]["post"]

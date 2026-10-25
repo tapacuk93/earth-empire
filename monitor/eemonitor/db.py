@@ -105,7 +105,7 @@ DEFAULTS = {
     "language.min_prob": "0.35",
     # Polling and pacing per platform.
     "poll.minutes": "90",
-    "telegram.enabled": "1", "telegram.daily_requests": "600",
+    "telegram.enabled": "1", "telegram.daily_requests": "600", "telegram_api.daily_downloads": "60",
     "youtube.enabled": "0", "youtube.daily_requests": "400",
     "x.enabled": "0", "x.daily_requests": "50",
     "instagram.enabled": "1", "instagram.daily_requests": "300",

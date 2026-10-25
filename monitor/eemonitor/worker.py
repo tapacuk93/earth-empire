@@ -18,7 +18,7 @@ import zlib
 from pathlib import Path
 
 from . import db, detect, pace, phrases, registry, transcribe
-from .platforms import facebook, instagram, telegram, tiktok, youtube
+from .platforms import facebook, instagram, telegram, telegram_api, tiktok, youtube
 
 log = logging.getLogger("ee.monitor")
 MEDIA_BUCKET = os.environ.get("EE_MEDIA_BUCKET", "earth-empire-media")
@@ -140,6 +140,8 @@ def insert_video(c, v: dict, account=None, source_kind="official", via=None, hop
             if row["state"] == "blocked" and not v.get("blocked"):
                 c.execute("UPDATE videos SET state='new', error=NULL WHERE id=?", (v["id"],))
         return False
+    if v.get("blocked") and v["platform"] == "telegram" and telegram_api.session_exists():
+        v = {**v, "blocked": None}   # too large for the preview: the Telegram API fetches it
     state = "blocked" if v.get("blocked") else "queued" if queue or requested else "new"
     c.execute("""INSERT INTO videos(id, platform, account_id, source_id, source_kind, via, hop, url, media_url, title,
                  posted_at, duration, thumbnail, state, priority, requested, error, discovered_at, extra)
@@ -330,6 +332,8 @@ def browser_round(c, platform: str, max_accounts: int = 4) -> int:
 
 
 def target_username() -> str:
+    if os.environ.get("EE_TARGET"):
+        return os.environ["EE_TARGET"].lstrip("@")
     try:
         import boto3
         raw = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1")) \
@@ -408,6 +412,8 @@ def download(c, v, work: Path) -> Path:
     url = v["media_url"]
     if platform == "telegram":
         url = telegram.refresh_media_url(c, {**dict(v), "extra": extra}) or url
+        if not url and extra.get("post"):
+            return telegram_api.download(c, extra["post"], work / "media.mp4")
     if platform == "instagram" and url and not url.startswith(MEDIA_BASE) and not instagram.media_url_fresh(dict(v)):
         with instagram.Instagram(c) as ig:
             fresh = ig.media(extra.get("pk"))
@@ -728,6 +734,17 @@ def setup(c) -> None:
     from . import highlights
     highlights.ensure(c)
     ensure_phrases(c)
+    me = target_username()
+    if db.setting(c, "target.username") != me:   # the archived account changed: read its follows again
+        db.set_setting(c, "target.username", me)
+        db.set_setting(c, "instagram.following_synced", "")
+        db.set_setting(c, "facebook.following_synced", "")
+    if telegram_api.session_exists():
+        n = c.execute("""UPDATE videos SET state=CASE WHEN posted_at >= ? THEN 'queued' ELSE 'new' END, error=NULL
+                         WHERE platform='telegram' AND state='blocked' AND error LIKE 'the Telegram preview%'""",
+                      (time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 7 * 86400)),)).rowcount
+        if n:
+            ev("telegram_unblocked", videos=n)
     if registry.FILE.exists():
         mtime = str(int(registry.FILE.stat().st_mtime))
         if db.setting(c, "registry.loaded_mtime") != mtime:

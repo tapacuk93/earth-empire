@@ -7,6 +7,7 @@ dependencies = [
   "faster-whisper>=1.1",     # MIT
   "av<16",                   # BSD-3 (faster-whisper's decoder; 16+ breaks its open() call)
   "yt-dlp",                  # Unlicense
+  "telethon>=1.36",          # MIT (Telegram API, public channels' large videos)
   "fastapi>=0.115",          # MIT
   "uvicorn[standard]>=0.30", # BSD-3
   "httpx>=0.27",             # BSD-3

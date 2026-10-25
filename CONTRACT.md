@@ -41,6 +41,9 @@ part that reads it.
   - `earth-empire/admin-token`: a random string, the owner's token for owner-only endpoints
     (`Authorization: Bearer`). The apps ask for it once, check it with `GET /v1/admin/me`, and keep
     it in the Keychain or local storage. It is never shown or logged.
+  - `earth-empire/telegram`: `{"api_id", "api_hash"}`; `earth-empire/telegram-session`: `{"session", "user_id"}`,
+    a Telethon session string the owner makes once with `monitor/deploy/telegram-login.py` (the monitor reads
+    public channels with it, nothing else).
   - `earth-empire/claude`: how the backend reaches Claude (the aicoin proxy and a server wallet
     token, or an Anthropic key).
 

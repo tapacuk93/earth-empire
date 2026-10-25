@@ -61,6 +61,16 @@ Shell on the box: `aws ssm start-session --target $ID`, then `sudo -i`, with
 `ID=$(aws ec2 describe-instances --filters Name=tag:Name,Values=earth-empire Name=instance-state-name,Values=running --query 'Reservations[0].Instances[0].InstanceId' --output text)`.
 Resource ids and hostnames: `aws cloudformation describe-stacks --stack-name earth-empire --query 'Stacks[0].Outputs'`.
 
+## Thumbnails and app links
+
+- Every media item that arrives with `thumbnail: null` gets one: about 640 px on the short side, at
+  `items/<id>/<n>.thumb.jpg` (`r<n>` for a repost original's media). The worker's `thumbs` lane makes
+  them right after ingest and backfilled the existing items. A thumbnail the collector sends wins.
+- The site's CloudFront function leaves `/.well-known/*` alone on both hosts. `deploy-site.sh`
+  uploads those files as `application/json`. `build-site.sh` builds with
+  `SITE_URL=https://empire.earth`, `VITE_API_BASE=https://api.empire.earth` and
+  `EE_REPO_ROOT=/opt/earth-empire/repo`, so the apps' association files are included.
+
 ## Status, health and the owner's token
 
 - `GET /v1/status` (public) is the apps' status screen. It covers every component (API, database

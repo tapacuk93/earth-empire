@@ -454,9 +454,17 @@ def tag_graph(c, max_nodes: int = 300, edges_per_node: int = 6) -> dict:
         tag_items.setdefault(t, set()).add(r["item_id"])
         kinds.setdefault(r["tag"], set()).add(r["kind"])
     ranked = sorted(tag_items, key=lambda t: (-len(tag_items[t]), t))[:max_nodes]
+    # Level 0 is the AI-defined facets' categories (CONTRACT.md "Facets"); tags follow, deeper.
+    from .facets import public_view
+    fnodes = []
+    for f in public_view(c)["facets"]:
+        for k in f["categories"]:
+            fnodes.append({"tag": k["name"].lower(), "kinds": ["facet"], "facet": f["id"], "facet_name": f["name"],
+                           "category": k["id"], "count": k["count"], "level": 0, "items": set(k["item_ids"])})
+    base = 1 if fnodes else 0
     nodes = []
     for rank, t in enumerate(ranked):
-        level = 0 if rank < 12 else 1 if rank < 48 else 2 if rank < 144 else 3
+        level = base + (0 if rank < 12 else 1 if rank < 48 else 2 if rank < 144 else 3)
         nodes.append({"tag": t, "kinds": sorted(kinds[t]), "count": len(tag_items[t]), "level": level})
     keep = set(ranked)
     pairs: dict[tuple, int] = {}
@@ -479,6 +487,13 @@ def tag_graph(c, max_nodes: int = 300, edges_per_node: int = 6) -> dict:
             edges.append(e)
             deg[e["a"]] = deg.get(e["a"], 0) + 1
             deg[e["b"]] = deg.get(e["b"], 0) + 1
+    for fn in fnodes:   # each facet category links to the tags its items share most
+        links = sorted(((len(fn["items"] & tag_items[t]), t) for t in ranked if fn["items"] & tag_items[t]),
+                       key=lambda x: (-x[0], x[1]))[:edges_per_node]
+        for n, t in links:
+            edges.append({"a": fn["tag"], "b": t, "count": n,
+                          "weight": round(n / math.sqrt(len(fn["items"]) * len(tag_items[t])), 4)})
+    nodes = [{k: v for k, v in fn.items() if k != "items"} for fn in fnodes] + nodes
     return {"nodes": nodes, "edges": edges}
 
 

@@ -252,6 +252,31 @@ or Russian) and reports the result as context:
   starts the video at the first matched moment (`hits[0].media`, `hits[0].at`). Without hits it
   plays from the start.
 
+## Facets
+
+The groupings the site and apps browse by (places, themes, people, projects, …) are not fixed.
+Claude defines them from the public content and redefines them as it changes:
+
+- **When:** hourly when something changed, and after every 5 newly published items; at most
+  `facets.daily_cap` runs a day (12 by default, the cost guard), paid from the server's aicoin wallet.
+- **From what:** a compact summary of the public items only (date, summary, keywords, place,
+  categories) and the current facets. Nothing about visitors is collected or used.
+- **Stability:** existing facet and category ids and names are kept unless they no longer fit, so the
+  site does not reshuffle. Past 400 items, the newest 400 go to Claude, and the rest join the category
+  they are most similar to (embeddings).
+
+Public:
+
+- `GET /v1/facets` → `{"facets": [{"id", "name", "description", "categories": [{"id", "name",
+  "description", "count", "item_ids": ["ig_…"]}]}], "generated_at"}`: only public items; categories
+  by count. An item can be in several categories.
+- `GET /v1/items?facet=<facet id>:<category id>` → that category's items, newest first.
+- `GET /v1/tags/graph` puts the facets' categories at `level` 0 (`kinds: ["facet"]`, with `facet`,
+  `facet_name`, `category`), linked to the tags their items share most. The tags follow at levels 1+.
+
+These replace hard-coded places and categories on the site and in the apps. The per-item
+`categories` from the analysis stay as tags.
+
 ## Home layout
 
 Home is two zoomable mosaics and a tag graph below them. Everything here is built from published

@@ -196,6 +196,6 @@ class WorkerTest(unittest.TestCase):
         except ImportError:   # the box has it; a bare local python may not
             sys.modules["httpx"] = types.ModuleType("httpx")
         w = importlib.import_module("ee.worker")
-        for fn in ("analyze_once", "thumbs_once", "home_once", "importance_once", "x_once", "facebook_once",
+        for fn in ("analyze_once", "thumbs_once", "home_once", "importance_once", "facets_once", "x_once", "facebook_once",
                    "house_once", "site_once", "main"):
             self.assertTrue(callable(getattr(w, fn, None)), fn)

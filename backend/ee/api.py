@@ -105,7 +105,7 @@ KINDS = {"post", "carousel", "reel", "story"}
 
 @app.get("/v1/items")
 def items(kind: str | None = None, category: str | None = None, highlight: str | None = None,
-          tag: str | None = None, q: str | None = None, before: str | None = None, limit: int = Query(30, ge=1, le=100)):
+          tag: str | None = None, facet: str | None = None, q: str | None = None, before: str | None = None, limit: int = Query(30, ge=1, le=100)):
     c = conn()
     where, args = ["i.published_at IS NOT NULL"], []
     if kind:
@@ -120,6 +120,11 @@ def items(kind: str | None = None, category: str | None = None, highlight: str |
     if highlight:
         where.append("i.id IN (SELECT item_id FROM item_highlights WHERE highlight_id=?)")
         args.append(highlight)
+    if facet and ":" in facet:
+        from . import facets as fc
+        ids = sorted(fc.item_ids_for(c, facet)) or ["-"]
+        where.append(f"i.id IN ({','.join('?' * len(ids))})")
+        args += ids
     if tag and tag.strip():
         where.append("i.id IN (SELECT item_id FROM item_tags WHERE tag=?)")
         args.append(" ".join(tag.strip().lower().lstrip("#").split()))
@@ -178,6 +183,12 @@ def item_related(item_id: str, limit: int = Query(20, ge=1, le=100)):
 def home_layout():
     from . import home
     return home.layout(conn())
+
+
+@app.get("/v1/facets")
+def facets_view():
+    from . import facets as fc
+    return fc.public_view(conn())
 
 
 @app.get("/v1/tags/graph")

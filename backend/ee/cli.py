@@ -13,6 +13,7 @@
   ee steps retry [step]               put failed steps back in the queue
   ee wallet init | show               the server's aicoin wallet
   ee home [refresh|layout|graph]      embeddings and Home layout now / print them
+  ee facets [run|show]                let Claude redefine the facets now / print them
   ee importance [--n N]               score importance for items analyzed before it existed
   ee backup                           back up every part's databases to S3 now
   ee restore [--date D] [--dry-run]   restore them (use deploy/restore-state.sh, which stops services)
@@ -44,6 +45,7 @@ def main(argv=None):
     p = sub.add_parser("steps"); p.add_argument("action", choices=["set", "retry"]); p.add_argument("rest", nargs="*")
     p = sub.add_parser("wallet"); p.add_argument("action", choices=["init", "show"])
     p = sub.add_parser("home"); p.add_argument("action", nargs="?", default="refresh", choices=["refresh", "layout", "graph", "full"])
+    p = sub.add_parser("facets"); p.add_argument("action", nargs="?", default="show", choices=["run", "show"])
     p = sub.add_parser("importance"); p.add_argument("--n", type=int, default=1000)
     sub.add_parser("backup")
     p = sub.add_parser("restore"); p.add_argument("--date"); p.add_argument("--only"); p.add_argument("--dry-run", action="store_true")
@@ -193,6 +195,13 @@ def main(argv=None):
             print(json.dumps(home.layout(c), indent=1)[:4000])
         else:
             print(json.dumps(home.tag_graph(c), indent=1)[:4000])
+    elif a.cmd == "facets":
+        from . import facets
+        doc = facets.run(c) if a.action == "run" else None
+        view = facets.public_view(c)
+        for f in view["facets"]:
+            print(f"{f['name']} ({f['id']}): " + ", ".join(f"{k['name']} {k['count']}" for k in f["categories"]))
+        print("generated", view["generated_at"])
     elif a.cmd == "importance":
         from . import importance
         for r in importance.run(c, a.n):

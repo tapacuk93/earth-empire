@@ -99,6 +99,27 @@ def home_once(c) -> bool:
     return changed
 
 
+def facets_once(c) -> bool:
+    from . import facets
+    ok, why = facets.due(c)
+    if not ok:
+        return False
+    store.job_start(c, "facets", "facets", "Claude is redefining the site's facets", progress=why)
+    try:
+        doc = facets.run(c)
+        store.record(c, "facets", "generated", f"{len(doc['facets'])} facets over {doc['items']} items ({why})")
+    except aicoin.OutOfCoins:
+        stop.wait(3600)
+    except Exception as e:
+        event("facets.failed", logging.WARNING, error=repr(e)[:500])
+        from .db import set_setting
+        set_setting(c, "facets.last_run", utcnow())   # try again in 10 minutes at the earliest
+        metric("WorkerErrors")
+    finally:
+        store.job_end(c, "facets")
+    return True
+
+
 def importance_once(c) -> bool:
     """When the analyzer has nothing to do: score items analyzed before importance existed."""
     if setting(c, "analysis.enabled") != "1":
@@ -335,7 +356,8 @@ def main():
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     threads = [lane("analyze", analyze_once), lane("thumbs", thumbs_once, idle=20),
-               lane("home", home_once, idle=20), lane("importance", importance_once, idle=60), lane("x", x_once, idle=60),
+               lane("home", home_once, idle=20), lane("importance", importance_once, idle=60),
+               lane("facets", facets_once, idle=60), lane("x", x_once, idle=60),
                lane("facebook", facebook_once, idle=120), lane("house", house_once, idle=15)]
     while not stop.is_set():
         stop.wait(5)

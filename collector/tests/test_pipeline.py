@@ -30,12 +30,16 @@ class FakeIG:
             ("info", "media_info_original.json"), ("clips", "clips_user.json"))}
         self.fail_feed_after = None
 
-    def browse(self, url, scrolls=1):
+    def browse(self, url, scrolls=1, click=()):
         """The profile page: the user record only (its posts come from the feed fixture)."""
         self.calls.append("browse:" + url)
         if url.endswith("/reposts/"):
             return []
-        return [self.data["profile"]]
+        if "/stories/highlights/" in url:
+            return [self.data["hl"]]          # the viewer preloads the neighbouring highlights too
+        if "/stories/" in url:
+            return [self.data["user"]]
+        return [self.data["profile"], self.data["tray"]]
 
     def feed(self, uid, cursor):
         self.calls.append(f"feed:{cursor}")
@@ -135,7 +139,7 @@ def test_full_then_incremental(env):
     assert len(dl.urls) == n_dl + 0, dl.urls[n_dl:]
     assert len(store.uploads) == n_up
     assert "feed:None" in ig.calls and not any(x.startswith("feed:33") for x in ig.calls)
-    assert not any(x.startswith("reels:highlight") for x in ig.calls)  # tray unchanged
+    assert not any("/stories/highlights/" in x for x in ig.calls)  # tray unchanged
     assert not any(x.startswith("info:") for x in ig.calls)            # repost already resolved
 
 
@@ -162,8 +166,9 @@ def test_backfill_resumes_from_checkpoint(env):
     store, backend, state = env
     ig, dl = FakeIG(), FakeDL()
     ig.fail_feed_after = 1
-    with pytest.raises(RuntimeError):
-        Collector(ig, backend, state, dl, "example.owner").run("full")
+    c = Collector(ig, backend, state, dl, "example.owner")
+    c.run("full")                      # the feed step fails; the run goes on and ends
+    assert c.counts["failed_feed"] == 1 and state.get("backfill.done_at") is None
     assert state.get("backfill.feed.cursor") == "3300000000000000002_1000000001"
     assert "ig_3300000000000000003" not in store.items or True
     ig.fail_feed_after = None
@@ -202,10 +207,10 @@ def test_heartbeats(env):
 class BrowsingIG(FakeIG):
     """Like the live client: the profile page's own responses carry the user and newest posts."""
 
-    def browse(self, url, scrolls=1):
+    def browse(self, url, scrolls=1, click=()):
         self.calls.append("browse:" + url)
-        if url.endswith("/reposts/"):
-            return []
+        if url.endswith("/reposts/") or "/stories/" in url:
+            return FakeIG.browse(self, url, scrolls)
         u = dict(self.data["profile"]["data"]["user"])
         u.pop("edge_followed_by")
         u["follower_count"] = 1500
@@ -239,3 +244,37 @@ def test_sample_newest_video_only(env):
                                         fx("graphql_timeline.json"), {"items": [reel]}]
     Collector(ig, backend, state, FakeDL(), "example.owner").run("sample")
     assert list(store.items) == ["ig_3300000000000000003"]
+
+
+def test_failing_step_does_not_end_the_run(env):
+    store, backend, state = env
+    ig = FakeIG()
+    orig = ig.browse
+
+    def broken(url, scrolls=1, click=()):
+        if "/stories/" in url and "/highlights/" not in url:
+            raise RuntimeError("500 from the story viewer")
+        return orig(url, scrolls)
+    ig.browse = broken
+    c = Collector(ig, backend, state, FakeDL(), "example.owner")
+    c.run("full")
+    assert c.counts["failed_stories"] == 1
+    assert "ig_3300000000000000003" in store.items      # posts were still reached
+
+
+def test_reposts_tab_first(env):
+    store, backend, state = env
+    ig = FakeIG()
+    orig = ig.browse
+    original = fx("media_info_original.json")["items"][0]
+
+    def with_reposts(url, scrolls=1, click=()):
+        if url.endswith("/reposts/"):
+            ig.calls.append("browse:" + url)
+            return [{"data": {"edges": [{"node": original}]}}]
+        return orig(url, scrolls)
+    ig.browse = with_reposts
+    Collector(ig, backend, state, FakeDL(), "example.owner").run("full")
+    rep = store.items["ig_repost_3400000000000000009"]
+    assert rep["repost_of"]["author"] == "other.author" and rep["media"][0]["url"].endswith("/r0.mp4")
+    assert [c for c in ig.calls if c.startswith("browse:")][1].endswith("/reposts/")

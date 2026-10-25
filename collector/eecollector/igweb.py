@@ -470,12 +470,20 @@ class IGBrowser:
         except PWError:
             return ""
 
-    def browse(self, url: str, scrolls: int = 3) -> list[dict]:
-        """Visit a page like a person and return the JSON responses it loaded (e.g. the reposts tab)."""
+    def browse(self, url: str, scrolls: int = 3, click: tuple[str, ...] = ()) -> list[dict]:
+        """Visit a page like a person and return the JSON it loaded (responses and embedded data).
+        `click`: button labels to press once if shown (the story viewer's "View story")."""
         self.seen = []
         self.harvest = True
         try:
             self.goto(url)
+            for label in click:
+                b = self.page.query_selector(f'button:has-text("{label}"), [role="button"]:has-text("{label}")')
+                if b:
+                    self.page.wait_for_timeout(random.randint(800, 2000))
+                    b.click()
+                    self.page.wait_for_timeout(random.randint(4000, 6500))
+                    break
             for _ in range(scrolls):
                 self.page.mouse.wheel(0, random.randint(1500, 2600))
                 self.page.wait_for_timeout(random.randint(2500, 5000))

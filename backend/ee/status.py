@@ -222,6 +222,50 @@ def build(c) -> dict:
         comps.append(comp(cid, name, st, last_success=posted["at"] if posted else None,
                           last_error=err(fail["at"], fail["note"]) if fail else None, details=det))
 
+    # background AI jobs: importance scoring, rubric, facets, layout, and today's spend
+    from . import importance as imp_mod, rubric as rub_mod
+    day = _now().strftime("%Y-%m-%d")
+    queue = len(imp_mod.pending(c, 100000))
+    scored_today = c.execute("SELECT COUNT(*) n FROM costs WHERE purpose='importance' AND at >= ?", (day,)).fetchone()["n"]
+    last_scored = c.execute("SELECT MAX(at) t FROM costs WHERE purpose='importance'").fetchone()["t"]
+    rub = rub_mod.current(c)
+    cap = int(setting(c, "importance.rescore_daily_cap") or 0)
+    scored = c.execute("SELECT COUNT(*) n FROM items WHERE analysis IS NOT NULL AND importance_version = ? "
+                       "AND importance_method >= 2", (rub["version"],)).fetchone()["n"]
+    analyzed = c.execute("SELECT COUNT(*) n FROM items WHERE analysis IS NOT NULL").fetchone()["n"]
+    comps.append(comp("importance", "Importance scoring", "degraded" if queue and scored_today >= cap else "ok",
+                      last_success=last_scored, details={
+                          "rubric_version": rub["version"], "method": "frames, images, transcripts, text",
+                          "queue": queue, "scored_with_current_rubric": scored, "analyzed": analyzed,
+                          "progress_percent": round(100 * scored / analyzed) if analyzed else 100,
+                          "scored_today": scored_today, "daily_cap": cap,
+                          "reason": "daily cap reached" if queue and scored_today >= cap else None}))
+    comps.append(comp("rubric", "Importance rubric", "ok" if setting(c, "importance.rubric_review") == "1" else "off",
+                      last_success=rub.get("created_at"), details={
+                          "version": rub["version"], "by": rub.get("by"), "reason": scrub(rub.get("reason"), 200),
+                          "versions": c.execute("SELECT COUNT(*) n FROM rubrics").fetchone()["n"],
+                          "last_review_day": setting(c, "importance.rubric_reviewed") or None}))
+    fdoc = json.loads(setting(c, "facets.current") or "{}")
+    comps.append(comp("facets", "Facets", "ok", last_success=fdoc.get("generated_at"), details={
+        "facets": len(fdoc.get("facets") or []),
+        "categories": sum(len(f.get("categories") or []) for f in fdoc.get("facets") or []),
+        "items": fdoc.get("items"),
+        "runs_today": c.execute("SELECT COUNT(*) n FROM costs WHERE purpose='facets' AND at >= ?", (day,)).fetchone()["n"],
+        "daily_cap": int(setting(c, "facets.daily_cap") or 0)}))
+    lay = {r["half"]: r["n"] for r in c.execute("SELECT half, COUNT(*) n FROM layout GROUP BY half")}
+    comps.append(comp("layout", "Home layout", "ok", last_success=setting(c, "home.recomputed_at") or None, details={
+        "top_tiles": lay.get("top", 0), "bottom_tiles": lay.get("bottom", 0),
+        "embedded": c.execute("SELECT COUNT(*) n FROM embeddings").fetchone()["n"],
+        "half_life_days": float(setting(c, "size.half_life_days") or 0),
+        "importance_w": float(setting(c, "size.importance_w") or 0),
+        "display_exponent": float(setting(c, "size.display_exponent") or 0)}))
+    spend = {r["purpose"]: {"calls": r["n"], "coins": round(r["coins"] or 0, 1), "usd": round(r["usd"] or 0, 3)}
+             for r in c.execute("SELECT purpose, COUNT(*) n, SUM(coins) coins, SUM(usd) usd FROM costs "
+                                "WHERE at >= ? GROUP BY purpose", (day,))}
+    comps.append(comp("spend", "AI spend today", "ok", details={
+        "by_purpose": spend, "coins": round(sum(v["coins"] for v in spend.values()), 1),
+        "usd": round(sum(v["usd"] for v in spend.values()), 2)}))
+
     site_at = setting(c, "site.built_at")
     comps.append(comp("site", "Site build", "ok" if setting(c, "site.auto_build") == "1" else "off",
                       details={"newest_item_published": site_at or None}))

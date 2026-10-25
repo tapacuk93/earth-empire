@@ -422,7 +422,9 @@ def layout(c) -> dict:
                 "label": v["label"], "taken_at": mem[img]["taken_at"]})
     for h in halves.values():
         h.sort(key=lambda t: (t["taken_at"] or "", t["id"]), reverse=True)   # newest first
-    return {"halves": halves, "updated_at": setting(c, "home.layout_at") or None}
+    return {"halves": halves, "updated_at": setting(c, "home.layout_at") or None,
+            "display_exponent": float(setting(c, "size.display_exponent") or 2),
+            "size_params": params}
 
 
 def related(c, item_id: str, limit: int = 20) -> list[dict]:

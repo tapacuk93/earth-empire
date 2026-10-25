@@ -282,9 +282,19 @@ def build_request(c, item_id: str, work: Path, job: str | None = None) -> tuple[
                     info["frames"] += 1
                 if pr["has_audio"]:
                     audio = extract_audio(src, work / f"a{n}.mp3")
-                    if audio:
+                    mkey = store.media_key(src_url) or src_url
+                    cached = c.execute("SELECT * FROM transcripts WHERE media=?", (mkey,)).fetchone()
+                    if cached:
+                        tr = {"language": cached["language"], "text": cached["text"],
+                              "segments": json.loads(cached["segments"])}
+                        coins = 0.0
+                    elif audio:
                         _progress(c, job, f"transcribing the speech in media {n + 1}")
                         tr, coins = aicoin.transcribe(str(audio))
+                        c.execute("INSERT OR REPLACE INTO transcripts(media, language, text, segments, created_at) "
+                                  "VALUES (?,?,?,?,?)", (mkey, tr.get("language"), tr.get("text"),
+                                                         j(tr.get("segments") or []), now()))
+                    if cached or audio:
                         info["coins"] += coins
                         info["audio_s"] += dur
                         segs = [f"[{s.get('start', 0):.1f}-{s.get('end', 0):.1f}] {s.get('text', '').strip()}"
@@ -293,8 +303,10 @@ def build_request(c, item_id: str, work: Path, job: str | None = None) -> tuple[
                         info["transcripts"].append({"media": n, "language": tr.get("language"), "text": tr.get("text")})
                         content.append({"type": "text", "text": f"Transcript of media {n} (automatic, language guess "
                                                                 f"{tr.get('language')}):\n{text or '(no speech)'}"})
-                        c.execute("INSERT INTO costs(at, item_id, purpose, model, coins, usd, ok, note) VALUES (?,?,?,?,?,?,1,?)",
-                                  (now(), item_id, "transcribe", "whisper-1", coins, round(dur / 60 * 0.006, 5), f"{dur:.1f}s"))
+                        if not cached:
+                            c.execute("INSERT INTO costs(at, item_id, purpose, model, coins, usd, ok, note) "
+                                      "VALUES (?,?,?,?,?,?,1,?)", (now(), item_id, "transcribe", "whisper-1", coins,
+                                                                  round(dur / 60 * 0.006, 5), f"{dur:.1f}s"))
             else:
                 data = jpeg(src, work / f"i{n}.jpg", IMAGE_EDGE)
                 content.append({"type": "text", "text": f"Media {n} - {label}image:"})
@@ -500,7 +512,8 @@ def analyze(c, item_id: str, *, dry_run: bool = False, job: str | None = None) -
         _progress(c, job, "saving the analysis and covers")
         covers = save_covers(c, item_id, out.get("covers"), info["videos"])
         cats = apply_result(c, item_id, out, resp.get("model") or model)
-        c.execute("UPDATE items SET importance_version=? WHERE id=?", (info.get("rubric_version"), item_id))
+        c.execute("UPDATE items SET importance_version=?, importance_method=2 WHERE id=?",
+                  (info.get("rubric_version"), item_id))
         result = {"item": item_id, "categories": cats, "summary": out.get("summary"),
                   "input_tokens": usage.get("input_tokens"), "output_tokens": usage.get("output_tokens"),
                   "coins": coins + info["coins"], "usd": round(usd, 4), "seconds": round(time.time() - t0, 1),

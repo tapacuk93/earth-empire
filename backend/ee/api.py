@@ -377,7 +377,7 @@ async def heartbeat(request: Request):
 
 
 SIZE_KEYS = {"half_life_days": "size.half_life_days", "age_floor": "size.age_floor",
-             "importance_w": "size.importance_w"}
+             "importance_w": "size.importance_w", "display_exponent": "size.display_exponent"}
 PLACEMENT_KEYS = ("post", "dedicated", "shared", "repost", "story", "hit_top", "hit_bottom")
 
 
@@ -390,7 +390,8 @@ def _settings_view(c) -> dict:
         "rubric": {"version": cur["version"], "text": cur["text"], "reason": cur["reason"], "by": cur["by"],
                    "history": rubric.history(c)},
         "rubric_review": db.setting(c, "importance.rubric_review") == "1",
-        "formula": "size = placement × max(age_floor, 0.5 ** (age_days / half_life_days)) × (1 − w + w × importance)",
+        "formula": "size = placement × max(age_floor, 0.5 ** (age_days / half_life_days)) × (1 − w + w × importance); "
+                   "tile area ∝ size ** display_exponent",
     }
 
 
@@ -413,7 +414,8 @@ async def admin_settings_put(request: Request):
     for k, v in (body.get("size") or {}).items():
         if k not in SIZE_KEYS:
             raise HTTPException(400, f"unknown size setting {k}")
-        lim = {"half_life_days": (0.5, 3650), "age_floor": (0, 1), "importance_w": (0, 1)}[k]
+        lim = {"half_life_days": (0.5, 3650), "age_floor": (0, 1), "importance_w": (0, 1),
+               "display_exponent": (0.25, 4)}[k]
         db.set_setting(c, SIZE_KEYS[k], num(v, *lim, k))
     for k, v in (body.get("placement") or {}).items():
         if k not in PLACEMENT_KEYS:

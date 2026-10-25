@@ -236,7 +236,7 @@ Status, **owner only** (`Authorization: Bearer <earth-empire/admin-token>`; 401 
 Owner-only (`Authorization: Bearer <earth-empire/admin-token>`):
 
 - `GET /v1/admin/me` → `{"ok": true, "role": "owner"}`, or 401: checks a token the owner entered.
-- `GET /v1/admin/settings` → `{"size": {"half_life_days", "age_floor", "importance_w"}, "placement": {"post",
+- `GET /v1/admin/settings` → `{"size": {"half_life_days", "age_floor", "importance_w", "display_exponent"}, "placement": {"post",
   "dedicated", "shared", "repost", "story", "hit_top", "hit_bottom"}, "rubric": {"version", "text", "reason",
   "by", "history": [{"version", "text", "reason", "by": "backend|claude|owner", "applied", "created_at"}]},
   "rubric_review": bool, "formula"}`; `PUT` the same shape, any part (rubric: `{"text", "reason"?}`),
@@ -319,19 +319,29 @@ items and published monitor hits only.
     | **1 / 0.5** | a published monitor hit in the top / bottom section |
 
   - **age_factor** = max(`age_floor`, 0.5 ^ (age_days / `half_life_days`)), counted from the
-    **original** publication (for a repost, the original's date). Defaults: half-life 30 days,
+    **original** publication (for a repost, the original's date). Defaults: half-life 7 days,
     floor 0.05.
   - **importance_factor** = 1 − w + w × importance, where `importance` (0-1) is scored by Claude
-    by the **importance rubric** and `w` defaults to 0.15.
+    by the **importance rubric** and `w` defaults to 0.4.
+  - **Display:** a tile's **area** follows `size ** display_exponent` (default 2). `/v1/layout`
+    returns `display_exponent` (and `size_params`), and the site and apps apply it.
 
   Items carry `placement` and `placement_reason` (`curation` and `curation_reason` are the same
   values, under their earlier names). Tiles carry `size` and its parts: `placement`, `age_days`,
   `age_factor` and `importance_factor`. Time orders (newest first, ties) stay purely by `taken_at`.
+- **Importance is scored from the item itself:** the images, frames across every video, the speech
+  transcripts (for a repost, the original's audio too), the on-screen text and the description, with
+  the current rubric. Transcripts are cached, so re-scoring never transcribes twice.
 - **The importance rubric** is plain text in settings, with every version kept. Once a day, Claude
   reviews it against the content and proposes a better one. A refinement (same intent, clearer or
   more accurate) is applied as a new version, and any other proposal is recorded but not applied.
   The owner can also replace it. A new version re-scores every item in the background, within
-  `importance.rescore_daily_cap` (300) a day.
+  `importance.rescore_daily_cap` (400) a day.
+- **Background jobs** run continuously, always behind the analysis of new items: importance
+  scoring, the daily rubric review, facets, and the layout (every minute). `GET /v1/status` (owner)
+  shows each one as a component (`importance`, `rubric`, `facets`, `layout`, `spend`) with its queue,
+  progress, the rubric version, the last facets run, the last layout recompute and today's spend
+  by purpose. The item being worked on now is in `activity.jobs`.
 
 Public:
 

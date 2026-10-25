@@ -73,6 +73,10 @@ CREATE TABLE IF NOT EXISTS costs (           -- every paid call
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 -- The importance rubric, every version: applied ones and proposals Claude made that were not applied.
+-- Speech transcripts per media file, so re-scoring never transcribes the same audio twice.
+CREATE TABLE IF NOT EXISTS transcripts (
+  media TEXT PRIMARY KEY, language TEXT, text TEXT, segments TEXT NOT NULL, created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS rubrics (
   version INTEGER PRIMARY KEY, text TEXT NOT NULL, reason TEXT NOT NULL, by TEXT NOT NULL,
   applied INTEGER NOT NULL, created_at TEXT NOT NULL
@@ -127,9 +131,10 @@ DEFAULT_SETTINGS = {
     "site.force": "",
     "facets.daily_cap": "12",
     # Home tile size = placement × age_factor × importance_factor (CONTRACT.md "Home layout")
-    "size.half_life_days": "30",
+    "size.half_life_days": "7",
     "size.age_floor": "0.05",
-    "size.importance_w": "0.15",
+    "size.importance_w": "0.4",
+    "size.display_exponent": "2",   # tile area follows size ** display_exponent (applied by the site)
     "placement.post": "1",
     "placement.dedicated": "1",
     "placement.shared": "0.5",
@@ -137,7 +142,8 @@ DEFAULT_SETTINGS = {
     "placement.story": "0.125",
     "placement.hit_top": "1",
     "placement.hit_bottom": "0.5",
-    "importance.rescore_daily_cap": "300",
+    "importance.rescore_daily_cap": "400",
+    "importance.method": "2",        # 2: scored from frames, images, transcripts and text (multimodal)
     "importance.rubric_review": "1",   # Claude facet runs a day (the cost guard for facets)           # set when items leave the site: rebuild even with nothing new
 }
 
@@ -169,6 +175,8 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
         conn.execute("ALTER TABLE items ADD COLUMN detection TEXT")
     if "priority" not in cols:     # 1 = new (just appeared), 0 = backfill: new items go first everywhere
         conn.execute("ALTER TABLE items ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
+    if "importance_method" not in cols:    # how it was scored (see importance.method)
+        conn.execute("ALTER TABLE items ADD COLUMN importance_method INTEGER")
     if "importance_version" not in cols:   # which rubric version scored it
         conn.execute("ALTER TABLE items ADD COLUMN importance_version INTEGER")
     if "curation" not in cols:     # added 2026-10-25: 0-1, how the owner curated it (home.curation)

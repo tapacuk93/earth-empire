@@ -91,9 +91,11 @@ def home_once(c) -> bool:
         return False
     _home_last["t"] = time.time()
     from . import home
-    store.job_start(c, "home", "home", "updating the Home layout", progress="embeddings and places")
+    store.job_start(c, "home", "layout", "updating the Home layout", progress="embeddings, placement, places")
     try:
         changed = home.refresh(c)
+        from .db import set_setting
+        set_setting(c, "home.recomputed_at", utcnow())
     finally:
         store.job_end(c, "home")
     return changed
@@ -105,6 +107,8 @@ def facets_once(c) -> bool:
     if not ok:
         return False
     store.job_start(c, "facets", "facets", "Claude is redefining the site's facets", progress=why)
+    from .db import set_setting
+    set_setting(c, "facets.started_at", utcnow())
     try:
         doc = facets.run(c)
         store.record(c, "facets", "generated", f"{len(doc['facets'])} facets over {doc['items']} items ({why})")
@@ -129,11 +133,14 @@ def rubric_once(c) -> bool:
         return False
     from .db import set_setting
     set_setting(c, "importance.rubric_reviewed", day)
+    store.job_start(c, "rubric", "rubric", "Claude is reviewing the importance rubric")
     try:
         from . import rubric
         rubric.review(c)
     except Exception as e:
         event("rubric.review_failed", logging.WARNING, error=repr(e)[:300])
+    finally:
+        store.job_end(c, "rubric")
     return True
 
 
@@ -154,14 +161,18 @@ def importance_once(c) -> bool:
     ids = importance.pending(c, 1)
     if not ids:
         return False
+    store.job_start(c, "importance", "importance", "scoring importance (multimodal, current rubric)", ids[0],
+                    f"{len(importance.pending(c, 100000))} to score")
     try:
-        importance.backfill_one(c, ids[0])
+        importance.backfill_one(c, ids[0], job="importance")
         stop.wait(random.uniform(3, 10))
     except aicoin.OutOfCoins:
         stop.wait(3600)
     except Exception as e:
         event("importance.failed", logging.WARNING, item=ids[0], error=repr(e)[:300])
-        c.execute("UPDATE items SET importance=0.5 WHERE id=? AND importance IS NULL", (ids[0],))
+        c.execute("UPDATE items SET importance=COALESCE(importance, 0.5), importance_method=2 WHERE id=?", (ids[0],))
+    finally:
+        store.job_end(c, "importance")
     return True
 
 

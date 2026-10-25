@@ -44,7 +44,8 @@ BROWSER_DIR = Path(os.environ.get("EE_BROWSER_DIR", "/var/lib/earth-empire/brows
 PROOF_DIR = config.DATA_DIR / "facebook"
 
 L = {  # accessible names, as regular expressions, in the languages the owner may use
-    "composer": r"What's on your mind|Що у вас нового|Що нового|О чём вы думаете|Что у вас нового",
+    "composer": r"What's on your mind|Що у вас на думці|Що у вас нового|О чём вы думаете|Что у вас нового",
+    "not_now": r"^(Not now|Не зараз|Не сейчас)$",
     "dialog": r"Create post|Створити допис|Створення допису|Создать публикацию|Создание публикации",
     "photo": r"^(Photo/video|Фото/відео|Фото/видео)$",
     "next": r"^(Next|Далі|Далее)$",
@@ -146,7 +147,18 @@ class Browser:
         pause(2500, 5000)
         self.check("home")
 
+    def dismiss_prompts(self):
+        """Close 'remember password' and similar cards, never answering them otherwise."""
+        b = self.page.get_by_role("button", name=re.compile(L["not_now"], re.I))
+        if b.count():
+            try:
+                b.first.click(timeout=5000)
+                pause()
+            except Exception:
+                pass
+
     def open_composer(self):
+        self.dismiss_prompts()
         btn = self.page.get_by_role("button", name=re.compile(L["composer"], re.I)).first
         if btn.count() == 0:
             btn = self.page.get_by_text(re.compile(L["composer"], re.I)).first

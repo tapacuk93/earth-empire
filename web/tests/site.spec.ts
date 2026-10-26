@@ -450,6 +450,10 @@ test('detected: a vertical wheel of hits by confidence, with fetch more', async 
   await expect(page.locator('.wslide')).toHaveCount(4);
   await expect(page.locator('.det-count')).toHaveText('1 / 4 · likely');
   await expect(page.locator('.wslide').first()).toContainText('likely · 94%');
+  // The gold label is the phrase the monitor listens for; a sound-only clip shows its frame, not black.
+  await expect(page.locator('.wslide').first().locator('.heard-chip')).toHaveText('“тарас маслов”');
+  const clip = page.locator('.wslide').first().locator('.wclip');
+  if (await clip.evaluate((c) => c.classList.contains('audio'))) await expect(clip.locator('img')).toBeVisible();
   await page.locator('.wheel').focus();
   await page.keyboard.press('ArrowDown');
   await expect(page.locator('.det-count')).toHaveText('2 / 4 · likely');
@@ -735,4 +739,10 @@ test('wheel: fullscreen media fits, filling only when that crops at most 12%; on
   }
   const slide = feed(page).locator('.islide:not([aria-hidden])');
   await expect(slide.locator('.ioverlay, .hit-chip, .ititle')).toHaveCount(0);
+  // The media box is the slide's box: nothing overflows (a portrait video on a wide screen too).
+  const boxes = await slide.locator('.imedia-slide').evaluateAll((els) => els.map((sl) => {
+    const q = sl.getBoundingClientRect(), r = sl.querySelector('img, video')!.getBoundingClientRect();
+    return [r.top - q.top, q.bottom - r.bottom, r.height - q.height];
+  }));
+  for (const [top, bottom, extra] of boxes) { expect(Math.abs(top)).toBeLessThan(2); expect(Math.abs(bottom)).toBeLessThan(2); expect(Math.abs(extra)).toBeLessThan(2); }
 });

@@ -150,7 +150,7 @@ export function Home({ route }: { route: Route }) {
         <h1><EarthButton label={SITE_NAME} />{SITE_NAME}</h1>
         {all.error ? <p class="error" role="alert">Could not load Earth Empire: {all.error.message}</p> : all.data && (
           <p class="stats-line">
-            <b>{items.length}</b> videos{first && last && <> · <b>{spanOf(first.taken_at, last.taken_at)}</b></>} · <b>{places(items).length}</b> places · <b>{people(items).length}</b> people{profile.data && <> · from <a href={`https://www.instagram.com/${profile.data.username}/`} rel="external noopener">@{profile.data.username}</a></>}
+            <b>{items.length}</b> videos{first && last && <> · <b>{spanOf(first.taken_at, last.taken_at)}</b></>} · <b>{places(items).length}</b> places · <b>{people(items).length}</b> people
           </p>
         )}
       </header>

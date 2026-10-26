@@ -37,10 +37,13 @@ export const isLow = (h: Hit) => labelOf(h) === 'low confidence';
 export const LANG: Record<string, string> = { uk: 'Ukrainian', ru: 'Russian', en: 'English' };
 export const whatOf = (h: Hit) => (h.kind === 'language' ? `${LANG[h.matched || ''] || h.matched} speech` : `“${h.matched || h.phrase}”`);
 /**
- * What sounds in the clip, as short as a highlight name ("в Тараса 3"): the words around the match
- * in the transcript (two on each side), else the first words, else the match itself.
+ * The gold label of a found clip: the phrase the monitor listens for that matched (a name hit), else
+ * the backend's heard phrase, else the words around the match in the transcript (two on each side),
+ * else the first words, else the match itself.
  */
 export function heardOf(h: Hit): string {
+  // First the phrase the monitor listens for (Settings, as the owner wrote it), then the backend's heard phrase.
+  if (h.kind === 'name' && h.phrase?.trim()) return h.phrase.trim();
   if (h.heard?.text) return h.heard.text;
   const text = (h.excerpt?.text || '').replace(/\s+/g, ' ').trim();
   const words = text ? text.split(' ') : [];

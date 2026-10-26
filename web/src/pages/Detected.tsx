@@ -3,6 +3,8 @@ import { Icon } from '../components/icons';
 import { HitMeta } from '../components/MonitorCard';
 import { fetchMore, getHits, labelOf, setPublished, titleOf, type Hit } from '../monitor';
 import { navigate, type Route } from '../router';
+
+const isAudio = (url?: string | null) => /\.(mp3|m4a|aac|wav|ogg|opus)(\?|$)/i.test(url || '');
 import { aiLevel, LEVEL_NAME } from '../sections';
 import { prefersReducedMotion, setMeta } from '../util';
 import { withParam } from './Home';
@@ -144,8 +146,12 @@ export function DetectedPage({ route }: { route: Route }) {
                 <section key={h.id} class="wslide" data-i={i} aria-label={`${i + 1} of ${hits.length}: ${titleOf(h)}`} aria-hidden={i !== cur ? 'true' : undefined}>
                   {Math.abs(i - cur) <= 1 && (
                     <>
-                      <video src={h.clip || undefined} poster={h.frame || h.video?.thumbnail || undefined} muted={muted} loop playsinline preload="none"
-                        aria-label={`Clip around the moment: ${titleOf(h)}`} onClick={() => setMuted(!muted)} />
+                      {/* A sound-only clip (the monitor's are mp3) shows its frame, whole, while it plays: a video element would go black */}
+                      <div class={`wclip ${isAudio(h.clip) ? 'audio' : ''}`}>
+                        {isAudio(h.clip) && (h.frame || h.video?.thumbnail) && <img src={h.frame || h.video?.thumbnail || undefined} alt="" decoding="async" />}
+                        <video src={h.clip || undefined} poster={h.frame || h.video?.thumbnail || undefined} muted={muted} loop playsinline preload="none"
+                          aria-label={`Clip around the moment: ${titleOf(h)}`} onClick={() => setMuted(!muted)} />
+                      </div>
                       <div class="wover">
                         <HitMeta h={h} full fold />
                         <Approve h={h} onSet={(lv) => place(h, lv)} />

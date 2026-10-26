@@ -27,7 +27,7 @@ export interface VTile {
 /**
  * What sounds in a video. `heard`: the phrase spoken - its highlight's name (highlights are named
  * after what is said in them), a phrase the monitor matched, or for a found clip the words around
- * the match. Else the language spoken, the music, or none.
+ * the match. Else the post's own description (see describe), or none.
  */
 export interface Audio { kind: 'heard' | 'speech' | 'music' | 'none'; text: string }
 export interface VSection { id: string; title: string; subtitle: string; tiles: VTile[]; level: number; compact: boolean }
@@ -64,14 +64,16 @@ export function themeFacet(facets: Facet[], ids: Set<string>): Facet | undefined
   return best;
 }
 
-const langName = (code?: string | null) => {
-  if (!code) return '';
-  if (code.length > 3) return code[0].toUpperCase() + code.slice(1); // already a name ("English")
-  if (LANG[code]) return LANG[code];
-  try { return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) || code; } catch { return code; }
-};
-/** The first clause of a free-text note ("Song by X (original reel's music); …" -> "Song by X"). */
-const clause = (s: string) => s.split(/[;(]/)[0].trim().replace(/[.,]$/, '');
+/**
+ * The post's own description as a label: its caption (first line, without hashtags or mentions), else
+ * the first sentence of its description. The backend's heard job finds when it sounds in the video.
+ */
+export function describe(it: Item): string {
+  const cap = (it.caption || '').split(/\n/).map((l) => l.replace(/[#@][\p{L}\p{N}_.]+/gu, '').replace(/\s+/g, ' ').trim()).find(Boolean) || '';
+  if (cap) return cap;
+  const d = (it.description || it.summary || '').trim();
+  return d.split(/(?<=[.!?])\s/)[0] || '';
+}
 
 export function audioOf(it: Item, labels?: Map<string, string>): Audio {
   if (it.heard?.text) return { kind: 'heard', text: it.heard.text };
@@ -80,12 +82,8 @@ export function audioOf(it: Item, labels?: Map<string, string>): Audio {
   const hits = it.detection?.hits || [];
   const names = [...new Set(hits.filter((h) => h.kind === 'name' && h.phrase).map((h) => h.phrase!))];
   if (names.length) return { kind: 'heard', text: names.join(' · ') };
-  const langs = [...new Set(hits.filter((h) => h.kind === 'language').map((h) => `${langName(h.lang)} speech`))];
-  if (langs.length) return { kind: 'speech', text: langs.join(' · ') };
-  const speech = it.analysis?.speech;
-  if (speech?.language && speech.transcript && !/^(und|unknown|none|n\/a|mul|zxx)$/i.test(speech.language.trim())) return { kind: 'speech', text: `${langName(speech.language.length <= 3 ? speech.language.toLowerCase() : speech.language)} speech` };
-  const music = it.music?.title ? [it.music.title, it.music.artist].filter(Boolean).join(' · ') : it.analysis?.music ? clause(it.analysis.music) : '';
-  return music ? { kind: 'music', text: music } : { kind: 'none', text: 'No speech detected' };
+  const said = describe(it);
+  return said ? { kind: 'heard', text: said } : { kind: 'none', text: 'No speech detected' };
 }
 
 export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[], layout?: LayoutTile[], facets?: Facet[] | null): VSection[] {

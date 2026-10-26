@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { fmtShort } from '../util';
 import { sizeOf, type Size, type VSection, type VTile } from '../videoSections';
 import { claimPlayback } from './zoom';
+import { EditableLabel } from './EditableLabel';
 
 const GAP = 6;
 const CELLS: Record<Size, number> = { xl: 4, wide: 2, m: 1 };
@@ -21,7 +22,7 @@ function grid(w: number, h: number, compact: boolean) {
 function Tile({ t, size, href, playing, onPlay }: { t: VTile; size: Size; href: string; playing: boolean; onPlay: (id: string | null, delay?: number) => void }) {
   return (
     <li class={`vt vt-${size}`} data-id={t.id} data-level={t.level}>
-      <a href={href} aria-label={[t.audio && `“${t.audio.text}”`, t.date && fmtShort(t.date), t.text].filter(Boolean).join(', ')} onFocus={() => onPlay(t.id)} onBlur={() => onPlay(null)}
+      <a href={href} aria-label={[t.audio?.text, t.date && fmtShort(t.date), t.text].filter(Boolean).join(', ')} onFocus={() => onPlay(t.id)} onBlur={() => onPlay(null)}
         onPointerEnter={(e) => e.pointerType === 'mouse' && onPlay(t.id, 150)} onPointerLeave={() => onPlay(null)}>
         {t.cover ? <img src={t.cover} alt="" loading="lazy" decoding="async" /> : <span class="vt-blank" />}
         {playing && t.video && (
@@ -29,15 +30,14 @@ function Tile({ t, size, href, playing, onPlay }: { t: VTile; size: Size; href: 
             ref={(v) => { if (v) { claimPlayback(v); v.play().catch(() => undefined); } }}
             onPlaying={(e) => (e.currentTarget as HTMLVideoElement).classList.add('on')} />
         )}
-        {t.audio && (
-          <span class={`vt-audio vt-audio-${t.audio.kind}`} title={`Audio: ${t.audio.text}`}>
-            <span aria-hidden="true">{t.audio.kind === 'music' ? '♪' : t.audio.kind === 'none' ? '∅' : t.audio.kind === 'heard' ? '“' : '🎙'}</span>{t.audio.kind === 'heard' ? `${t.audio.text}”` : ` ${t.audio.text}`}
-          </span>
-        )}
         <span class="vt-cap">
           {t.date && <time dateTime={t.date}>{fmtShort(t.date)}</time>}
         </span>
       </a>
+      {/* Outside the link: for the owner the label is editable in place */}
+      {t.audio && (t.audio.kind === 'heard'
+        ? <EditableLabel item={t.item} text={t.audio.text} class="vt-audio vt-audio-heard" title="What is heard" />
+        : <span class={`vt-audio vt-audio-${t.audio.kind}`}>{t.audio.text}</span>)}
     </li>
   );
 }

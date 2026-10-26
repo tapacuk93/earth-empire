@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { ApiError, getAllItems, getExplain, getItem, knownItem } from '../api';
 import { AnalysisView } from '../components/Analysis';
+import { EditableLabel } from '../components/EditableLabel';
 import { Icon } from '../components/icons';
 import { useCategories, useData, useHighlights } from '../components/Profile';
 import { ctxItems, ctxLabel, itemHref } from '../context';
@@ -149,6 +150,14 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
   const [forced, setForced] = useState(false); // the browser blocked sound until a tap
   const setMuted = (m: boolean) => { setMutedState(m); setForced(false); saveMuted(m); };
   useEffect(() => { onForcedMute = () => setForced(true); return () => { onForcedMute = null; }; }, []);
+  // Sound is on by default. Where the browser refused it (no tap yet on this page), the first tap or key anywhere turns it on.
+  useEffect(() => {
+    if (!forced) return;
+    const on = () => setForced(false);
+    addEventListener('pointerdown', on, { capture: true, once: true });
+    addEventListener('keydown', on, { capture: true, once: true });
+    return () => { removeEventListener('pointerdown', on, { capture: true }); removeEventListener('keydown', on, { capture: true }); };
+  }, [forced]);
   const shownMuted = muted || forced;
   const [info, setInfo] = useState(false);
   const [ask, setAsk] = useState(false);
@@ -319,14 +328,13 @@ function Slide({ item, active, muted, forced, onTapVideo, info, setInfo, gold, a
       </div>
       <div class="icol" style={{ '--ar': String(arOf(m)) }}>
       {media.length > 1 && <div class="idots" aria-hidden="true">{media.map((_, i) => <span key={i} class={i === m ? 'on' : ''} />)}</div>}
-      {forced && active && media[m]?.type === 'video' && <button class="unmute" onClick={onTapVideo}><Icon name="sound" size={16} /> Tap for sound</button>}
       {active && media[m]?.type === 'video' && t.dur > 0 && (
         <div class="hit-bar" aria-hidden="true">
           <span class="hit-bar-fill" style={{ width: `${(t.cur / t.dur) * 100}%` }} />
           {curHits.map((h, k) => typeof h.at === 'number' && <span key={k} class="hit-mark" style={{ left: `${(h.at / t.dur) * 100}%` }} />)}
         </div>
       )}
-      {gold && <p class="igold" title="What is heard">“{gold}”</p>}
+      {gold && <EditableLabel item={item} text={gold} class="igold" title="What is heard" />}
       {ask && (
         <div class={`iask ${info ? 'open' : ''}`} role="region" aria-label="What is happening">
           <button class="icon-btn iask-close" onClick={onCloseAsk} aria-label="Close the explanation"><Icon name="close" /></button>

@@ -11,7 +11,7 @@ export function HitMeta({ h, full, fold }: { h: Hit; full?: boolean; fold?: bool
   const at = safeUrl(h.at_url) || safeUrl(h.video?.url);
   return (
     <>
-      {heardOf(h) && <p class="heard-chip" title="What sounds in the clip" lang={h.excerpt?.language || undefined}>“{heardOf(h)}”</p>}
+      {heardOf(h) && <p class="heard-chip" title="What sounds in the clip" lang={h.excerpt?.language || undefined}>{heardOf(h)}</p>}
       <p class="mon-src">{h.source?.name || (h.account ? '@' + h.account : '')}{h.platform && ` · ${h.platform}`}
         {h.video?.posted_at && <> · <time dateTime={h.video.posted_at}>{fmtShort(h.video.posted_at)}</time></>}</p>
       <p class="mon-title">{titleOf(h)}</p>

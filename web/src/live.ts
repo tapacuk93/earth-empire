@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ApiError } from './api';
 import { API_BASE, MOCK } from './config';
+import type { Item } from './types';
 
 // ---- the owner's token: kept in this browser only ----
 const TOKEN_KEY = 'ee-admin-token';
@@ -49,6 +50,17 @@ async function call<T>(method: string, path: string, body?: unknown, admin = fal
 }
 
 // ---- status (CONTRACT.md "Status") ----
+/**
+ * The owner's label for an item (PUT /v1/admin/items/{id}/heard): kept over Claude's; "" hands it back.
+ * The item object is updated in place so every view of it (card, fullscreen) shows the new label.
+ */
+export async function setHeard(item: Item, text: string): Promise<void> {
+  const t = text.replace(/\s+/g, ' ').trim();
+  if (MOCK) { if (adminToken() !== 'owner') throw new ApiError(401, '401 Unauthorized'); }
+  else await call('PUT', `/v1/admin/items/${encodeURIComponent(item.id)}/heard`, { text: t || null }, true);
+  item.heard = t ? { ...(item.heard || {}), text: t, confidence: 1 } : null;
+}
+
 export type State = 'ok' | 'degraded' | 'down' | 'off';
 export interface Component { id: string; name?: string; state: State; last_success?: string | null; last_error?: { at?: string; message?: string } | null; details?: Record<string, unknown> }
 export interface Job { component: string; what: string; item?: string | null; progress?: number | null; started_at?: string; elapsed_s?: number }

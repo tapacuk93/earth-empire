@@ -99,7 +99,7 @@ test('videos: every card is labelled with the audio detected in it', async ({ pa
   }
   // A found clip shows what was heard; an item with speech its language.
   await expect(v.locator('.vt[data-id^="h_"] .vt-audio-heard').first()).toBeVisible();
-  await expect(v.locator(`.vt[data-id="${REEL}"] .vt-audio`)).toHaveText(/speech|“|♪|No speech/);
+  await expect(v.locator(`.vt[data-id="${REEL}"] .vt-audio`)).toHaveText(/\S/);
 });
 
 test('videos: laid out for the screen - readable tiles and text, nothing sideways', async ({ page }) => {
@@ -243,8 +243,7 @@ test('feed: a section context, the overlay, expanded analysis, and seeking the v
   const playable = await video.evaluate((v: HTMLVideoElement) => v.canPlayType('video/mp4; codecs="avc1.4D401E, mp4a.40.2"') !== '');
   await sheet.getByRole('button', { name: /0:03\s*The lighthouse comes into view/ }).click();
   if (playable) await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime), { timeout: 8000 }).toBeGreaterThan(2.9);
-  const tapForSound = page.getByRole('button', { name: 'Tap for sound' });
-  if (await tapForSound.count()) await tapForSound.click();
+  await page.locator('.ifeed-ctx').click(); // a first tap turns the sound on where the browser had refused it
   await page.getByRole('button', { name: 'Mute', exact: true }).click();
   await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(true);
   await page.getByRole('button', { name: 'Unmute', exact: true }).click();
@@ -451,7 +450,7 @@ test('detected: a vertical wheel of hits by confidence, with fetch more', async 
   await expect(page.locator('.det-count')).toHaveText('1 / 4 · likely');
   await expect(page.locator('.wslide').first()).toContainText('likely · 94%');
   // The gold label is the phrase the monitor listens for; a sound-only clip shows its frame, not black.
-  await expect(page.locator('.wslide').first().locator('.heard-chip')).toHaveText('“тарас маслов”');
+  await expect(page.locator('.wslide').first().locator('.heard-chip')).toHaveText('тарас маслов');
   const clip = page.locator('.wslide').first().locator('.wclip');
   if (await clip.evaluate((c) => c.classList.contains('audio'))) await expect(clip.locator('img')).toBeVisible();
   await page.locator('.wheel').focus();
@@ -580,10 +579,10 @@ test('home stays tappable: open a tile, close the wheel, open another - several 
 test('wheel: sound on by default, remembered when muted', async ({ page }) => {
   await page.goto(`/item/${REEL}`);
   const video = feed(page).locator('.islide:not([aria-hidden]) video').first();
-  const prompt = page.getByRole('button', { name: 'Tap for sound' });
-  // Either it plays with sound, or the browser refused and the wheel asks for a tap.
-  await expect.poll(async () => (await prompt.count()) > 0 || !(await video.evaluate((v: HTMLVideoElement) => v.muted))).toBe(true);
-  if (await prompt.count()) { await prompt.click(); await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(false); }
+  // No "Tap for sound": it plays with sound, or (where the browser refused) the first tap anywhere turns it on.
+  await expect(page.getByRole('button', { name: 'Tap for sound' })).toHaveCount(0);
+  await page.locator('.ifeed-ctx').click();
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.muted)).toBe(false);
   await expect(page.getByRole('button', { name: 'Mute', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Mute', exact: true }).click();
   await page.reload();
@@ -745,4 +744,24 @@ test('wheel: fullscreen media fits, filling only when that crops at most 12%; on
     return [r.top - q.top, q.bottom - r.bottom, r.height - q.height];
   }));
   for (const [top, bottom, extra] of boxes) { expect(Math.abs(top)).toBeLessThan(2); expect(Math.abs(bottom)).toBeLessThan(2); expect(Math.abs(extra)).toBeLessThan(2); }
+});
+
+test('owner: a label is editable in place - a click edits, a click outside saves', async ({ page }) => {
+  await page.goto('/');
+  await expect(videos(page).locator('.vt').first()).toBeVisible();
+  await expect(videos(page).locator('.label-btn')).toHaveCount(0); // visitors cannot edit
+  await signIn(page);
+  await page.goto('/');
+  const card = videos(page).locator(`.vt[data-id="${REEL}"]`);
+  await card.scrollIntoViewIfNeeded();
+  await card.locator('.label-btn').click();
+  await expect(page).toHaveURL(/\/$/); // editing, not opening the video
+  const field = card.getByRole('textbox', { name: 'Label (what is heard)' });
+  await field.fill('у тебе 3');
+  await videos(page).locator('.vs-head h2').first().click(); // a click outside saves
+  await expect(card.locator('.label-btn')).toHaveText('у тебе 3');
+  // The fullscreen gold label is the same label, editable there too.
+  await card.locator('a').click();
+  await expect(feed(page)).toBeVisible();
+  await expect(feed(page).locator('.islide:not([aria-hidden]) .igold')).toHaveText('у тебе 3');
 });

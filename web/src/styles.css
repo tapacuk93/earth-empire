@@ -804,3 +804,13 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .det .wclip video { flex: 1; min-height: 0; width: 100%; height: 100%; object-fit: contain; }
 .det .wclip img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .det .wclip.audio video { position: absolute; inset: 0; opacity: 0; }
+/* The owner edits a gold label in place */
+.label-btn { border: 0; font: inherit; cursor: text; pointer-events: auto !important; z-index: 4; text-align: left; }
+.label-btn:hover { box-shadow: 0 0 0 2px #fff; }
+.label-btn.busy { opacity: .6; }
+.label-err { color: #b00020; font-weight: 900; }
+input.label-edit { border: 0; outline: 2px solid #fff; pointer-events: auto !important; z-index: 5; font: inherit; font-weight: 700; color: #111; background: #f3c58f; min-width: 8em; width: calc(100% - 12px); max-width: calc(100% - 12px); }
+.igold.label-btn, .igold.label-edit { pointer-events: auto; }
+/* The fullscreen gold label, centred under the picture */
+.igold { left: 50%; right: auto; translate: -50% 0; text-align: center; }
+input.igold.label-edit { width: min(90%, 32em); }

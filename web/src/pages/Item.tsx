@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { ApiError, getAllItems, getItem, knownItem } from '../api';
+import { ApiError, getAllItems, getExplain, getItem, knownItem } from '../api';
 import { AnalysisView } from '../components/Analysis';
 import { Icon } from '../components/icons';
 import { useCategories, useData, useHighlights } from '../components/Profile';
@@ -150,6 +150,7 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
   useEffect(() => { onForcedMute = () => setForced(true); return () => { onForcedMute = null; }; }, []);
   const shownMuted = muted || forced;
   const [info, setInfo] = useState(false);
+  const [ask, setAsk] = useState(false);
   const [pb, setPb] = useState<Playback>(readPlayback);
   const cyclePb = () => { const n = PB_NEXT[pb]; setPb(n); try { localStorage.setItem(PB_KEY, n); } catch { /* storage blocked */ } };
   const item = items[cur];
@@ -209,7 +210,8 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
         if (info && t.closest('.isheet') && /Arrow|Page/.test(e.key)) return; // scrolling the open sheet
         if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'j') { e.preventDefault(); go(cur + 1); }
         else if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'k') { e.preventDefault(); go(cur - 1); }
-        else if (e.key === 'Escape') { e.preventDefault(); if (info) setInfo(false); else close(); }
+        else if (e.key === 'Escape') { e.preventDefault(); if (ask) setAsk(false); else if (info) setInfo(false); else close(); }
+        else if (e.key === '?') setAsk(!ask);
         else if (e.key === 'm') setMuted(!muted);
         else if (e.key === 'i') setInfo(!info);
       }}>
@@ -219,7 +221,9 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
         <button class="icon-btn pb-btn" onClick={cyclePb} aria-label={`Playback: ${PB_LABEL[pb]}. Change it.`} title={PB_LABEL[pb]}><Icon name={PB_ICON[pb]} /></button>
         <button class="icon-btn" onClick={() => setMuted(!shownMuted)} aria-label={shownMuted ? 'Unmute' : 'Mute'} aria-pressed={!shownMuted}><Icon name={shownMuted ? 'mute' : 'sound'} /></button>
         <ShareButton title={item ? itemTitle(item) : ''} />
+        <button class="icon-btn iask-btn" onClick={() => setAsk(!ask)} aria-label="What is happening?" aria-expanded={ask} title="What is happening?"><b aria-hidden="true">?</b></button>
       </div>
+      {ask && item && <Explain key={item.id} item={item} onClose={() => setAsk(false)} />}
       <h1 class="sr-only">{item ? itemTitle(item) : label}</h1>
       <p class="sr-only" role="status" aria-live="polite">{item ? `${cur + 1} of ${items.length}: ${itemTitle(item)}` : ''}</p>
       <div class="ifeed-list" ref={list} onScroll={onScroll} tabIndex={0} aria-label="Swipe or use the arrow keys for the next and previous item">
@@ -362,4 +366,27 @@ function CompactAnalysis({ item }: { item: Item }) {
   ].filter(Boolean) as string[];
   if (!facts.length) return null;
   return <ul class="ifacts">{facts.map((f) => <li key={f}>{f}</li>)}</ul>;
+}
+
+/** The owner's own description: a post (not a story, not a repost) with a caption. */
+const ownCaption = (it: Item) => (['post', 'carousel', 'reel'].includes(it.kind) && !it.repost_of && it.caption?.trim()) || '';
+
+/**
+ * The "?" panel: what is happening, in the browser's language. A post is explained by its own
+ * description (translated by the API); anything else from its analysis. Until the API answers, or
+ * when it cannot, the text the item already has.
+ */
+function Explain({ item, onClose }: { item: Item; onClose: () => void }) {
+  const lang = navigator.language || 'en';
+  const [text, setText] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  useEffect(() => { getExplain(item.id, lang).then((r) => { setText(r?.text || null); setDone(true); }); }, [item.id, lang]);
+  const fallback = ownCaption(item) || item.description || item.summary || itemTitle(item);
+  return (
+    <div class="iask" role="region" aria-label="What is happening" aria-busy={!done} lang={text ? lang : undefined}>
+      <button class="icon-btn iask-close" onClick={onClose} aria-label="Close the explanation"><Icon name="close" /></button>
+      <p>{text || fallback}</p>
+      {!done && <span class="spinner small" aria-hidden="true" />}
+    </div>
+  );
 }

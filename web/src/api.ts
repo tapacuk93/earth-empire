@@ -114,6 +114,15 @@ export async function getItems(q: ItemQuery): Promise<ItemPage> {
   return page;
 }
 
+/**
+ * What is happening in an item, in the viewer's language (GET /v1/items/{id}/explain): a post by its own
+ * description, translated; anything else from its analysis. Null when the API cannot answer (or in the mock).
+ */
+export async function getExplain(id: string, lang: string): Promise<{ text: string; mode: 'caption' | 'analysis'; lang: string } | null> {
+  if (MOCK) return null;
+  try { return await getJSON(`/v1/items/${encodeURIComponent(id)}/explain?lang=${encodeURIComponent(lang)}`); } catch { return null; }
+}
+
 export async function getItem(id: string): Promise<Item> {
   if (MOCK) {
     const it = (await loadFixture()).items.find((x) => x.id === id);

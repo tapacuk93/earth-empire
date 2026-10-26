@@ -27,6 +27,8 @@ export interface Hit {
   frame?: string | null;
   found_at?: string;
   published_at?: string | null;
+  /** The short phrase spoken around the match (CONTRACT.md "Heard"). */
+  heard?: { text: string; start?: number | null; end?: number | null } | null;
 }
 export interface HitPage { hits: Hit[]; next: string | null }
 
@@ -39,6 +41,7 @@ export const whatOf = (h: Hit) => (h.kind === 'language' ? `${LANG[h.matched || 
  * in the transcript (two on each side), else the first words, else the match itself.
  */
 export function heardOf(h: Hit): string {
+  if (h.heard?.text) return h.heard.text;
   const text = (h.excerpt?.text || '').replace(/\s+/g, ' ').trim();
   const words = text ? text.split(' ') : [];
   const key = (h.kind === 'name' ? h.matched || h.phrase || '' : '').toLowerCase().split(' ')[0];

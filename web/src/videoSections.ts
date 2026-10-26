@@ -73,8 +73,9 @@ const langName = (code?: string | null) => {
 /** The first clause of a free-text note ("Song by X (original reel's music); …" -> "Song by X"). */
 const clause = (s: string) => s.split(/[;(]/)[0].trim().replace(/[.,]$/, '');
 
-export function audioOf(it: Item): Audio {
-  const titles = [...new Set((it.highlights || []).map((h) => h.title.trim()).filter(Boolean))];
+export function audioOf(it: Item, labels?: Map<string, string>): Audio {
+  if (it.heard?.text) return { kind: 'heard', text: it.heard.text };
+  const titles = [...new Set((it.highlights || []).map((h) => (labels?.get(h.id) || h.title).trim()).filter(Boolean))];
   if (titles.length) return { kind: 'heard', text: titles.join(' · ') };
   const hits = it.detection?.hits || [];
   const names = [...new Set(hits.filter((h) => h.kind === 'name' && h.phrase).map((h) => h.phrase!))];
@@ -91,13 +92,15 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
   const given = new Map((layout || []).map((t) => [t.id, t]));
   const byScore = (a: VTile, b: VTile) => a.level - b.level || b.score - a.score || (b.date || '').localeCompare(a.date || '');
 
+  // A highlight's fuller label (from what its videos say) where the backend has one, else its name.
+  const labels = new Map(highlights.map((h) => [h.id, h.heard_label || h.title]));
   const tiles: VTile[] = items.filter(isVideo).map((it) => {
     const g = given.get(it.id);
     const level = g?.level && g.level >= 1 && g.level <= 4 ? g.level : itemLevel(it, highlights);
     return {
       id: it.id, item: it, level, score: it.importance ?? g?.importance ?? importance(it),
       cover: cover(it), video: videoOf(it), date: it.taken_at, text: it.summary || it.description || it.caption || '',
-      audio: audioOf(it),
+      audio: audioOf(it, labels),
     };
   });
   for (const h of hits.filter((h) => h.clip || h.frame || h.video?.thumbnail)) {

@@ -693,3 +693,20 @@ test('the Earth gesture with real mouse clicks, also while the controls are fade
   await expect(page.getByRole('dialog', { name: 'Admin key' })).toBeVisible();
   expect(await page.evaluate(() => String(getSelection()))).toBe('');
 });
+
+test('wheel: "?" explains what is happening, a post by its own description', async ({ page }) => {
+  await page.goto(`/item/${REEL}`);
+  await expect(feed(page)).toBeVisible();
+  await page.getByRole('button', { name: 'What is happening?' }).click();
+  const panel = page.getByRole('region', { name: 'What is happening' });
+  await expect(panel).toBeVisible();
+  await expect(panel.locator('p')).not.toBeEmpty();
+  const caption = await page.evaluate(async (id) => {
+    const f = await (await fetch('/mock/fixture.json')).json();
+    const it = f.items.find((x: { id: string }) => x.id === id);
+    return ['post', 'carousel', 'reel'].includes(it.kind) && !it.repost_of && it.caption ? it.caption.trim() : null;
+  }, REEL);
+  if (caption) await expect(panel.locator('p')).toHaveText(caption);
+  await page.getByRole('button', { name: 'Close the explanation' }).click();
+  await expect(panel).toHaveCount(0);
+});

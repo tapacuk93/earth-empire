@@ -76,13 +76,15 @@ export interface Item {
   analysis?: Analysis | null;
   published_at?: string | null;
   importance?: number | null;
+  /** The short phrase actually spoken (CONTRACT.md "Heard"): what the highlight's name stands for. */
+  heard?: { text: string; highlight_id?: string | null; start?: number | null; end?: number | null; confidence?: number } | null;
   /** Why the item is public (CONTRACT.md): the monitor's matched moments. */
   detection?: { matched?: boolean; hits?: DetectionHit[]; model?: string; scanned_at?: string } | null;
 }
 
 export interface DetectionHit { kind: 'name' | 'language'; phrase?: string | null; lang?: string | null; media?: number; at?: number; confidence?: number; excerpt?: string; translation?: string | null }
 
-export interface Highlight { id: string; title: string; cover?: string | null; item_ids: string[]; updated_at?: string }
+export interface Highlight { id: string; title: string; cover?: string | null; item_ids: string[]; updated_at?: string; /** A fuller label from what its videos say ("3" -> "у тебе 3"). */ heard_label?: string | null }
 export interface Category { slug: string; name: string; description?: string | null; count?: number }
 export interface Profile {
   username: string;

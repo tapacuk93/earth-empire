@@ -158,6 +158,30 @@ def item(item_id: str):
     return store.render_item(c, row)
 
 
+@app.get("/v1/items/{item_id}/explain")
+def item_explain(item_id: str, lang: str = Query("en", max_length=35)):
+    """What is happening, in the viewer's language (`lang`: a BCP 47 tag, e.g. `uk-UA`): a post by its own
+    description, translated; anything else from its analysis. 503 past the day's cap: show the English text."""
+    from . import aicoin, explain
+    code = explain.normalize(lang)
+    if not code:
+        raise HTTPException(400, "lang must be a language tag such as en or uk-UA")
+    c = conn()
+    row = c.execute("SELECT * FROM items WHERE id=? AND published_at IS NOT NULL", (item_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "no such item")
+    try:
+        out = explain.explain(c, row, code)
+    except explain.CapReached:
+        raise HTTPException(503, "explanations are paused for today")
+    except (aicoin.AicoinError, RuntimeError) as e:
+        event("explain.failed", logging.WARNING, item=item_id, lang=code, error=repr(e))
+        raise HTTPException(503, "could not explain right now")
+    resp = JSONResponse(out)
+    resp.headers["Cache-Control"] = "public, max-age=86400"
+    return resp
+
+
 @app.get("/v1/items/{item_id}/related")
 def item_related(item_id: str, limit: int = Query(20, ge=1, le=100)):
     """Related published items and hits: the same half of Home first, then the other half."""

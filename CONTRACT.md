@@ -362,6 +362,13 @@ Public:
   "item"?: Item}]}`, ranked across everything: `score` is the similarity, and `rank` = score ×
   (0.5 + 0.5 × placement) orders the list. Equal ranks go to the newer item, and an image follows
   its video. Also takes a hit id.
+- `GET /v1/items/{id}/explain?lang=uk-UA` → `{"lang": "uk", "mode": "caption" | "analysis", "text", "model",
+  "cached"}`: the "?" of the fullscreen viewer, what is happening, in the viewer's language (the browser's or
+  device's, primary subtag). A post (post, carousel or reel, not a repost) with a caption is explained by
+  its own description, translated faithfully; anything else by Claude from its analysis (who, what, where,
+  what is said), two to four sentences. One answer per item, language and source text, kept; new ones are
+  capped per day (`explain.daily_cap`, 300), and past it the answer is 503: the clients then show the
+  English description. 400 for a `lang` that is not a language tag.
 - `GET /v1/tags/graph?max_nodes=300` → `{"nodes": [{"tag", "kinds": ["keyword", …], "count", "level"}],
   "edges": [{"a", "b", "count", "weight"}]}`. `level` 0 holds the 12 broadest tags (by count), 1 the
   next 36, 2 the next 96, then 3, so zooming in reveals deeper levels. Edges are co-occurrence on the

@@ -262,3 +262,55 @@ class WorkerTest(unittest.TestCase):
         for fn in ("analyze_once", "thumbs_once", "home_once", "importance_once", "facets_once", "rubric_once", "x_once", "facebook_once",
                    "house_once", "site_once", "main"):
             self.assertTrue(callable(getattr(w, fn, None)), fn)
+
+
+class ExplainTest(unittest.TestCase):
+    """The "?" of the fullscreen viewer: a post by its caption, anything else by its analysis; cached; capped."""
+
+    def setUp(self):
+        from ee import aicoin, explain
+        self.tmp = tempfile.TemporaryDirectory()
+        self.c = db.connect(Path(self.tmp.name) / "t.sqlite3")
+        self.explain, self.prompts = explain, []
+
+        def fake(body, timeout=300):
+            self.prompts.append(body["messages"][0]["content"])
+            return {"model": "claude-test", "usage": {"input_tokens": 10, "output_tokens": 5},
+                    "content": [{"type": "text", "text": "Що відбувається."}]}, 0.01
+        self.real, aicoin.claude = aicoin.claude, fake
+
+    def tearDown(self):
+        from ee import aicoin
+        aicoin.claude = self.real
+        self.c.close()
+        self.tmp.cleanup()
+
+    def row(self, kind, data, analysis=None):
+        self.c.execute("INSERT INTO items(id, kind, taken_at, data, content_hash, analysis, summary, published_at, updated_at) "
+                       "VALUES (?,?,?,?,?,?,?,?,?)", (f"ig_{kind}", kind, "2026-10-24T10:00:00Z", json.dumps(data), "h",
+                                                      json.dumps(analysis or {"what": "a walk"}), "A walk", db.now(), db.now()))
+        return self.c.execute("SELECT * FROM items WHERE id=?", (f"ig_{kind}",)).fetchone()
+
+    def test_language_tags(self):
+        self.assertEqual(self.explain.normalize("uk-UA"), "uk")
+        self.assertEqual(self.explain.normalize("en_GB"), "en")
+        self.assertIsNone(self.explain.normalize("<script>"))
+
+    def test_post_uses_its_caption_story_its_analysis(self):
+        post = self.row("post", {"caption": "Мій ранок у Лісабоні"})
+        out = self.explain.explain(self.c, post, "en")
+        self.assertEqual(out["mode"], "caption")
+        self.assertIn("Мій ранок у Лісабоні", self.prompts[-1])
+        story = self.row("story", {"caption": "ignored"}, {"what": "surfing at Ericeira"})
+        self.assertEqual(self.explain.explain(self.c, story, "uk")["mode"], "analysis")
+        self.assertIn("surfing at Ericeira", self.prompts[-1])
+        self.assertIn("Ukrainian", self.prompts[-1])
+
+    def test_cached_then_capped(self):
+        post = self.row("post", {"caption": "Hello"})
+        self.assertFalse(self.explain.explain(self.c, post, "de")["cached"])
+        self.assertTrue(self.explain.explain(self.c, post, "de")["cached"])
+        self.assertEqual(len(self.prompts), 1)
+        db.set_setting(self.c, "explain.daily_cap", "1")
+        with self.assertRaises(self.explain.CapReached):
+            self.explain.explain(self.c, post, "fr")

@@ -90,6 +90,7 @@ def render(c, row) -> dict:
         "ai_level": row["ai_level"] if "ai_level" in row.keys() else h.get("level"),
         "level_by": "owner" if "level" in row.keys() and row["level"] and row["level"] != row["ai_level"] else "ai",
         "level_reason": h.get("level_reason"),
+        "heard": h.get("heard"),   # the short phrase spoken around the match, or null (not found / not yet)
     }
 
 
@@ -384,6 +385,13 @@ def status():
         "gate": __import__("eemonitor.gate", fromlist=["summary"]).summary(c),
         "gate_published": __import__("eemonitor.gate", fromlist=["summary"]).summary(c, True),
         "learning": _learning_summary(c),
+        "heard": {"queue": c.execute("SELECT COUNT(*) n FROM hits WHERE json_extract(data, '$.heard_checked') IS NULL"
+                                     ).fetchone()["n"],
+                  "done": c.execute("SELECT COUNT(*) n FROM hits WHERE json_extract(data, '$.heard_checked') IS NOT NULL"
+                                    ).fetchone()["n"],
+                  "heard": c.execute("SELECT COUNT(*) n FROM hits WHERE json_extract(data, '$.heard.text') IS NOT NULL"
+                                     ).fetchone()["n"],
+                  "last_run": db.setting(c, "heard.last_run") or None},
         "last_scans": [dict(r) for r in c.execute(
             "SELECT id, platform, scanned_at, audio_s, (SELECT COUNT(*) FROM hits h WHERE h.video_id=videos.id) hits "
             "FROM videos WHERE state='done' ORDER BY scanned_at DESC LIMIT 5")],

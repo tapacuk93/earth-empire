@@ -345,3 +345,52 @@ def test_detection_gate(monkeypatch):
     assert s1["hits"][0]["label"] in ("likely", "possible", "low confidence")
     summ = gate.summary(c(), True)
     assert summ["matched"] >= 1 and summ["not_matched"] >= 2
+
+
+def test_heard_on_hits(monkeypatch):
+    """The short phrase spoken around a hit: with the review for new hits, a backfill for older ones."""
+    from fastapi.testclient import TestClient
+    from eemonitor import judge
+    tr = transcript("Сегодня мы встретились с Тарасом Масловым и обсудили вопросы")
+    hit = {"kind": "name", "phrase": "тарас маслов", "matched": "Тарасом Масловым", "language": "ru",
+           "confidence": 0.8, "excerpt": "встретились с Тарасом Масловым", "excerpt_start": 2.0, "excerpt_end": 2.9,
+           "start": 2.6, "end": 3.3, "scores": {"sound": 0.9, "asr": 0.9, "name": 0.85}}
+    tw = judge.timed_words(tr, hit)
+    assert "Тарасом@2.6" in tw and "вопросы" not in tw
+    prompts = []
+
+    def ask(c_, prompt, purpose, *a, **k):
+        prompts.append((purpose, prompt))
+        if purpose == "review":
+            return ('{"n": 0, "en": "met Taras Maslov", "name_probability": 0.8, "reason": "a name", "level": 2, '
+                    '"level_reason": "x", "heard": "«с Тарасом Масловым»", "heard_start": 2.2, "heard_end": 3.3, '
+                    '"heard_confidence": 0.8}')
+        return "\n".join('{"n": %d, "heard": %s, "heard_start": 2.6, "heard_end": 3.3, "heard_confidence": 0.7}'
+                         % (i, '"Тарасом Масловым"' if i == 0 else "null") for i in range(20))
+    monkeypatch.setattr(judge, "ask", ask)
+    judge.review(c(), {"id": "v", "title": "t", "platform": "telegram", "url": "u"}, [hit], tr)
+    assert "timed_words" in prompts[-1][1] and "heard" in prompts[-1][1]
+    assert hit["heard"]["text"] == "с Тарасом Масловым" and (hit["heard"]["start"], hit["heard"]["end"]) == (2.2, 3.3)
+    assert hit["heard_checked"]
+    # older hits: none has been checked yet; the backfill reads the stored transcripts, no download
+    left = worker.heard_pending(c())
+    assert left > 0
+    while worker.heard_backfill(c()):
+        pass
+    assert worker.heard_pending(c()) == 0 and all(p == "heard" for p, _ in prompts[1:])
+    cl = TestClient(api.app)
+    auth = {"Authorization": "Bearer secret-admin"}
+    hs = cl.get("/v1/monitor/hits?source_kind=official", headers=auth).json()["hits"]
+    assert "heard" in hs[0] and any(h["heard"] and h["heard"]["text"] == "Тарасом Масловым" for h in hs)
+    assert all("heard" in p for p in cl.get("/v1/published").json()["hits"])
+    st = cl.get("/v1/monitor/status", headers=auth).json()["heard"]
+    assert st["queue"] == 0 and st["done"] >= 1 and st["heard"] >= 1
+    # a rescan keeps the phrase; the backfill leaves a fifth of the daily cap for new hits' reviews
+    before = {r["id"] for r in c().execute("SELECT id FROM hits")}
+    worker.rescan(c())
+    unchecked = {r["id"] for r in c().execute("SELECT id FROM hits WHERE json_extract(data, '$.heard_checked') IS NULL")}
+    assert not unchecked & before   # only hits the rescan newly found wait for it
+    c().execute("UPDATE hits SET data=json_remove(data, '$.heard_checked')")
+    db.add_usage(c(), "usd.claude", db.fsetting(c(), "claude.daily_usd"))
+    n = len(prompts)
+    assert worker.heard_backfill(c()) == 0 and len(prompts) == n

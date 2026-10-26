@@ -160,12 +160,20 @@ store it in `extra`.
                                            // backfill began (a new post, story, repost, or a story
                                            // added to a highlight); see "The pipeline"
   "collected_at": "…", "updated_at": "…",
-  "published_at": "…"                      // set by the backend when the item went public (see "The pipeline")
+  "published_at": "…",                     // set by the backend when the item went public (see "The pipeline")
+  "heard": null | {                        // set by the backend: the short phrase spoken in the item's video
+    "text": "у тебе 3",                    // that a highlight title stands for (see "Heard"); null until
+    "highlight_id": "hl_…" | null,         // worked out, or when nothing in the speech matches
+    "media": 0 | null, "start": 2.1 | null, "end": 3.4 | null,   // media index and seconds into it
+    "confidence": 0.9, "model": "…", "at": "…"
+  }
 }
 
 // Highlight
 {"id": "hl_<pk>", "title": "Travel", "cover": "https://media.empire.earth/highlights/<id>/cover.jpg",
- "item_ids": ["ig_…"], "updated_at": "…"}   // item_ids in the highlight's own order
+ "item_ids": ["ig_…"], "updated_at": "…",   // item_ids in the highlight's own order
+ "heard_label": "у тебе 3" | null,          // set by the backend: the fuller phrase the title stands for,
+ "heard_reason": "heard in 3 of its 4 videos with speech; …" | null}   // and why; `title` stays Instagram's
 
 // Category
 {"slug": "travel", "name": "Travel", "description": "…", "count": 42}
@@ -284,6 +292,31 @@ The proxy holds Earth Empire to a per-app daily cap of $20.
   shows it on the `ai` component ("waiting for budget: app cap, resets 00:00 UTC", "wallet empty",
   "provider credit", and `next_retry`). Other errors keep their normal limited retries.
 
+## Heard
+
+The owner names Instagram highlights after a phrase said in their videos, often abbreviated ("3" for
+"у тебе 3", "в Тараса 3"). The backend works out the phrase actually spoken, so the site and apps can
+label a video (and a highlight) with it; the Instagram `title` is never changed.
+
+- **Per item** with a video (items in highlights first): Claude reads the item's cached speech
+  transcripts (timed segments; nothing is transcribed again, items analyzed before transcripts were
+  cached use the analysis's own transcript, without times) and its highlight titles, and answers with
+  the short phrase as spoken - a few words, in the original language and spelling - that a title
+  stands for, its media and start/end, and a confidence. Nothing matching: null; nothing is invented.
+  For an item in no highlight the phrase is optional: only a clear short phrase about the owner or the
+  subject, with `highlight_id` null. Stored as Item `heard`.
+- **Per highlight:** `heard_label` is the phrase most of its items say (ties: the surer one, spelled
+  as in its surest item; confidence below 0.3 does not count), with `heard_reason`; null when none of
+  its videos says one.
+- **Continuous:** the worker's `heard` lane, always behind the analysis of new items, takes items with
+  speech whose phrase was never worked out, or was worked out from other transcripts or other
+  highlights (membership or title changed), several items (`heard.batch_size`, 8) per call, at most
+  `heard.daily_cap` (150) calls a day, within the AI budget (waits like every AI lane, see "AI calls").
+  An item answered badly twice is left without a phrase until its transcript or highlights change.
+  `GET /v1/status` shows it as the `heard` component (queue, done, heard, highlights labelled, calls
+  today, last run). By hand: `ee heard [show|run|labels]`.
+- **Monitor hits** carry `heard` too (see "Monitor"): the short phrase spoken around the match.
+
 ## Facets
 
 The groupings the site and apps browse by (places, themes, people, projects, …) are not fixed.
@@ -343,8 +376,9 @@ items and published monitor hits only.
   The owner can also replace it. A new version re-scores every item in the background, within
   `importance.rescore_daily_cap` (400) a day.
 - **Background jobs** run continuously, always behind the analysis of new items: importance
-  scoring, the daily rubric review, facets, and the layout (every minute). `GET /v1/status` (owner)
-  shows each one as a component (`importance`, `rubric`, `facets`, `layout`, `spend`) with its queue,
+  scoring, the heard phrases (see "Heard"), the daily rubric review, facets, and the layout (every
+  minute). `GET /v1/status` (owner) shows each one as a component (`importance`, `heard`, `rubric`,
+  `facets`, `layout`, `spend`) with its queue,
   progress, the rubric version, the last facets run, the last layout recompute and today's spend
   by purpose. The item being worked on now is in `activity.jobs`.
 
@@ -486,7 +520,10 @@ messages on any platform.
   "level": 1 | 2 | 3 | 4 | null,           // Home level (L1 biggest), chosen by Claude from the importance
   "level_reason": "…" | null,              // rubric and the detection confidence; the owner may override it
   "ai_level": 1 | 2 | 3 | 4 | null,        // Claude's level; null until judged
-  "level_by": "ai" | "owner"                // whether `level` is Claude's or the owner's override
+  "level_by": "ai" | "owner",               // whether `level` is Claude's or the owner's override
+  "heard": null | {"text": "у Тараса троє", // the short phrase spoken around the match, as spoken (few words,
+    "start": 12.2 | null, "end": 13.1 | null, // original language), from the stored transcript; null until
+    "confidence": 0.8, "model": "…", "at": "…"}   // worked out or when no clear phrase is spoken
 }
 ```
 
@@ -519,6 +556,11 @@ Owner only (`Authorization: Bearer <earth-empire/admin-token>`, via the same che
   `POST /v1/monitor/phrases/suggest` asks again now (it also runs when the highlights change).
 - `GET /v1/monitor/videos?state=&platform=&limit=` → recent videos and their scan state
   (`new | queued | running | done | failed | blocked | skipped`, with `error`, `languages`, `hits`).
+- **Heard on hits:** new hits get `heard` in the same Claude call that translates and levels them
+  (one call per video, with the timed words around each hit). Hits found before it existed are
+  backfilled from the stored transcripts every 5 minutes, a few videos per call, approved hits first
+  and the owner's mirrored videos last, within `claude.daily_usd` while leaving a fifth of it for new
+  hits. `GET /v1/monitor/status` carries `heard: {"queue", "done", "heard", "last_run"}`.
 - `GET /v1/monitor/status` → queue by platform and state, totals, throughput (`cpu_per_audio`),
   today's usage against the caps, open fetch requests, and `stops` (a platform paused by a
   checkpoint, warning, login or billing refusal, with the reason).

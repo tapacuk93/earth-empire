@@ -3,6 +3,7 @@
 - analyze: items in order, oldest first, within analysis.daily_cap (the cost guard).
 - x:        analyzed items, oldest first, one every x.interval_minutes, at most x.daily_cap a day.
 - facebook: analyzed items, oldest first, a few a day with random gaps (fbposter.due).
+- heard:    the phrase spoken in each video, from cached transcripts, behind analysis (ee.heard).
 - house:    heartbeat metric, collector staleness, daily DB backup to S3.
 
 A failure is recorded on that item's step and retried with backoff; the lane moves on to the next
@@ -224,6 +225,59 @@ def importance_once(c) -> bool:
     return True
 
 
+_heard_failures: dict[str, int] = {}
+
+
+def heard_once(c) -> bool:
+    """The phrase spoken in each video (ee.heard), from cached transcripts only: always behind new-item
+    analysis, a few items per call, within heard.daily_cap calls a day and the AI budget."""
+    if setting(c, "analysis.enabled") != "1" or setting(c, "heard.enabled") != "1":
+        return False
+    analysis_can_run = analysis.analyses_today(c) < int(setting(c, "analysis.daily_cap") or 0)
+    if analysis_can_run and c.execute(
+            "SELECT 1 FROM steps WHERE step='analyze' AND state IN ('pending','running') LIMIT 1").fetchone():
+        return False   # behind analysis: never while an item waits for it (and analysis may run today)
+    from . import heard
+    day = utcnow()[:10]
+    calls = c.execute("SELECT COUNT(*) n FROM costs WHERE purpose='heard' AND at >= ?", (day,)).fetchone()["n"]
+    if calls >= int(setting(c, "heard.daily_cap") or 150):
+        return False   # the cost guard; the rest continues tomorrow
+    queue = heard.pending(c, 200)
+    if not queue:
+        return False
+    ids = heard.batch(c, queue, int(setting(c, "heard.batch_size") or 8))
+    store.job_start(c, "heard", "heard", "Claude is reading what is said in the videos", ids[0],
+                    f"{len(ids)} items in this call, {len(heard.pending(c, 100000))} waiting")
+    try:
+        heard.run_batch(c, ids)
+        for i in ids:
+            _heard_failures.pop(i, None)
+        ai_ok("heard")
+        from .db import set_setting
+        set_setting(c, "heard.last_run", utcnow())
+        stop.wait(random.uniform(3, 10))
+    except aicoin.OutOfCoins as e:   # a cap, the wallet, or the providers: wait, keep the items
+        event("heard.paused", logging.WARNING, error=str(e)[:300])
+        stop.wait(ai_wait(e, "heard"))
+    except Exception as e:
+        failed = getattr(e, "missing", ids)
+        given_up = []
+        for i in failed:
+            n = _heard_failures[i] = _heard_failures.get(i, 0) + 1
+            if n >= 2:
+                given_up.append(i)
+                _heard_failures.pop(i, None)
+        heard.give_up(c, given_up)   # done for now, without a phrase; a new transcript or highlight retries
+        from .db import set_setting
+        set_setting(c, "heard.last_error", f"{utcnow()} {type(e).__name__}: {e}"[:300])
+        event("heard.failed", logging.WARNING, items=failed, error=repr(e)[:300], given_up=given_up)
+        metric("WorkerErrors")
+        stop.wait(60)
+    finally:
+        store.job_end(c, "heard")
+    return True
+
+
 # ------------------------------------------------------------------ thumbnails
 _thumb_failures: dict[str, int] = {}
 
@@ -440,6 +494,7 @@ def main():
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     threads = [lane("analyze", analyze_once), lane("thumbs", thumbs_once, idle=20),
                lane("home", home_once, idle=20), lane("importance", importance_once, idle=60),
+               lane("heard", heard_once, idle=60),
                lane("facets", facets_once, idle=60), lane("rubric", rubric_once, idle=600), lane("x", x_once, idle=60),
                lane("facebook", facebook_once, idle=120), lane("house", house_once, idle=15)]
     while not stop.is_set():

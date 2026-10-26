@@ -528,7 +528,8 @@ def save_hits(c, v, hits: list[dict], model: str, keep_media: bool = True) -> in
         h["model"] = model
         if hid in old:
             prev = json.loads(old[hid]["data"])
-            for k in ("clip_key", "frame_key", "clip", "frame", "excerpt_en", "judge", "level", "level_reason"):
+            for k in ("clip_key", "frame_key", "clip", "frame", "excerpt_en", "judge", "level", "level_reason",
+                      "heard", "heard_checked"):
                 if prev.get(k) and not h.get(k):
                     h[k] = prev[k]
         c.execute("""INSERT INTO hits(id, video_id, kind, start, "end", confidence, data, found_at, ai_level)
@@ -559,7 +560,7 @@ def scan(c, v) -> None:
         if hits:
             from . import judge
             try:
-                judge.review(c, dict(v), hits)
+                judge.review(c, dict(v), hits, tr)
             except Exception as e:  # noqa: BLE001
                 log.warning("review failed: %s", e)
             for h in hits:
@@ -642,6 +643,38 @@ def judge_levels(c, videos: int = 3) -> int:
                 n += 1
         if not any(h.get("level") for h in hs):
             break   # Claude unavailable or over its cap: try again later
+    return n
+
+
+def heard_pending(c) -> int:
+    return c.execute("SELECT COUNT(*) n FROM hits WHERE json_extract(data, '$.heard_checked') IS NULL").fetchone()["n"]
+
+
+def heard_backfill(c, videos: int = 3) -> int:
+    """Hits saved before `heard` existed (or while Claude was unavailable): the short phrase spoken around
+    each, from the stored transcript (never transcribed again). Approved hits first, then found ones by
+    confidence; the owner's mirrored videos last. One call per video, a few videos at a time."""
+    from . import judge
+    n = 0
+    for (vid,) in c.execute("""SELECT h.video_id FROM hits h LEFT JOIN videos v ON v.id=h.video_id
+                               WHERE json_extract(h.data, '$.heard_checked') IS NULL
+                               GROUP BY h.video_id
+                               ORDER BY MAX(v.source_kind = 'mirror'), MIN(h.published_at IS NULL), MAX(h.confidence) DESC
+                               LIMIT ?""", (videos,)).fetchall():
+        v = c.execute("SELECT * FROM videos WHERE id=?", (vid,)).fetchone()
+        rows = c.execute("SELECT id, data FROM hits WHERE video_id=? AND json_extract(data, '$.heard_checked') IS NULL",
+                         (vid,)).fetchall()
+        hs = [json.loads(r["data"]) for r in rows]
+        tr = load_transcript(v["transcript"]) if v else None
+        if not judge.heard(c, dict(v) if v else {"id": vid}, hs, tr):
+            break   # Claude off, over its cap or failing: try again later
+        for r, h in zip(rows, hs):
+            if "heard_checked" in h:
+                c.execute("UPDATE hits SET data=? WHERE id=?", (db.j(h), r["id"]))
+                n += 1
+    if n:
+        db.set_setting(c, "heard.last_run", db.now())
+        ev("heard_backfill", hits=n, left=heard_pending(c))
     return n
 
 
@@ -815,7 +848,7 @@ def loop() -> None:
     setup(c)
     _heartbeat_thread()
     heartbeat(c, "monitor worker started", "start")
-    last_seed = last_gate = last_levels = 0.0
+    last_seed = last_gate = last_levels = last_heard = 0.0
     while True:
         try:
             if db.setting(c, "monitor.enabled") != "1":
@@ -837,6 +870,12 @@ def loop() -> None:
                     judge_levels(c)
                 except Exception as e:  # noqa: BLE001
                     log.warning("levels failed: %s", e)
+            if time.time() - last_heard > 300:   # the phrase heard around older hits, a few videos at a time
+                last_heard = time.time()
+                try:
+                    heard_backfill(c)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("heard backfill failed: %s", e)
             if time.time() - last_seed > 900:
                 last_seed = time.time()
                 setup(c)

@@ -135,7 +135,7 @@ def build(c) -> dict:
     hb_age = _age(hb)
     comps.append(comp("workers", "Workers", "down" if hb_age is None or hb_age > 300 else "ok", last_success=hb or None,
                       details={"heartbeat_age_s": int(hb_age) if hb_age is not None else None,
-                               "lanes": ["analyze", "x", "facebook", "housekeeping"]}))
+                               "lanes": ["analyze", "importance", "heard", "facets", "x", "facebook", "housekeeping"]}))
 
     # analyzer
     q = {r["state"]: r["n"] for r in c.execute("SELECT state, COUNT(*) n FROM steps WHERE step='analyze' GROUP BY state")}
@@ -264,6 +264,28 @@ def build(c) -> dict:
                           "progress_percent": round(100 * scored / analyzed) if analyzed else 100,
                           "scored_today": scored_today, "daily_cap": cap,
                           "reason": "daily cap reached" if queue and scored_today >= cap else None}))
+    from . import heard as heard_mod
+    hc = heard_mod.counts(c)
+    h_calls = c.execute("SELECT COUNT(*) n FROM costs WHERE purpose='heard' AND at >= ?", (day,)).fetchone()["n"]
+    h_cap = int(setting(c, "heard.daily_cap") or 0)
+    h_err = setting(c, "heard.last_error")
+    h_last = setting(c, "heard.last_run") or None
+    h_state = "off" if setting(c, "heard.enabled") != "1" or setting(c, "analysis.enabled") != "1" else \
+        "degraded" if hc["queue"] and h_calls >= h_cap else "ok"
+    comps.append(comp("heard", "Heard phrases", h_state, last_success=h_last,
+                      last_error=err(h_err[:20], h_err[21:]) if h_err and h_err[:20] > (h_last or "") else None,
+                      details={
+                          "method": "Claude reads the cached transcripts and highlight titles, several videos a call",
+                          "queue": hc["queue"], "done": hc["done"], "with_speech": hc["with_speech"],
+                          "heard": hc["heard"],
+                          "progress_percent": round(100 * hc["done"] / hc["with_speech"]) if hc["with_speech"] else 100,
+                          "highlights_labelled": c.execute("SELECT COUNT(*) n FROM highlights WHERE heard_label IS NOT NULL"
+                                                           ).fetchone()["n"],
+                          "calls_today": h_calls, "daily_cap": h_cap, "last_run": h_last,
+                          "reason": "daily cap reached" if hc["queue"] and h_calls >= h_cap else
+                          "waits behind analysis" if hc["queue"] and c.execute(
+                              "SELECT 1 FROM steps WHERE step='analyze' AND state IN ('pending','running') LIMIT 1"
+                          ).fetchone() else None}))
     comps.append(comp("rubric", "Importance rubric", "ok" if setting(c, "importance.rubric_review") == "1" else "off",
                       last_success=rub.get("created_at"), details={
                           "version": rub["version"], "by": rub.get("by"), "reason": scrub(rub.get("reason"), 200),

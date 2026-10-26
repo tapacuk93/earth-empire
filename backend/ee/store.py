@@ -14,7 +14,7 @@ from . import config
 from .db import MAX_ATTEMPTS, STEPS, j, now, tx
 from .logs import event
 
-BACKEND_FIELDS = ("categories", "summary", "description", "analysis", "published_at")
+BACKEND_FIELDS = ("categories", "summary", "description", "analysis", "published_at", "heard")
 MEDIA_PREFIX = "key:"   # stored form of a re-hosted URL; the host is added on output
 
 
@@ -181,7 +181,8 @@ def upsert_items(c: sqlite3.Connection, items: list[dict]) -> dict:
                 if old["content_hash"] != h:
                     # Caption or media changed: the old categories no longer describe it.
                     c.execute("""UPDATE items SET categories='[]', summary=NULL, description=NULL, analysis=NULL,
-                                 published_at=NULL, covers='{}', thumbs=NULL WHERE id=?""", (item["id"],))
+                                 published_at=NULL, covers='{}', thumbs=NULL, heard=NULL, heard_sig=NULL
+                                 WHERE id=?""", (item["id"],))
                     c.execute("DELETE FROM item_categories WHERE item_id=?", (item["id"],))
                     c.execute("DELETE FROM item_tags WHERE item_id=?", (item["id"],))
                     _set_step(c, item["id"], "analyze", "pending", note="caption or media changed")
@@ -206,7 +207,8 @@ def upsert_highlights(c: sqlite3.Connection, highlights: list[dict]) -> int:
         for pos, hl in enumerate(highlights):
             if not hl.get("id"):
                 raise ValueError("every highlight needs an id")
-            data = {k: v for k, v in hl.items() if k not in ("id", "title", "cover", "item_ids", "updated_at")}
+            data = {k: v for k, v in hl.items() if k not in ("id", "title", "cover", "item_ids", "updated_at",
+                                                             "heard_label", "heard_reason")}
             c.execute("""INSERT INTO highlights(id, title, cover, item_ids, position, data, updated_at)
                          VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET title=excluded.title,
                          cover=excluded.cover, item_ids=excluded.item_ids, position=excluded.position,
@@ -295,6 +297,7 @@ def render_item(c: sqlite3.Connection, row: sqlite3.Row) -> dict:
         d["placement_reason"] = d["curation_reason"] = row["curation_reason"]
     d["analysis"] = json.loads(row["analysis"]) if row["analysis"] else None
     d["published_at"] = row["published_at"]
+    d["heard"] = json.loads(row["heard"]) if "heard" in row.keys() and row["heard"] else None
     covers = json.loads(row["covers"] or "{}")
     thumbs = json.loads(row["thumbs"] or "{}") if "thumbs" in row.keys() else {}
     for prefix, media in (("", d.get("media") or []), ("r", (d.get("repost_of") or {}).get("media") or [])):
@@ -325,6 +328,9 @@ def render_highlight(row: sqlite3.Row) -> dict:
     d = json.loads(row["data"] or "{}")
     d.update({"id": row["id"], "title": row["title"], "cover": to_url(row["cover"]),
               "item_ids": json.loads(row["item_ids"]), "updated_at": row["updated_at"]})
+    keys = row.keys()
+    d["heard_label"] = row["heard_label"] if "heard_label" in keys else None   # the title is never changed
+    d["heard_reason"] = row["heard_reason"] if "heard_reason" in keys else None
     return d
 
 

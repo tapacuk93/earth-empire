@@ -15,6 +15,7 @@
   ee home [refresh|layout|graph]      embeddings and Home layout now / print them
   ee facets [run|show]                let Claude redefine the facets now / print them
   ee importance [--n N]               score importance for items analyzed before it existed
+  ee heard [show|run|labels] [--n N]  the phrase spoken per video: list / work the queue now / highlight labels
   ee backup                           back up every part's databases to S3 now
   ee restore [--date D] [--dry-run]   restore them (use deploy/restore-state.sh, which stops services)
   ee admin-token                      check that earth-empire/admin-token exists (never prints it)
@@ -47,6 +48,8 @@ def main(argv=None):
     p = sub.add_parser("home"); p.add_argument("action", nargs="?", default="refresh", choices=["refresh", "layout", "graph", "full"])
     p = sub.add_parser("facets"); p.add_argument("action", nargs="?", default="show", choices=["run", "show"])
     p = sub.add_parser("importance"); p.add_argument("--n", type=int, default=1000)
+    p = sub.add_parser("heard"); p.add_argument("action", nargs="?", default="show", choices=["show", "run", "labels"])
+    p.add_argument("--n", type=int, default=1000)
     sub.add_parser("backup")
     p = sub.add_parser("restore"); p.add_argument("--date"); p.add_argument("--only"); p.add_argument("--dry-run", action="store_true")
     sub.add_parser("unpublish-rule")
@@ -206,6 +209,16 @@ def main(argv=None):
         from . import importance
         for r in importance.run(c, a.n):
             print(json.dumps(r, ensure_ascii=False))
+    elif a.cmd == "heard":
+        from . import heard
+        if a.action == "run":
+            for r in heard.run(c, a.n):
+                print(json.dumps(r, ensure_ascii=False))
+        elif a.action == "labels":
+            heard.refresh_labels(c)
+        print(json.dumps(heard.counts(c)))
+        for r in c.execute("SELECT id, title, heard_label, heard_reason FROM highlights ORDER BY position"):
+            print(f"{r['id']}  {r['title']!r} -> {r['heard_label']!r}  ({r['heard_reason'] or ''})")
     elif a.cmd == "unpublish-rule":
         n = 0
         for r in c.execute("SELECT id, published_at FROM items WHERE analysis IS NOT NULL").fetchall():

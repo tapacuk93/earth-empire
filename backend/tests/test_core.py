@@ -246,6 +246,123 @@ class ComposeTest(unittest.TestCase):
         self.assertEqual(compose.x_len("日本"), 4)
 
 
+class HeardTest(unittest.TestCase):
+    """The phrase spoken per video, from cached transcripts; Claude stubbed (no network)."""
+
+    def setUp(self):
+        from unittest import mock
+        from ee import aicoin, heard
+        self.heard, self.mock = heard, mock
+        self.tmp = tempfile.TemporaryDirectory()
+        self.c = db.connect(Path(self.tmp.name) / "h.sqlite3")
+        store.upsert_items(self.c, FIXTURES["items"])
+        store.upsert_highlights(self.c, [{"id": "hl_3", "title": "3", "item_ids": ["ig_test_story", "ig_test_reel"]}])
+        for key, segs in (("items/ig_test_story/0.mp4", [(0.0, 2.1, "ну що"), (2.1, 3.4, "у тебе 3")]),
+                          ("items/ig_test_reel/0.mp4", [(1.0, 2.0, "у тебе 3, так")])):
+            self.c.execute("INSERT INTO transcripts(media, language, text, segments, created_at) VALUES (?,?,?,?,?)",
+                           (key, "uk", " ".join(t for *_, t in segs),
+                            json.dumps([{"start": a, "end": b, "text": t} for a, b, t in segs]), "2026-10-26T00:00:00Z"))
+        self.calls = []
+        self.answer = None
+
+        def claude(body, timeout=0):
+            self.calls.append(body)
+            prompt = body["messages"][0]["content"]
+            items = self.answer(prompt) if self.answer else []
+            return {"content": [{"type": "text", "text": json.dumps({"items": items})}], "model": "claude-test",
+                    "stop_reason": "end_turn", "usage": {"input_tokens": 100, "output_tokens": 20}}, 1.0
+        self.patch = mock.patch.object(aicoin, "claude", claude)
+        self.patch.start()
+
+    def tearDown(self):
+        self.patch.stop()
+        self.c.close()
+        self.tmp.cleanup()
+
+    def entry(self, n, text, hl, start=2.1, end=3.4, conf=0.9):
+        return {"n": n, "text": text, "highlight_id": hl, "media": 0, "start": start, "end": end, "confidence": conf}
+
+    def test_batch_stores_phrase_label_and_api_shapes(self):
+        h = self.heard
+        q = h.pending(self.c)
+        self.assertEqual(set(q), {"ig_test_story", "ig_test_reel"})   # videos with cached speech only
+        self.answer = lambda p: [self.entry(0, " «у тебе 3» ", "hl_3"), self.entry(1, "у тебе 3", "hl_bogus", conf=0.7)]
+        res = h.run_batch(self.c, h.batch(self.c, q))
+        self.assertEqual(len(self.calls), 1)                            # both items in one call
+        prompt = self.calls[0]["messages"][0]["content"]
+        self.assertIn("[2.1-3.4] у тебе 3", prompt)
+        self.assertIn("hl_3: '3'", prompt)
+        self.assertEqual(res["answered"], 2)
+        self.assertEqual(h.pending(self.c), [])
+        row = self.c.execute("SELECT * FROM items WHERE id=?", (q[0],)).fetchone()
+        item = store.render_item(self.c, row)
+        self.assertEqual(item["heard"]["text"], "у тебе 3")
+        self.assertEqual((item["heard"]["highlight_id"], item["heard"]["start"], item["heard"]["end"]), ("hl_3", 2.1, 3.4))
+        self.assertEqual(item["heard"]["model"], "claude-test")
+        # the highlight keeps its title; the label is the phrase most of its videos say
+        hl = store.render_highlight(self.c.execute("SELECT * FROM highlights WHERE id='hl_3'").fetchone())
+        self.assertEqual((hl["title"], hl["heard_label"]), ("3", "у тебе 3"))
+        self.assertIn("2 of its 2", hl["heard_reason"])
+        # cost recorded under its own purpose
+        self.assertEqual(self.c.execute("SELECT COUNT(*) n FROM costs WHERE purpose='heard'").fetchone()["n"], 1)
+        # a changed highlight title means work it out again; the label survives re-ingest
+        store.upsert_highlights(self.c, [{"id": "hl_3", "title": "у тебе 3", "item_ids": ["ig_test_story", "ig_test_reel"]}])
+        self.assertEqual(set(h.pending(self.c)), {"ig_test_story", "ig_test_reel"})
+        self.assertEqual(self.c.execute("SELECT heard_label FROM highlights WHERE id='hl_3'").fetchone()[0], "у тебе 3")
+
+    def test_nothing_heard_is_null_and_done(self):
+        h = self.heard
+        self.answer = lambda p: [{"n": i, "text": None, "highlight_id": None, "media": None, "start": None,
+                                  "end": None, "confidence": 0.1} for i in range(2)]
+        h.run_batch(self.c, h.pending(self.c))
+        self.assertEqual(h.pending(self.c), [])
+        self.assertIsNone(store.render_item(self.c, self.c.execute(
+            "SELECT * FROM items WHERE id='ig_test_reel'").fetchone())["heard"])
+        hl = self.c.execute("SELECT * FROM highlights WHERE id='hl_3'").fetchone()
+        self.assertIsNone(hl["heard_label"])
+        self.assertIn("nothing", hl["heard_reason"])
+        self.assertEqual(h.counts(self.c), {"with_speech": 2, "done": 2, "queue": 0, "heard": 0})
+
+    def test_missing_answers_raise_and_new_transcript_requeues(self):
+        h = self.heard
+        self.answer = lambda p: [self.entry(0, "у тебе 3", "hl_3")]
+        ids = h.pending(self.c)
+        with self.assertRaises(h.PartialAnswer) as cm:
+            h.run_batch(self.c, ids)
+        self.assertEqual(cm.exception.missing, [ids[1]])
+        self.assertEqual(h.pending(self.c), [ids[1]])
+        h.give_up(self.c, cm.exception.missing)
+        self.assertEqual(h.pending(self.c), [])
+        self.c.execute("UPDATE transcripts SET created_at='2026-10-27T00:00:00Z' WHERE media='items/ig_test_reel/0.mp4'")
+        self.assertEqual(h.pending(self.c), ["ig_test_reel"])
+
+    def test_label_picks_the_most_common_phrase(self):
+        lab, why = self.heard.label_for("3", [{"text": "У тебе 3!", "confidence": 0.6}, {"text": "у тебе 3", "confidence": 0.9},
+                                              {"text": "в тебе три", "confidence": 0.95}, {"text": "щось", "confidence": 0.1}], 5)
+        self.assertEqual(lab, "у тебе 3")
+        self.assertIn("2 of its 5", why)
+        self.assertIn("short for it", why)
+
+    def test_lane_waits_behind_analysis_and_status_shows_it(self):
+        import types
+        try:
+            import httpx  # noqa: F401
+        except ImportError:
+            sys.modules["httpx"] = types.ModuleType("httpx")
+        from ee import status, worker
+        self.answer = lambda p: [self.entry(i, "у тебе 3", "hl_3") for i in range(2)]
+        with self.mock.patch.object(worker.stop, "wait", lambda *_: None):
+            self.assertFalse(worker.heard_once(self.c))      # fixture items still wait for analysis
+            self.assertEqual(self.calls, [])
+            self.c.execute("UPDATE steps SET state='done' WHERE step='analyze'")
+            self.assertTrue(worker.heard_once(self.c))
+            self.assertFalse(worker.heard_once(self.c))      # nothing left
+        comp = next(x for x in status.build(self.c)["components"] if x["id"] == "heard")
+        self.assertEqual((comp["details"]["queue"], comp["details"]["done"], comp["details"]["heard"]), (0, 2, 2))
+        self.assertEqual(comp["details"]["calls_today"], 1)
+        self.assertIsNotNone(comp["last_success"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -259,7 +376,7 @@ class WorkerTest(unittest.TestCase):
         except ImportError:   # the box has it; a bare local python may not
             sys.modules["httpx"] = types.ModuleType("httpx")
         w = importlib.import_module("ee.worker")
-        for fn in ("analyze_once", "thumbs_once", "home_once", "importance_once", "facets_once", "rubric_once", "x_once", "facebook_once",
+        for fn in ("analyze_once", "thumbs_once", "home_once", "importance_once", "heard_once", "facets_once", "rubric_once", "x_once", "facebook_once",
                    "house_once", "site_once", "main"):
             self.assertTrue(callable(getattr(w, fn, None)), fn)
 

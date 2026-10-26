@@ -14,7 +14,10 @@ backend/
     compose.py       what a post says; X threads within 280 weighted characters
     xposter.py       X API v2 (OAuth 1.0a), chunked media upload
     fbposter.py      Facebook through a headless browser with the owner's session
-    worker.py        the pipeline lanes: analyze, x, facebook, housekeeping (heartbeat, backup, site)
+    heard.py         the phrase spoken per video (cached transcripts + highlight titles -> Claude),
+                     and each highlight's heard_label
+    worker.py        the pipeline lanes: analyze, thumbs, home, importance, heard, facets, rubric,
+                     x, facebook, housekeeping (heartbeat, backup, site)
     cli.py           `ee` on the box
   infra/             CloudFormation stack and the scripts around it
   deploy/            the box: bootstrap, installer, deploy over SSM, site build and publish
@@ -148,6 +151,20 @@ waits; an empty wallet waits an hour.
 **Cost guard:** the worker analyzes at most `analysis.daily_cap` items a day (default **20**).
 To work through an approved backlog: `ee settings analysis.daily_cap 1000`. `ee estimate` shows
 what is pending.
+
+### Heard phrases (CONTRACT.md "Heard")
+
+The `heard` lane gives each item with a video the short phrase actually spoken that its highlight
+title stands for ("3" -> "у тебе 3"), stored as `items.heard` beside a signature of the
+transcripts and highlights it came from (`items.heard_sig`); a changed signature queues the item
+again. Each highlight gets `heard_label`/`heard_reason` (the most common phrase among its items);
+its Instagram `title` is never touched. It only reads the cached `transcripts` (or, for items
+analyzed before those were cached, the analysis's transcript), never transcribes, and runs only
+when no analysis is waiting: 8 items per call (`heard.batch_size`), at most `heard.daily_cap` (150)
+calls a day, `heard.enabled` to switch it off, `heard.model` to pick a model (empty: the default).
+Budget waits as in every AI lane. `ee heard` shows the queue and the labels, `ee heard run` works
+through the queue now, `ee heard labels` recomputes the labels. The monitor does the same for its
+hits in its own worker (monitor/README.md).
 
 ### The server wallet (how the backend pays)
 

@@ -146,6 +146,10 @@ DEFAULT_SETTINGS = {
     "placement.hit_bottom": "0.5",
     "importance.rescore_daily_cap": "400",
     "importance.method": "2",        # 2: scored from frames, images, transcripts and text (multimodal)
+    "heard.enabled": "1",            # the phrase spoken in each video (ee.heard), from cached transcripts
+    "heard.daily_cap": "150",        # calls a day, several items each (the cost guard)
+    "heard.batch_size": "8",         # items per call
+    "heard.model": "",               # empty: the default model
     "importance.rubric_review": "1",   # Claude facet runs a day (the cost guard for facets)           # set when items leave the site: rebuild even with nothing new
 }
 
@@ -184,6 +188,14 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     if "curation" not in cols:     # added 2026-10-25: 0-1, how the owner curated it (home.curation)
         conn.execute("ALTER TABLE items ADD COLUMN curation REAL")
         conn.execute("ALTER TABLE items ADD COLUMN curation_reason TEXT")
+    if "heard" not in cols:        # added 2026-10-26: the phrase spoken (ee.heard), and what it was worked out from
+        conn.execute("ALTER TABLE items ADD COLUMN heard TEXT")
+        conn.execute("ALTER TABLE items ADD COLUMN heard_sig TEXT")
+    hcols = {r["name"] for r in conn.execute("PRAGMA table_info(highlights)")}
+    if "heard_label" not in hcols:  # added 2026-10-26: the fuller phrase the title stands for (ee.heard)
+        conn.execute("ALTER TABLE highlights ADD COLUMN heard_label TEXT")
+        conn.execute("ALTER TABLE highlights ADD COLUMN heard_reason TEXT")
+        conn.execute("ALTER TABLE highlights ADD COLUMN heard_at TEXT")
     for k, v in DEFAULT_SETTINGS.items():
         conn.execute("INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)", (k, v))
     if not conn.execute("SELECT 1 FROM rubrics LIMIT 1").fetchone():

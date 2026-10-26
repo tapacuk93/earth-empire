@@ -122,8 +122,10 @@ Measured on the box (t4g.medium, 2 Graviton2 vCPU, int8, beam 1), RTF = processi
   of many hours (needs approval: paid).
 - **API:** OpenAI whisper-1 through the aicoin proxy at $0.006/min = $0.36 per hour of audio, one
   language per file (no per-chunk language ID), every call at least one coin. Not used.
-- **Claude** (translations and borderline judgements): one call per video with hits, capped at
-  `claude.daily_usd` (0.50).
+- **Claude** (translations, borderline judgements, levels and the `heard` phrase): one call per
+  video with hits, capped at `claude.daily_usd` (0.50). Hits found before `heard` existed are
+  backfilled from the stored transcripts every 5 minutes (3 videos per round, one call each), only
+  while less than 80% of the cap is spent.
 
 ## On the box
 

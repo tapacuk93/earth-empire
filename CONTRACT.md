@@ -320,7 +320,7 @@ label a video (and a highlight) with it; the Instagram `title` is never changed.
 - **Per highlight:** `heard_label` is the phrase most of its items say (ties: the surer one, spelled
   as in its surest item; confidence below 0.3 does not count), with `heard_reason`; null when none of
   its videos says one.
-- **Continuous:** the worker's `heard` lane, always behind the analysis of new items, takes items with
+- **Continuous:** the worker's `heard` lane, alongside analysis (every job runs in parallel), takes items with
   speech whose phrase was never worked out, or was worked out from other transcripts or other
   highlights (membership or title changed), several items (`heard.batch_size`, 8) per call, at most
   `heard.daily_cap` (150) calls a day, within the AI budget (waits like every AI lane, see "AI calls").
@@ -387,7 +387,10 @@ items and published monitor hits only.
   more accurate) is applied as a new version, and any other proposal is recorded but not applied.
   The owner can also replace it. A new version re-scores every item in the background, within
   `importance.rescore_daily_cap` (400) a day.
-- **Background jobs** run continuously, always behind the analysis of new items: importance
+- **Background jobs** run continuously and all at the same time, several items each: analysis in
+  `analysis.lanes` (3) parallel lanes, each claiming its own item (new items first, then the owner's own,
+  then reposts), importance `importance.batch` (3) a turn, heard several videos a call. They share the
+  day's budget, whose last `ai.own_reserve_usd` only the owner's own items use. The jobs: importance
   scoring, the heard phrases (see "Heard"), the daily rubric review, facets, and the layout (every
   minute). `GET /v1/status` (owner) shows each one as a component (`importance`, `heard`, `rubric`,
   `facets`, `layout`, `spend`) with its queue,

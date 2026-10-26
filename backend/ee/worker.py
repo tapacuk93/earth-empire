@@ -187,17 +187,19 @@ _score_failures: dict[str, int] = {}
 
 
 def importance_once(c) -> bool:
-    """When the analyzer has nothing to do: score items analyzed before importance existed."""
+    """Score items analyzed before importance existed (or under an older rubric): alongside analysis
+    (every job runs in parallel), `importance.batch` items a turn."""
     if setting(c, "analysis.enabled") != "1":
         return False
-    analysis_can_run = analysis.analyses_today(c) < int(setting(c, "analysis.daily_cap") or 0)
-    if analysis_can_run and c.execute(
-            "SELECT 1 FROM steps WHERE step='analyze' AND state IN ('pending','running') LIMIT 1").fetchone():
-        return False   # the lowest priority: only when no analysis is waiting (and allowed today)
-    if c.execute("""SELECT 1 FROM items i JOIN steps s ON s.item_id = i.id WHERE i.priority = 1 AND
-                    i.analysis IS NOT NULL AND ((s.step = 'site' AND s.state = 'pending') OR i.thumbs IS NULL)
-                    LIMIT 1""").fetchone():
-        return False   # and never while an analyzed new item is still on its way to the site
+    worked = False
+    for _ in range(int(setting(c, "importance.batch") or 3)):
+        if stop.is_set() or not _importance_one(c):
+            break
+        worked = True
+    return worked
+
+
+def _importance_one(c) -> bool:
     from . import importance
     day = utcnow()[:10]
     done = c.execute("SELECT COUNT(*) n FROM costs WHERE purpose='importance' AND at >= ?", (day,)).fetchone()["n"]
@@ -233,14 +235,10 @@ _heard_failures: dict[str, int] = {}
 
 
 def heard_once(c) -> bool:
-    """The phrase spoken in each video (ee.heard), from cached transcripts only: always behind new-item
-    analysis, a few items per call, within heard.daily_cap calls a day and the AI budget."""
+    """The phrase spoken in each video (ee.heard), from cached transcripts only: alongside analysis
+    (every job runs in parallel), several items per call, within heard.daily_cap calls a day and the AI budget."""
     if setting(c, "analysis.enabled") != "1" or setting(c, "heard.enabled") != "1":
         return False
-    analysis_can_run = analysis.analyses_today(c) < int(setting(c, "analysis.daily_cap") or 0)
-    if analysis_can_run and c.execute(
-            "SELECT 1 FROM steps WHERE step='analyze' AND state IN ('pending','running') LIMIT 1").fetchone():
-        return False   # behind analysis: never while an item waits for it (and analysis may run today)
     from . import heard
     day = utcnow()[:10]
     calls = c.execute("SELECT COUNT(*) n FROM costs WHERE purpose='heard' AND at >= ?", (day,)).fetchone()["n"]
@@ -496,7 +494,10 @@ def main():
     event("worker.start", requeued=n)
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    threads = [lane("analyze", analyze_once), lane("thumbs", thumbs_once, idle=20),
+    # Every kind of job runs at the same time; analysis in several lanes (each claims its own item).
+    n_analyze = max(1, int(setting(db.conn(), "analysis.lanes") or 3))
+    threads = [lane(f"analyze-{k + 1}" if n_analyze > 1 else "analyze", analyze_once) for k in range(n_analyze)]
+    threads += [lane("thumbs", thumbs_once, idle=20),
                lane("home", home_once, idle=20), lane("importance", importance_once, idle=60),
                lane("heard", heard_once, idle=60),
                lane("facets", facets_once, idle=60), lane("rubric", rubric_once, idle=600), lane("x", x_once, idle=60),

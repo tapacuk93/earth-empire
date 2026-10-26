@@ -287,10 +287,7 @@ def build(c) -> dict:
                           "highlights_labelled": c.execute("SELECT COUNT(*) n FROM highlights WHERE heard_label IS NOT NULL"
                                                            ).fetchone()["n"],
                           "calls_today": h_calls, "daily_cap": h_cap, "last_run": h_last,
-                          "reason": "daily cap reached" if hc["queue"] and h_calls >= h_cap else
-                          "waits behind analysis" if hc["queue"] and c.execute(
-                              "SELECT 1 FROM steps WHERE step='analyze' AND state IN ('pending','running') LIMIT 1"
-                          ).fetchone() else None}))
+                          "reason": "daily cap reached" if hc["queue"] and h_calls >= h_cap else None}))
     comps.append(comp("rubric", "Importance rubric", "ok" if setting(c, "importance.rubric_review") == "1" else "off",
                       last_success=rub.get("created_at"), details={
                           "version": rub["version"], "by": rub.get("by"), "reason": scrub(rub.get("reason"), 200),

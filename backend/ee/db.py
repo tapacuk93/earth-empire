@@ -131,6 +131,8 @@ DEFAULT_SETTINGS = {
     "site.force": "",
     "facets.daily_cap": "12",
     "ai.daily_budget_usd": "30",     # our own second limit; the proxy's per-app cap is the first
+    "analysis.lanes": "3",           # items analyzed at the same time (each lane claims its own); read at start
+    "importance.batch": "3",         # items scored per turn of the importance lane
     "ai.own_reserve_usd": "5",       # the day's last dollars: only the owner's own posts and stories (no reposts)
     "ai.paused_until": "",           # set when the proxy says the app's daily cap is reached
     # Home tile size = placement × age_factor × importance_factor (CONTRACT.md "Home layout")

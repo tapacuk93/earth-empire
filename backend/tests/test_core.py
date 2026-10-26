@@ -343,7 +343,7 @@ class HeardTest(unittest.TestCase):
         self.assertIn("2 of its 5", why)
         self.assertIn("short for it", why)
 
-    def test_lane_waits_behind_analysis_and_status_shows_it(self):
+    def test_lane_runs_alongside_analysis_and_status_shows_it(self):
         import types
         try:
             import httpx  # noqa: F401
@@ -352,9 +352,7 @@ class HeardTest(unittest.TestCase):
         from ee import status, worker
         self.answer = lambda p: [self.entry(i, "у тебе 3", "hl_3") for i in range(2)]
         with self.mock.patch.object(worker.stop, "wait", lambda *_: None):
-            self.assertFalse(worker.heard_once(self.c))      # fixture items still wait for analysis
-            self.assertEqual(self.calls, [])
-            self.c.execute("UPDATE steps SET state='done' WHERE step='analyze'")
+            # every job runs in parallel: heard does not wait while items wait for analysis
             self.assertTrue(worker.heard_once(self.c))
             self.assertFalse(worker.heard_once(self.c))      # nothing left
         comp = next(x for x in status.build(self.c)["components"] if x["id"] == "heard")

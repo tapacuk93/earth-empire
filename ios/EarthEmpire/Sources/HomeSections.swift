@@ -311,12 +311,6 @@ struct VideoCard: View {
             .overlay { RemoteImage(tile.cover) }
             .overlay(alignment: .bottomLeading) { caption }
             .overlay(alignment: .topLeading) { audioChip }
-            .overlay(alignment: .topTrailing) {
-                if tile.hit != nil {
-                    Text("AI").font(.caption2.weight(.heavy)).padding(.horizontal, 7).padding(.vertical, 2)
-                        .background(Color.orange, in: Capsule()).foregroundStyle(.black).padding(6)
-                }
-            }
             .clipShape(RoundedRectangle(cornerRadius: size == .xl ? 14 : 10, style: .continuous))
             .contentShape(Rectangle())
             .accessibilityElement(children: .ignore)
@@ -337,7 +331,6 @@ struct VideoCard: View {
             .background(detected ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.black.opacity(0.55)), in: Capsule())
             .opacity(tile.audio.kind == .none ? 0.75 : 1)
             .padding(size == .xl ? 10 : 6)
-            .padding(.trailing, tile.hit != nil ? 30 : 0)
             .accessibilityIdentifier("audio.\(tile.id)")
     }
 

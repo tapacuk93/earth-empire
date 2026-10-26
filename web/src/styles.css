@@ -745,9 +745,8 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .vt-wide .vt-cap { font-size: .9rem; }
 .vs-l3 .vt-cap, .vs-l4 .vt-cap { padding: 20px 7px 6px; font-size: .74rem; }
 
-.vt-badge { position: absolute; top: 6px; right: 6px; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: #e9a35a; color: #111; font-size: .72rem; font-weight: 800; text-align: center; }
 .vs-more { display: block; margin: 10px auto 0; }
-.vt-audio { position: absolute; top: 6px; left: 6px; max-width: calc(100% - 44px); padding: 2px 8px; border-radius: 999px; background: rgb(0 0 0 / .55); color: #fff; font-size: .72rem; font-weight: 600; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.vt-audio { position: absolute; top: 6px; left: 6px; max-width: calc(100% - 12px); padding: 2px 8px; border-radius: 999px; background: rgb(0 0 0 / .55); color: #fff; font-size: .72rem; font-weight: 600; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .vt-audio-heard { background: #e9a35a; color: #111; font-weight: 700; }
 .vt-audio-none { opacity: .75; }
 .vt-xl .vt-audio { top: 10px; left: 10px; font-size: .82rem; padding: 3px 10px; }

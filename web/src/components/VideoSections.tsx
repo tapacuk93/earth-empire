@@ -19,7 +19,6 @@ function grid(w: number, h: number, compact: boolean) {
 }
 
 function Tile({ t, size, href, playing, onPlay }: { t: VTile; size: Size; href: string; playing: boolean; onPlay: (id: string | null, delay?: number) => void }) {
-  const hits = t.item?.detection?.hits?.length || 0;
   return (
     <li class={`vt vt-${size}`} data-id={t.id} data-level={t.level}>
       <a href={href} aria-label={[t.audio && `“${t.audio.text}”`, t.date && fmtShort(t.date), t.text].filter(Boolean).join(', ')} onFocus={() => onPlay(t.id)} onBlur={() => onPlay(null)}
@@ -35,7 +34,6 @@ function Tile({ t, size, href, playing, onPlay }: { t: VTile; size: Size; href: 
             <span aria-hidden="true">{t.audio.kind === 'music' ? '♪' : t.audio.kind === 'none' ? '∅' : t.audio.kind === 'heard' ? '“' : '🎙'}</span>{t.audio.kind === 'heard' ? `${t.audio.text}”` : ` ${t.audio.text}`}
           </span>
         )}
-        {(t.hit || hits > 0) && <span class="vt-badge">{t.hit ? 'AI' : hits}</span>}
         <span class="vt-cap">
           {t.date && <time dateTime={t.date}>{fmtShort(t.date)}</time>}
         </span>

@@ -91,6 +91,12 @@ test('videos: every card is labelled with the audio detected in it', async ({ pa
   await expect(v.locator('.vt').first()).toBeVisible();
   const cards = await v.locator('.vt').count();
   await expect(v.locator('.vt .vt-audio')).toHaveCount(cards);
+  // One label and the time, nothing else on a card.
+  for (const card of (await v.locator('.vt').all()).slice(0, 6)) {
+    await expect(card.locator('.vt-audio')).toHaveCount(1);
+    expect(await card.locator('.vt-cap').evaluate((c) => [...c.children].map((e) => e.tagName))).toEqual(['TIME']);
+    await expect(card.locator('a > span:not(.vt-audio):not(.vt-cap):not(.vt-blank)')).toHaveCount(0);
+  }
   // A found clip shows what was heard; an item with speech its language.
   await expect(v.locator('.vt[data-id^="h_"] .vt-audio-heard').first()).toBeVisible();
   await expect(v.locator(`.vt[data-id="${REEL}"] .vt-audio`)).toHaveText(/speech|“|♪|No speech/);

@@ -44,7 +44,8 @@ p { margin: 0 0 .75em; }
   -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--line); }
 @supports not (background: color-mix(in srgb, red, blue)) { .site-head { background: var(--bg); } }
 .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .01em; color: var(--text); text-decoration: none; font-size: 1.05rem; }
-.logo { width: 26px; height: 26px; border-radius: 50%; background: url(/icon/earth.svg) center/contain no-repeat; }
+/* The Earth: NASA's Blue Marble (Apollo 17, 1972; public domain), cut round */
+.logo { width: 26px; height: 26px; border-radius: 50%; background: url(/icon/earth-real.png) center/contain no-repeat; }
 main { display: block; max-width: var(--maxw); margin: 0 auto; padding: 0 var(--gutter) 48px; padding-left: max(var(--gutter), env(safe-area-inset-left)); padding-right: max(var(--gutter), env(safe-area-inset-right)); outline: none; min-height: 60vh; }
 .site-foot { max-width: var(--maxw); margin: 0 auto; padding: 24px var(--gutter) max(32px, env(safe-area-inset-bottom)); color: var(--muted); font-size: .85rem; border-top: 1px solid var(--line); }
 
@@ -695,7 +696,7 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .history li { padding: 8px 0; border-top: 1px solid var(--line); } .history blockquote { margin: 4px 0 0; white-space: pre-wrap; font-size: .9rem; }
 .history .not-applied { opacity: .7; }
 
-/* Playback: whole picture over a blurred copy; fills only when its shape is close to the screen's */
+/* Playback: always the whole picture (fit) over a blurred copy */
 .imedia-slide { position: relative; overflow: hidden; }
 .ibg { position: absolute; inset: -40px; background: center/cover no-repeat; filter: blur(32px) brightness(.45) saturate(1.2); transform: translateZ(0); }
 .imedia-slide img, .imedia-slide video { position: relative; }
@@ -782,8 +783,17 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 @media (min-width: 900px) { .det .wheel-side { right: calc(min(460px, 36%) + 10px); } }
 /* The "?" of the fullscreen viewer: what is happening, in the viewer's language */
 .iask-btn b { font-size: 1.15rem; font-weight: 800; line-height: 1; }
-.iask { position: absolute; z-index: 6; left: 50%; translate: -50% 0; top: calc(max(8px, env(safe-area-inset-top)) + 56px); width: min(560px, calc(100% - 24px)); max-height: 50dvh; overflow-y: auto;
-  padding: 14px 44px 14px 16px; border-radius: 16px; background: rgb(10 10 10 / .82); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: #fff; font-size: 1rem; line-height: 1.5; box-shadow: 0 6px 30px rgb(0 0 0 / .35); white-space: pre-line; }
+.iask { position: absolute; z-index: 6; left: 10px; right: 10px; top: calc(max(8px, env(safe-area-inset-top)) + 56px); max-width: 600px; margin: 0 auto; max-height: min(70dvh, calc(100dvh - 140px)); overflow-y: auto; overscroll-behavior: contain;
+  padding: 14px 44px 16px 16px; border-radius: 16px; background: rgb(10 10 10 / .84); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: #fff; line-height: 1.5; box-shadow: 0 6px 30px rgb(0 0 0 / .35); }
+.iask.open { max-height: calc(100dvh - 120px); }
+.iask-text { margin: 0 0 10px; font-size: 1.02rem; white-space: pre-line; }
+.iask .imeta { color: rgb(255 255 255 / .75); }
+.iask a { color: #fff; }
+.iask-why { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 10px; font-size: .88rem; }
+.iask-why .conf { background: rgb(255 255 255 / .2); color: #fff; }
+/* The one thing over the video: what is heard, in gold */
+.igold { position: absolute; z-index: 3; left: 12px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 16px); max-width: calc(100% - 24px); margin: 0; padding: 5px 14px; border-radius: 999px;
+  background: #e9a35a; color: #111; font-weight: 800; font-size: clamp(.95rem, .85rem + .5vw, 1.25rem); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 2px 12px rgb(0 0 0 / .35); pointer-events: none; }
 .iask p { margin: 0; }
 .iask-close { position: absolute; top: 4px; right: 4px; color: #fff; }
 .spinner.small { display: inline-block; width: 14px; height: 14px; margin-top: 6px; }

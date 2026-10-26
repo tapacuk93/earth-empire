@@ -229,6 +229,9 @@ test('feed: a section context, the overlay, expanded analysis, and seeking the v
   await expect(f).toBeVisible();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/sunset run/);
   const slide = f.locator('.islide').first();
+  // Over the video only the gold label; the rest is under "?".
+  await expect(slide.locator('.ifacts')).toHaveCount(0);
+  await page.getByRole('button', { name: 'What is happening?' }).click();
   await expect(slide.locator('.ifacts')).toContainText('With @mira.sails');
   const video = slide.locator('video');
   await expect(video).toHaveAttribute('poster', /reel-sunset\.cover\.jpg/);
@@ -258,9 +261,11 @@ test('feed: carousels swipe sideways; reposts credit the original', async ({ pag
   await expect(slide.locator('.idots span').nth(2)).toHaveClass('on');
   await page.goto(`/item/${STORY_REPOST}`);
   const r = feed(page).locator('.islide:not([aria-hidden])');
+  await page.getByRole('button', { name: 'What is happening?' }).click();
   await expect(r.locator('.imeta')).toContainText('Original by @oceanlab');
   await expect(r.getByRole('link', { name: '@oceanlab' })).toHaveAttribute('href', 'https://www.instagram.com/reel/DMockOrig1/');
   await page.goto(`/item/${POST_REPOST}`);
+  await page.getByRole('button', { name: 'What is happening?' }).click();
   await expect(feed(page).locator('.islide:not([aria-hidden]) .imeta')).toContainText('Original by @mountainclub');
 });
 
@@ -511,6 +516,8 @@ test('settings: suggested phrases from highlight names, accept and reject', asyn
 test('wheel: why it is here - the first hit as a chip, the video starting just before it, marks on the bar', async ({ page }) => {
   await page.goto(`/item/${REEL}`);
   const slide = feed(page).locator('.islide:not([aria-hidden])');
+  await expect(slide.locator('.igold')).toBeVisible(); // over the video: only what is heard
+  await page.getByRole('button', { name: 'What is happening?' }).click();
   const chip = slide.getByRole('note', { name: 'Why this is here' });
   await expect(chip).toContainText('likely');
   await expect(chip).toContainText('Тарасе, дивись на маяк!');
@@ -523,6 +530,7 @@ test('wheel: why it is here - the first hit as a chip, the video starting just b
     await expect(slide.locator('.hit-mark')).toHaveCount(2);
   }
   await page.goto('/item/ig_3400000000000000008');
+  await page.getByRole('button', { name: 'What is happening?' }).click();
   await expect(feed(page).locator('.islide:not([aria-hidden])').getByRole('note', { name: 'Why this is here' })).toContainText('low confidence');
 });
 
@@ -700,13 +708,31 @@ test('wheel: "?" explains what is happening, a post by its own description', asy
   await page.getByRole('button', { name: 'What is happening?' }).click();
   const panel = page.getByRole('region', { name: 'What is happening' });
   await expect(panel).toBeVisible();
-  await expect(panel.locator('p')).not.toBeEmpty();
+  await expect(panel.locator('.iask-text')).not.toBeEmpty();
   const caption = await page.evaluate(async (id) => {
     const f = await (await fetch('/mock/fixture.json')).json();
     const it = f.items.find((x: { id: string }) => x.id === id);
     return ['post', 'carousel', 'reel'].includes(it.kind) && !it.repost_of && it.caption ? it.caption.trim() : null;
   }, REEL);
-  if (caption) await expect(panel.locator('p')).toHaveText(caption);
+  if (caption) await expect(panel.locator('.iask-text')).toHaveText(caption);
   await page.getByRole('button', { name: 'Close the explanation' }).click();
   await expect(panel).toHaveCount(0);
+});
+
+test('wheel: fullscreen media fits, filling only when that crops at most 12%; only the gold label over it', async ({ page }) => {
+  await page.goto(`/item/${REEL}`);
+  await expect(feed(page)).toBeVisible();
+  await page.waitForTimeout(500);
+  const media = await page.locator('.islide:not([aria-hidden]) .imedia-slide img, .islide:not([aria-hidden]) .imedia-slide video').evaluateAll((els) => els.map((e) => {
+    const v = e as HTMLVideoElement & HTMLImageElement;
+    const w = v.videoWidth || v.naturalWidth, h = v.videoHeight || v.naturalHeight;
+    return { fit: getComputedStyle(e).objectFit, ar: w && h ? w / h : 0, sar: innerWidth / innerHeight };
+  }));
+  expect(media.length).toBeGreaterThan(0);
+  for (const m of media) {
+    if (m.fit === 'cover') expect(1 - Math.min(m.ar, m.sar) / Math.max(m.ar, m.sar)).toBeLessThanOrEqual(0.121);
+    else expect(m.fit).toBe('contain');
+  }
+  const slide = feed(page).locator('.islide:not([aria-hidden])');
+  await expect(slide.locator('.ioverlay, .hit-chip, .ititle')).toHaveCount(0);
 });

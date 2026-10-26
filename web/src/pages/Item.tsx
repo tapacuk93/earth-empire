@@ -7,6 +7,7 @@ import { ctxItems, ctxLabel, itemHref } from '../context';
 import { getFacets, getLayout, getRelated, tagItems } from '../homeData';
 import { setFacets } from '../context';
 import { attachMap, withAttachments } from '../layout';
+import { audioOf } from '../videoSections';
 import { canGoBack, navigate, type Route } from '../router';
 import type { Item, Media } from '../types';
 import { altFor, cover, fmtCount, fmtDate, fmtDateTime, igProfile, itemTitle, posterOf, prefersReducedMotion, setMeta } from '../util';
@@ -154,6 +155,10 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
   const [pb, setPb] = useState<Playback>(readPlayback);
   const cyclePb = () => { const n = PB_NEXT[pb]; setPb(n); try { localStorage.setItem(PB_KEY, n); } catch { /* storage blocked */ } };
   const item = items[cur];
+  // The gold label: what is heard - the phrase spoken, or the highlight's fuller label, or its name.
+  const hls = useHighlights();
+  const labels = new Map((hls.data || []).map((h) => [h.id, h.heard_label || h.title]));
+  const goldOf = (it: Item) => { const a = audioOf(it, labels); return a.kind === 'heard' ? a.text : ''; };
   // Stills advance by themselves in autoplay mode.
   useEffect(() => {
     if (pb !== 'next' || info || !item) return;
@@ -223,7 +228,6 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
         <ShareButton title={item ? itemTitle(item) : ''} />
         <button class="icon-btn iask-btn" onClick={() => setAsk(!ask)} aria-label="What is happening?" aria-expanded={ask} title="What is happening?"><b aria-hidden="true">?</b></button>
       </div>
-      {ask && item && <Explain key={item.id} item={item} onClose={() => setAsk(false)} />}
       <h1 class="sr-only">{item ? itemTitle(item) : label}</h1>
       <p class="sr-only" role="status" aria-live="polite">{item ? `${cur + 1} of ${items.length}: ${itemTitle(item)}` : ''}</p>
       <div class="ifeed-list" ref={list} onScroll={onScroll} tabIndex={0} aria-label="Swipe or use the arrow keys for the next and previous item">
@@ -231,6 +235,7 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
           <section key={it.id} class="islide" data-i={i} aria-hidden={i !== cur ? 'true' : undefined}>
             {Math.abs(i - cur) <= 1
               ? <Slide item={it} active={i === cur} muted={muted} forced={forced} onTapVideo={() => setMuted(forced ? false : !muted)} info={info && i === cur} setInfo={setInfo}
+                  gold={goldOf(it)} ask={ask && i === cur} onCloseAsk={() => setAsk(false)}
                   loop={pb === 'repeat'} onEnded={() => { if (pb === 'next' && i === cur) go(cur + 1); }} />
               : <span class="islide-ph" />}
           </section>
@@ -257,7 +262,7 @@ function ShareButton({ title }: { title: string }) {
   return <><button class="icon-btn" onClick={share} aria-label="Share"><Icon name="share" /></button><span class="share-msg" role="status">{msg}</span></>;
 }
 
-function Slide({ item, active, muted, forced, onTapVideo, info, setInfo, loop, onEnded }: { item: Item; active: boolean; muted: boolean; forced: boolean; onTapVideo: () => void; info: boolean; setInfo: (v: boolean) => void; loop: boolean; onEnded: () => void }) {
+function Slide({ item, active, muted, forced, onTapVideo, info, setInfo, gold, ask, onCloseAsk, loop, onEnded }: { item: Item; active: boolean; muted: boolean; forced: boolean; onTapVideo: () => void; info: boolean; setInfo: (v: boolean) => void; gold: string; ask: boolean; onCloseAsk: () => void; loop: boolean; onEnded: () => void }) {
   const r = item.repost_of;
   const media: Media[] = item.media.length ? item.media : r?.media || [];
   const row = useRef<HTMLDivElement>(null);
@@ -289,10 +294,13 @@ function Slide({ item, active, muted, forced, onTapVideo, info, setInfo, loop, o
   };
   useEffect(() => { if (first && (first.media ?? 0) !== m && active && !started.current) { const el = row.current; if (el) el.scrollLeft = (first.media ?? 0) * el.clientWidth; } }, [active]);
   const curHits = hits.filter((h) => (h.media ?? 0) === m);
-  // Playback shows the whole picture (contain) unless its shape is within 10% of the screen's, when it may fill (cover).
+  // The whole picture (fit) over its blurred copy; it fills the screen only when that crops at most 12%
+  // of it, judged against this screen (and again when the window or the phone turns).
   const [dims, setDims] = useState<Record<number, number>>({});
   const arOf = (i: number) => dims[i] || (media[i]?.width && media[i]?.height ? media[i].width! / media[i].height! : 9 / 16);
-  const fit = (i: number) => { const sar = innerWidth / Math.max(1, innerHeight); return Math.abs(arOf(i) - sar) / sar < 0.1 ? 'fit-cover' : 'fit-contain'; };
+  const [sar, setSar] = useState(() => innerWidth / Math.max(1, innerHeight));
+  useEffect(() => { const on = () => setSar(innerWidth / Math.max(1, innerHeight)); addEventListener('resize', on); return () => removeEventListener('resize', on); }, []);
+  const fit = (i: number) => { const ar = arOf(i); return 1 - Math.min(ar, sar) / Math.max(ar, sar) <= 0.12 ? 'fit-cover' : 'fit-contain'; };
   const learn = (i: number, w: number, h: number) => { if (w && h && Math.abs((dims[i] || 0) - w / h) > 0.01) setDims((d) => ({ ...d, [i]: w / h })); };
   return (
     <>
@@ -312,25 +320,28 @@ function Slide({ item, active, muted, forced, onTapVideo, info, setInfo, loop, o
       <div class="icol" style={{ '--ar': String(arOf(m)) }}>
       {media.length > 1 && <div class="idots" aria-hidden="true">{media.map((_, i) => <span key={i} class={i === m ? 'on' : ''} />)}</div>}
       {forced && active && media[m]?.type === 'video' && <button class="unmute" onClick={onTapVideo}><Icon name="sound" size={16} /> Tap for sound</button>}
-      {active && first && (
-        <div class="hit-chip fui" role="note" aria-label="Why this is here">
-          <span class={`conf ${confLabel(first.confidence) === 'low confidence' ? 'low' : ''}`}>{confLabel(first.confidence)}</span>
-          {first.excerpt && <span class="hit-ex">“{first.excerpt}”</span>}
-          {first.translation && first.translation !== first.excerpt && <span class="hit-tr">{first.translation}</span>}
-          {hits.length > 1 && <span class="hit-n">{hits.length} moments</span>}
-        </div>
-      )}
       {active && media[m]?.type === 'video' && t.dur > 0 && (
         <div class="hit-bar" aria-hidden="true">
           <span class="hit-bar-fill" style={{ width: `${(t.cur / t.dur) * 100}%` }} />
           {curHits.map((h, k) => typeof h.at === 'number' && <span key={k} class="hit-mark" style={{ left: `${(h.at / t.dur) * 100}%` }} />)}
         </div>
       )}
-      <div class={`ioverlay ${info ? 'open' : ''}`}>
+      {gold && <p class="igold" title="What is heard">“{gold}”</p>}
+      {ask && (
+        <div class={`iask ${info ? 'open' : ''}`} role="region" aria-label="What is happening">
+          <button class="icon-btn iask-close" onClick={onCloseAsk} aria-label="Close the explanation"><Icon name="close" /></button>
+          <ExplainText item={item} />
+        {first && (
+          <div class="iask-why" role="note" aria-label="Why this is here">
+          <span class={`conf ${confLabel(first.confidence) === 'low confidence' ? 'low' : ''}`}>{confLabel(first.confidence)}</span>
+          {first.excerpt && <span class="hit-ex">“{first.excerpt}”</span>}
+          {first.translation && first.translation !== first.excerpt && <span class="hit-tr">{first.translation}</span>}
+          {hits.length > 1 && <span class="hit-n">{hits.length} moments</span>}
+          </div>
+        )}
         <p class="imeta"><time dateTime={item.taken_at}>{fmtDate(item.taken_at)}</time>{place && ` · ${place}`}
           {r && <> · Original by <a href={r.source_url || igProfile(r.author)} rel="external noopener">@{r.author}</a></>}</p>
         <h2 class="ititle">{item.summary || itemTitle(item)}</h2>
-        {!info && (item.description || item.caption) && <p class="idesc">{item.description || item.caption}</p>}
         {!info && item.analysis && <CompactAnalysis item={item} />}
         <button class="btn small imore" onClick={() => setInfo(!info)} aria-expanded={info}>{info ? 'Less' : 'More'}</button>
         {info && (
@@ -346,7 +357,8 @@ function Slide({ item, active, muted, forced, onTapVideo, info, setInfo, loop, o
             <p class="muted small">{fmtDateTime(item.taken_at)}{item.counts?.likes !== undefined && ` · ${fmtCount(item.counts.likes)} likes`}</p>
           </div>
         )}
-      </div>
+        </div>
+      )}
       </div>
     </>
   );
@@ -372,21 +384,15 @@ function CompactAnalysis({ item }: { item: Item }) {
 const ownCaption = (it: Item) => (['post', 'carousel', 'reel'].includes(it.kind) && !it.repost_of && it.caption?.trim()) || '';
 
 /**
- * The "?" panel: what is happening, in the browser's language. A post is explained by its own
- * description (translated by the API); anything else from its analysis. Until the API answers, or
+ * The "?" panel's first lines: what is happening, in the browser's language. A post is explained by its
+ * own description (translated by the API); anything else from its analysis. Until the API answers, or
  * when it cannot, the text the item already has.
  */
-function Explain({ item, onClose }: { item: Item; onClose: () => void }) {
+function ExplainText({ item }: { item: Item }) {
   const lang = navigator.language || 'en';
   const [text, setText] = useState<string | null>(null);
   const [done, setDone] = useState(false);
-  useEffect(() => { getExplain(item.id, lang).then((r) => { setText(r?.text || null); setDone(true); }); }, [item.id, lang]);
+  useEffect(() => { setDone(false); getExplain(item.id, lang).then((r) => { setText(r?.text || null); setDone(true); }); }, [item.id, lang]);
   const fallback = ownCaption(item) || item.description || item.summary || itemTitle(item);
-  return (
-    <div class="iask" role="region" aria-label="What is happening" aria-busy={!done} lang={text ? lang : undefined}>
-      <button class="icon-btn iask-close" onClick={onClose} aria-label="Close the explanation"><Icon name="close" /></button>
-      <p>{text || fallback}</p>
-      {!done && <span class="spinner small" aria-hidden="true" />}
-    </div>
-  );
+  return <p class="iask-text" aria-busy={!done} lang={text ? lang : undefined}>{text || fallback}{!done && <span class="spinner small" aria-hidden="true" />}</p>;
 }

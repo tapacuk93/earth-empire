@@ -814,3 +814,9 @@ input.label-edit { border: 0; outline: 2px solid #fff; pointer-events: auto !imp
 /* The fullscreen gold label, centred under the picture */
 .igold { left: 50%; right: auto; translate: -50% 0; text-align: center; }
 input.igold.label-edit { width: min(90%, 32em); }
+/* Cards: the label at the bottom centre (as in fullscreen), the date at the top left */
+.vt .vt-audio { top: auto; bottom: 8px; left: 50%; right: auto; translate: -50% 0; max-width: calc(100% - 16px); text-align: center; }
+.vt-xl .vt-audio { bottom: 12px; }
+.vt input.vt-audio.label-edit { width: calc(100% - 16px); }
+.vt-cap { top: 0; bottom: auto; padding: 6px 8px 18px; background: linear-gradient(rgb(0 0 0 / .55), transparent); }
+.vt-xl .vt-cap { padding: 10px 14px 24px; }

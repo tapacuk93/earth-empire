@@ -5,7 +5,7 @@ import { getAllItems, getItems } from './api';
 import { API_BASE, MOCK } from './config';
 import type { Item } from './types';
 
-export interface LayoutTile { id: string; kind: 'item' | 'hit'; x: number; y: number; size: number; label?: string; taken_at?: string; attached_to?: string | null }
+export interface LayoutTile { id: string; kind: 'item' | 'hit'; x: number; y: number; size: number; level?: number; importance?: number | null; label?: string; taken_at?: string; attached_to?: string | null }
 export interface Layout { top: LayoutTile[]; bottom: LayoutTile[]; tiles?: LayoutTile[]; exponent: number }
 export interface Related { id: string; kind: 'item' | 'hit'; half?: string; score?: number; rank?: number; item?: Item }
 export interface GraphNode { tag: string; kinds?: string[]; count: number; level: number; facet?: string; facet_name?: string; category?: string }

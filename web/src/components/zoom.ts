@@ -146,3 +146,6 @@ export const savedViews = new Map<string, View>();
 let modesTop = 0;
 export const saveModesTop = (y: number) => { modesTop = y; };
 export const modesTopSaved = () => modesTop;
+let homeY = 0;
+export const saveHomeY = (y: number) => { homeY = y; };
+export const homeYSaved = () => homeY;

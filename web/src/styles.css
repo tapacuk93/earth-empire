@@ -578,10 +578,10 @@ progress { accent-color: var(--accent); height: 8px; }
 @media (max-width: 420px) { .site-nav { gap: 0; } .site-nav a { padding: 4px 7px; font-size: .82rem; } }
 .wover .btn.ghost { color: #fff; border-color: rgb(255 255 255 / .5); background: transparent; }
 
-/* ===== Home: three stacked, full-screen modes ===== */
-.modes { height: calc(100svh - 57px - env(safe-area-inset-top)); overflow-y: auto; scroll-snap-type: y mandatory; margin: 0 calc(-1 * var(--gutter)); scrollbar-width: none; }
+/* ===== Home: three full-screen modes side by side - videos, then timeline, then tags ===== */
+.modes { display: flex; height: calc(100svh - 57px - env(safe-area-inset-top)); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; margin: 0 calc(-1 * var(--gutter)); scrollbar-width: none; }
 .modes::-webkit-scrollbar { display: none; }
-.mode { height: 100%; scroll-snap-align: start; scroll-snap-stop: always; display: flex; flex-direction: column; gap: 8px; padding: 8px var(--gutter); box-sizing: border-box; overflow: hidden; }
+.mode { flex: 0 0 100%; width: 100%; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; display: flex; flex-direction: column; gap: 8px; padding: 8px var(--gutter); box-sizing: border-box; overflow: hidden; }
 .mode > .mosaic { flex: 1; min-height: 0; }
 .hero.compact { padding: 4px 0 0; }
 .hero.compact h1 { font-size: clamp(1.2rem, 3.4vw, 1.8rem); margin: 0 0 2px; }
@@ -603,10 +603,12 @@ progress { accent-color: var(--accent); height: 8px; }
 .mosaic-list li { margin: 0; }
 .mosaic-list a { display: block; padding: 8px 12px; border-radius: 10px; background: var(--surface); color: var(--text); box-shadow: var(--shadow); text-decoration: none; pointer-events: auto; }
 .mosaic-list a:not(:focus) { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.mode-dots { position: fixed; z-index: 15; right: max(6px, env(safe-area-inset-right)); top: 50%; translate: 0 -50%; display: grid; gap: 4px; }
+.mode-dots { position: fixed; z-index: 15; left: 50%; bottom: max(8px, env(safe-area-inset-bottom)); translate: -50% 0; display: flex; gap: 2px; padding: 0 6px; border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 72%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 .mode-dots button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; background: transparent; cursor: pointer; }
 .mode-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); opacity: .5; transition: height .2s; }
-.mode-dots button[aria-current="true"] span { opacity: 1; background: var(--text); height: 20px; border-radius: 4px; }
+.mode-dots span { transition: width .2s; }
+.mode-dots button[aria-current="true"] span { opacity: 1; background: var(--text); width: 20px; border-radius: 4px; }
 main:has(.modes) { padding-bottom: 0; }
 .pb-btn { position: relative; }
 .hero.compact .eyebrow { display: block; }
@@ -618,16 +620,13 @@ main:has(.modes) { padding-bottom: 0; }
 .home-main .modes { height: 100vh; height: 100dvh; margin: 0; }
 .home-main .mode { padding: 0; gap: 0; height: 100vh; height: 100dvh; }
 .home-main .mosaic { border: 0; border-radius: 0; background: var(--bg); }
-.home-main .mode-mosaic .mosaic + .mosaic { border-top: 1px solid var(--line); }
 .mosaic-label { position: absolute; z-index: 2; left: max(10px, env(safe-area-inset-left)); bottom: 10px; margin: 0; padding: 4px 10px; border-radius: 999px;
   background: color-mix(in srgb, var(--bg) 78%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); font-size: .8rem; font-weight: 700; pointer-events: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mosaic-label span { font-weight: 500; color: var(--muted); margin-left: 4px; }
-.mode-mosaic .mosaic:last-child .mosaic-label { bottom: max(10px, env(safe-area-inset-bottom)); }
-.zoom-ctl { position: absolute; z-index: 2; right: max(44px, calc(env(safe-area-inset-right) + 40px)); bottom: 8px; display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px;
+.zoom-ctl { position: absolute; z-index: 2; right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px;
   background: color-mix(in srgb, var(--bg) 78%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 .zoom-ctl .icon-btn { width: 34px; height: 34px; font-size: 1.1rem; font-weight: 700; }
 .zoom-ctl .zoom-level { font-size: .75rem; padding: 0 4px; color: var(--muted); }
-.mode-mosaic .mosaic:last-child .zoom-ctl { bottom: max(8px, env(safe-area-inset-bottom)); }
 .home-pill { position: fixed; z-index: 16; left: max(10px, env(safe-area-inset-left)); top: max(10px, env(safe-area-inset-top)); max-width: calc(100% - 140px);
   padding: 6px 12px 7px; border-radius: 14px; background: color-mix(in srgb, var(--bg) 72%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); box-shadow: 0 1px 8px rgb(0 0 0 / .12); }
 .home-pill h1 { display: flex; align-items: center; gap: 6px; margin: 0; font-size: .9rem; }
@@ -637,7 +636,6 @@ main:has(.modes) { padding-bottom: 0; }
   background: color-mix(in srgb, var(--bg) 72%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 .float-tools .site-nav a { min-height: 34px; padding: 2px 8px; font-size: .78rem; }
 @media (max-width: 520px) { .float-tools .site-nav { display: none; } .float-tools:has(.site-nav) .theme + .owner-menu { display: inline-flex; } }
-.home-main .mode-dots { right: max(4px, env(safe-area-inset-right)); }
 .home-main .mosaic-canvas { background: var(--bg); }
 .home-main .tag-graph .mosaic-label, .home-main .timeline-mode .mosaic-label { bottom: auto; top: max(76px, calc(env(safe-area-inset-top) + 70px)); }
 
@@ -696,11 +694,6 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .importance textarea, .importance input { width: 100%; min-height: 40px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 16px; }
 .history li { padding: 8px 0; border-top: 1px solid var(--line); } .history blockquote { margin: 4px 0 0; white-space: pre-wrap; font-size: .9rem; }
 .history .not-applied { opacity: .7; }
-/* Phones: the top half moves out from under the name pill while the pill shows */
-@media (max-width: 600px) {
-  .home-main .mode-mosaic { padding-top: calc(env(safe-area-inset-top) + 62px); transition: padding-top .35s ease; }
-  .ui-idle .home-main .mode-mosaic { padding-top: 0; }
-}
 
 /* Playback: whole picture over a blurred copy; fills only when its shape is close to the screen's */
 .imedia-slide { position: relative; overflow: hidden; }
@@ -724,5 +717,38 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 /* Faded, the Earth icon still takes taps (never falling through to a tile) and counts them */
 .ui-idle .home-pill, .ui-idle .float-home { pointer-events: auto; }
 .earth-btn, .home-pill { -webkit-user-select: none; user-select: none; }
-/* The mosaic pans with one finger (it can be taller than the screen); pulling past its end moves to the next mode */
-.mode-mosaic .mosaic-canvas { touch-action: none; }
+/* In the side-by-side modes a sideways swipe turns the screen; one finger up and down pans a canvas, two pinch */
+.modes .mosaic-canvas { touch-action: pan-x; }
+
+/* ===== Home's main screen: sections of videos ===== */
+.home-main .mode-videos { display: block; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain;
+  padding: calc(max(10px, env(safe-area-inset-top)) + 64px) max(12px, env(safe-area-inset-right)) calc(max(8px, env(safe-area-inset-bottom)) + 56px) max(12px, env(safe-area-inset-left)); }
+.vsections { max-width: 2200px; margin: 0 auto; }
+.vsection { margin: 0 0 28px; }
+.vs-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin: 0 2px 10px; }
+.vs-head h2 { margin: 0; font-size: clamp(1.15rem, 1rem + .8vw, 1.6rem); letter-spacing: -.01em; }
+.vs-l1 .vs-head h2 { font-size: clamp(1.35rem, 1.1rem + 1.2vw, 2rem); }
+.vs-sub { margin: 0; font-size: .85rem; color: var(--muted); }
+.vs-grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); grid-auto-rows: var(--row); grid-auto-flow: row dense; gap: var(--gap); margin: 0; padding: 0; list-style: none; }
+.vt { position: relative; min-width: 0; border-radius: 10px; overflow: hidden; background: var(--surface-2); }
+.vt-xl { grid-column: span 2; grid-row: span 2; border-radius: 14px; }
+.vt-wide { grid-column: span 2; }
+.vt a { position: absolute; inset: 0; display: block; color: #fff; text-decoration: none; }
+.vt img, .vt video, .vt-blank { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.vt video { opacity: 0; transition: opacity .25s ease; } .vt video.on { opacity: 1; }
+.vt a:hover img { filter: brightness(1.06); }
+.vt a:focus-visible { outline-offset: -3px; }
+.vt-cap { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 1px; padding: 28px 10px 8px; background: linear-gradient(transparent, rgb(0 0 0 / .78)); font-size: .8rem; line-height: 1.3; pointer-events: none; }
+.vt-cap time { font-weight: 700; font-size: .74rem; opacity: .9; }
+.vt-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.vt-label { align-self: flex-start; max-width: 100%; margin-bottom: 4px; padding: 2px 8px; border-radius: 999px; background: rgb(0 0 0 / .45); font-size: .72rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vt-xl .vt-cap { padding: 60px 16px 14px; font-size: clamp(.95rem, .85rem + .3vw, 1.15rem); }
+.vt-xl .vt-cap time { font-size: .85rem; }
+.vt-xl .vt-text { -webkit-line-clamp: 3; }
+.vt-wide .vt-cap { font-size: .9rem; }
+.vs-l3 .vt-cap, .vs-l4 .vt-cap { padding: 20px 7px 6px; font-size: .74rem; }
+.vs-l3 .vt-text, .vs-l4 .vt-text { -webkit-line-clamp: 1; }
+.vt-badge { position: absolute; top: 6px; right: 6px; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: #e9a35a; color: #111; font-size: .72rem; font-weight: 800; text-align: center; }
+.vs-more { display: block; margin: 10px auto 0; }
+/* Narrow screens: the open zoom control sits above the mode dots instead of under them */
+@media (max-width: 600px) { .home-main .zoom-ctl { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 40px); } }

@@ -2,16 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { getAllItems } from '../api';
 import { Icon } from '../components/icons';
 import { hitSlide } from '../components/MonitorCard';
-import { MosaicView } from '../components/MosaicView';
 import { useCategories, useData, useHighlights, useProfile } from '../components/Profile';
 import { TagGraphView } from '../components/TagGraphView';
 import { TimelineView } from '../components/TimelineView';
 import { EarthButton } from '../components/Chrome';
-import { modesTopSaved, saveModesTop } from '../components/zoom';
+import { homeYSaved, modesTopSaved, saveHomeY, saveModesTop } from '../components/zoom';
+import { VideoSections } from '../components/VideoSections';
+import { buildSections, type VTile } from '../videoSections';
 import { VideoFeed } from '../components/VideoFeed';
 import { SITE_NAME } from '../config';
 import { itemHref } from '../context';
-import { attachMap, buildMosaic, buildTagGraph, graphFromApi, mosaicFromLayout, placeAttached, type Tile } from '../layout';
+import { buildTagGraph, graphFromApi } from '../layout';
 import { getFacets, getLayout, getTagGraph, tagItems, type Facet } from '../homeData';
 import { FacetsPanel } from '../components/FacetsPanel';
 import type { GNode } from '../layout';
@@ -22,7 +23,8 @@ import { hitSection, SECTION_TITLE, sectionHighlights, sectionItems, type Sectio
 import { months, people, places, tagsOf } from '../stats';
 import { fmtShort, prefersReducedMotion, setMeta } from '../util';
 
-const MODES: [string, string][] = [['mode-mosaic', 'Mosaic mode'], ['mode-tags', 'Tag graph mode'], ['mode-time', 'Timeline mode']];
+// Left to right: the videos, then the timeline, then the tags.
+const MODES: [string, string][] = [['mode-videos', 'Videos mode'], ['mode-time', 'Timeline mode'], ['mode-tags', 'Tag graph mode']];
 
 export function withParam(r: Route, name: string, value: string | undefined): string {
   const q = new URLSearchParams(r.query);
@@ -70,19 +72,14 @@ export function Home({ route }: { route: Route }) {
   const ready = !!all.data && !!highlights.data;
   const lay = useData(getLayout);
   const tg = useData(getTagGraph);
-  // One packed mosaic over the whole screen, every video in it; similarity decides the neighbours
-  // and size ^ display_exponent the area. The API's combined list when it has one, else both halves.
-  const mosaic = useMemo(() => {
-    if (!ready || lay.loading) return null;
-    const L = lay.data;
-    const all = L ? (L.tiles || [...L.top, ...L.bottom]) : undefined;
-    const attach = attachMap(items, all);
-    const byId = new Map(items.map((it) => [it.id, it]));
-    const hitById = new Map(hits.map((h) => [h.id, h]));
-    return placeAttached(all ? mosaicFromLayout(all, byId, hitById, L!.exponent) : buildMosaic(items, hl, hits), attach);
-  }, [ready, lay.loading, items, hl, hits]);
-  const graph = useMemo(() => (tg.loading || !ready ? null : tg.data ? graphFromApi(tg.data.nodes, tg.data.edges) : buildTagGraph(items, tagsOf(items))), [ready, tg.loading, items]);
+  // Only videos, in sections by level (the API's levels when it has them), most important first.
   const fc = useData(getFacets);
+  const sections = useMemo(() => {
+    if (!ready || lay.loading || fc.loading) return null;
+    const L = lay.data;
+    return buildSections(items, hl, hits, L ? L.tiles || [...L.top, ...L.bottom] : undefined, fc.data);
+  }, [ready, lay.loading, fc.loading, items, hl, hits]);
+  const graph = useMemo(() => (tg.loading || !ready ? null : tg.data ? graphFromApi(tg.data.nodes, tg.data.edges) : buildTagGraph(items, tagsOf(items))), [ready, tg.loading, items]);
   useEffect(() => { if (fc.data) setFacets(fc.data); }, [fc.data]);
   const openFacet = (facet: string, category: string) => {
     const ctx = `facet:${facet}:${category}`;
@@ -96,7 +93,7 @@ export function Home({ route }: { route: Route }) {
     if (list.length) navigate(itemHref(list[0].id, `tag:${tag}`));
   };
   const tagLabel = (n: { tag: string; kind: string }) => n.kind === 'category' ? categories.data?.find((c) => c.slug === n.tag)?.name || n.tag : n.kind === 'hashtag' ? '#' + n.tag : n.tag;
-  const hrefFor = (t: Tile) => (t.hit ? withParam(route, 'watch', t.id) : itemHref(t.id, `rel:all:${t.id}`));
+  const hrefFor = (t: VTile) => (t.hit ? withParam(route, 'watch', t.id) : itemHref(t.id, `rel:all:${t.id}`));
   const first = items[items.length - 1], last = items[0];
   const modes = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState(0);
@@ -105,46 +102,48 @@ export function Home({ route }: { route: Route }) {
   const restored = useRef(false);
   const onModesScroll = () => {
     const el = modes.current;
-    if (!el?.clientHeight) return;
-    const i = Math.round(el.scrollTop / el.clientHeight);
+    if (!el?.clientWidth) return;
+    const i = Math.round(el.scrollLeft / el.clientWidth);
     setMode(i);
     if (restored.current) saveModesTop(i);
   };
+  const videos = useRef<HTMLElement>(null);
   useEffect(() => {
-    if (!ready) return;
-    const want = modesTopSaved();
+    if (!sections) return;
+    const want = modesTopSaved(), y = homeYSaved();
     let n = 0;
     const go = () => {
-      const el = modes.current;
-      if (!el) return;
-      el.scrollTop = want * el.clientHeight;
+      const el = modes.current, v = videos.current;
+      if (!el || restored.current) return; // a mode picked meanwhile wins
+      el.scrollLeft = want * el.clientWidth;
+      if (v) v.scrollTop = y;
       onModesScroll();
-      if (Math.abs(el.scrollTop - want * el.clientHeight) > 2 && ++n < 60) setTimeout(go, 50); else restored.current = true;
+      const off = Math.abs(el.scrollLeft - want * el.clientWidth) > 2 || (v && Math.abs(v.scrollTop - y) > 2);
+      if (off && ++n < 60) setTimeout(go, 50); else restored.current = true;
     };
     go();
-  }, [ready]);
+  }, [!!sections]);
+  const showMode = (i: number) => { const el = modes.current; restored.current = true; if (el) el.scrollTo({ left: i * el.clientWidth, behavior: prefersReducedMotion() ? 'auto' : 'smooth' }); };
   const openHit = (id?: string) => navigate(withParam(route, 'watch', id), { replace: !!watch || !id, keepScroll: true });
 
   return (
     <>
       <div class="modes" ref={modes} onScroll={onModesScroll}>
-        <section class="mode mode-mosaic" id="mode-mosaic" aria-label="Mosaic mode">
-          {mosaic && !mosaic.tiles.length && (
+        <section class="mode mode-videos" id="mode-videos" aria-label="Videos mode" ref={videos}
+          onScroll={(e) => { if (restored.current) saveHomeY((e.currentTarget as HTMLElement).scrollTop); }}>
+          {sections && !sections.length && (
             <div class="empty-full"><p>Nothing is public yet.</p><p class="muted">Videos appear here as they arrive.</p></div>
           )}
-          {!mosaic ? <div class="skeleton-cloud" aria-hidden="true" /> : mosaic.tiles.length > 0 && (
-            <MosaicView id="m-all" title="Every video" mosaic={mosaic} hrefFor={hrefFor}
-              onEdge={(d) => { const el = modes.current; if (el && d > 0) el.scrollTo({ top: el.clientHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' }); }} />
-          )}
+          {!sections ? <div class="skeleton-cloud" aria-hidden="true" /> : sections.length > 0 && <VideoSections sections={sections} hrefFor={hrefFor} />}
+        </section>
+        <section class="mode" id="mode-time" aria-label="Timeline mode">
+          {all.data && <TimelineView items={items} hrefFor={(it) => itemHref(it.id)} />}
         </section>
         <section class="mode" id="mode-tags" aria-label="Tag graph mode">
           {graph && graph.nodes.length > 0 && (
             <TagGraphView nodes={graph.nodes} edges={graph.edges} labelFor={tagLabel} onOpen={openTag} />
           )}
           {fc.data && <FacetsPanel facets={fc.data} onOpen={(f: Facet, c) => openFacet(f.id, c.id)} />}
-        </section>
-        <section class="mode" id="mode-time" aria-label="Timeline mode">
-          {all.data && <TimelineView items={items} hrefFor={(it) => itemHref(it.id)} />}
         </section>
       </div>
       <header class="home-pill fui">
@@ -158,7 +157,7 @@ export function Home({ route }: { route: Route }) {
       <nav class="mode-dots fui" aria-label="Modes">
         {MODES.map(([mid, label], i) => (
           <button key={mid} aria-label={label} aria-current={mode === i ? 'true' : undefined} title={label}
-            onClick={() => { const el = modes.current; if (el) el.scrollTo({ top: i * el.clientHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth' }); void mid; }}>
+            onClick={() => showMode(i)}>
             <span aria-hidden="true" /></button>
         ))}
       </nav>

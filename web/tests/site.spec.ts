@@ -33,85 +33,79 @@ async function openFromList(page: Page, name: string | RegExp, n = 0) {
   await page.keyboard.press('Enter');
 }
 
-test('home: three full-screen modes - mosaic, tag graph, timeline - with a mode indicator', async ({ page }) => {
+test('home: three full-screen modes side by side - videos, timeline, tags - with a mode indicator', async ({ page }) => {
   const errors = watchErrors(page);
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Earth Empire');
-  for (const name of ['Mosaic mode', 'Tag graph mode', 'Timeline mode']) await expect(page.getByRole('region', { name, exact: true })).toHaveCount(1);
-  await expect(page.locator('canvas.mosaic-canvas')).toHaveCount(3); // one mosaic, the tag graph, the timeline
+  for (const name of ['Videos mode', 'Timeline mode', 'Tag graph mode']) await expect(page.getByRole('region', { name, exact: true })).toHaveCount(1);
+  await expect(page.locator('canvas.mosaic-canvas')).toHaveCount(2); // the timeline and the tag graph; the videos are a page
   // No profile, follower counts, kind labels or photo grid.
   await expect(page.getByText(/\d+\s+followers/)).toHaveCount(0);
   await expect(page.locator('.grid .tile, .profile, .hl-row')).toHaveCount(0);
   const dots = page.getByRole('navigation', { name: 'Modes' });
-  await expect(dots.getByRole('button', { name: 'Mosaic mode' })).toHaveAttribute('aria-current', 'true');
-  await dots.getByRole('button', { name: 'Tag graph mode' }).click();
-  await expect(dots.getByRole('button', { name: 'Tag graph mode' })).toHaveAttribute('aria-current', 'true');
+  expect(await dots.getByRole('button').evaluateAll((bs) => bs.map((b) => b.getAttribute('aria-label')))).toEqual(['Videos mode', 'Timeline mode', 'Tag graph mode']);
+  await expect(dots.getByRole('button', { name: 'Videos mode' })).toHaveAttribute('aria-current', 'true');
   await dots.getByRole('button', { name: 'Timeline mode' }).click();
   await expect(dots.getByRole('button', { name: 'Timeline mode' })).toHaveAttribute('aria-current', 'true');
-  await expect.poll(() => modes(page).evaluate((el) => Math.abs(el.scrollTop - 2 * el.clientHeight))).toBeLessThan(4);
+  await expect.poll(() => modes(page).evaluate((el) => Math.abs(el.scrollLeft - el.clientWidth))).toBeLessThan(4);
+  await dots.getByRole('button', { name: 'Tag graph mode' }).click();
+  await expect(dots.getByRole('button', { name: 'Tag graph mode' })).toHaveAttribute('aria-current', 'true');
+  await expect.poll(() => modes(page).evaluate((el) => Math.abs(el.scrollLeft - 2 * el.clientWidth))).toBeLessThan(4);
   await noHorizontalScroll(page);
   expect(errors).toEqual([]);
 });
 
-test('mosaic: one packed mosaic over the whole screen holds every video, detected ones too', async ({ page }) => {
+const videos = (page: Page) => page.getByRole('region', { name: 'Videos mode', exact: true });
+
+test('videos: only videos, in titled sections by level, most important first', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('.mode-mosaic .mosaic')).toHaveCount(1);
-  const box = (await page.locator('.mode-mosaic canvas').boundingBox())!;
-  const vp = page.viewportSize()!;
-  expect(box.width).toBeGreaterThan(vp.width - 2);
-  expect(box.height).toBeGreaterThan(vp.height * 0.9);
-  const links = list(page, 'Every video: videos').getByRole('link');
-  await expect(links.filter({ hasText: /^Travel, / })).not.toHaveCount(0);
-  await expect(list(page, 'Every video: videos').getByRole('link', { name: /^Detected, / }).first()).toHaveAttribute('href', /watch=h_mock/);
-  await expect(page.getByText(/Short highlights|Long highlights/)).toHaveCount(0);
+  const v = videos(page);
+  await expect(v.getByRole('heading', { level: 2 })).toHaveText(['Featured', 'Found by AI', 'Reposts']);
+  for (const sub of await v.locator('.vs-sub').allInnerTexts()) expect(sub.length).toBeGreaterThan(10);
+  // Every tile is a video: an item with a video, or a found clip.
+  const ids = await v.locator('.vt').evaluateAll((els) => els.map((e) => e.getAttribute('data-id')!));
+  const fixture = await (await page.request.get('/mock/fixture.json')).json() as { items: { id: string; media: { type: string }[]; repost_of?: { media?: { type: string }[] } }[] };
+  const isVideo = new Map(fixture.items.map((it) => [it.id, [...it.media, ...(it.repost_of?.media || [])].some((m) => m.type === 'video')]));
+  expect(ids.length).toBeGreaterThan(3);
+  for (const id of ids) expect(id.startsWith('h_') || isVideo.get(id), `${id} is a video`).toBe(true);
+  expect(ids).toContain(REEL);
+  // Found by AI opens the fullscreen player; the rest open the wheel.
+  await expect(v.getByRole('list', { name: /^Found by AI/ }).getByRole('link').first()).toHaveAttribute('href', /watch=h_mock/);
+  await expect(v.getByRole('list', { name: /^Featured/ }).getByRole('link').first()).toHaveAttribute('href', /ctx=rel%3Aall%3A/);
+  // Levels never go up within a section, and the first Featured video is the largest tile.
+  const levels = await v.locator('.vs-l1 .vt').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-level'))));
+  expect(levels).toEqual([...levels].sort((a, b) => a - b));
+  const areas = await v.locator('.vs-l1 .vt').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width * e.getBoundingClientRect().height));
+  expect(areas[0]).toBe(Math.max(...areas));
 });
 
-test('mosaic: packed edge to edge; zoom stays covered; floating controls', async ({ page, browserName }) => {
+test('videos: laid out for the screen - readable tiles and text, nothing sideways', async ({ page }) => {
   await page.goto('/');
-  const up = page.getByRole('region', { name: /^Every video: / });
-  const canvas = up.locator('canvas');
-  const vw = page.viewportSize()!;
-  const box = (await canvas.boundingBox())!;
-  expect(box.x).toBeLessThanOrEqual(1);
-  expect(Math.abs(box.width - vw.width)).toBeLessThanOrEqual(1);
-  // No free background: sample the canvas and expect almost every pixel to be tile, not page colour.
-  const free = await canvas.evaluate((c: HTMLCanvasElement) => {
-    const ctx = c.getContext('2d')!;
-    const bg = getComputedStyle(c).getPropertyValue('--bg').trim();
-    const probe = document.createElement('canvas').getContext('2d')!;
-    probe.fillStyle = bg; probe.fillRect(0, 0, 1, 1);
-    const [r, g, b] = probe.getImageData(0, 0, 1, 1).data;
-    const { width, height } = c;
-    const d = ctx.getImageData(0, 0, width, height).data;
-    let n = 0, m = 0;
-    for (let y = 2; y < height - 2; y += 7) for (let x = 2; x < width - 2; x += 7) { const i = (y * width + x) * 4; m++; if (Math.abs(d[i] - r) + Math.abs(d[i + 1] - g) + Math.abs(d[i + 2] - b) < 6) n++; }
-    return n / m;
-  });
-  expect(free).toBeLessThan(0.08);
-  await up.getByRole('button', { name: /^Zoom controls/ }).click();
-  await expect(up.locator('.zoom-level')).toHaveText('1.0×');
-  await up.getByRole('button', { name: /^Zoom out/ }).click();
-  await expect(up.locator('.zoom-level')).toHaveText('1.0×'); // never smaller than the screen
-  await up.getByRole('button', { name: /^Zoom in/ }).click();
-  await expect(up.locator('.zoom-level')).toHaveText('1.6×');
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  if (browserName === 'chromium') { // WebKit's driver does not pass Ctrl with the wheel
-    await page.keyboard.down('Control');
-    await page.mouse.wheel(0, -200);
-    await page.keyboard.up('Control');
-    await expect(up.locator('.zoom-level')).not.toHaveText('1.6×');
+  const v = videos(page);
+  await expect(v.locator('.vt').first()).toBeVisible();
+  const vp = page.viewportSize()!;
+  const boxes = await v.locator('.vt').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [r.left, r.right, r.width, r.height]; }));
+  for (const [l, r, w, h] of boxes) {
+    expect(Math.min(w, h)).toBeGreaterThanOrEqual(100);
+    expect(l).toBeGreaterThanOrEqual(0);
+    expect(r).toBeLessThanOrEqual(vp.width + 1);
+    expect(h).toBeLessThanOrEqual(vp.height * 0.8); // a large tile still fits on screen
   }
-  await up.getByRole('button', { name: /^Show all/ }).click();
-  await expect(up.locator('.zoom-level')).toHaveText('1.0×');
+  const fonts = await v.locator('.vt-text, .vt-cap time').evaluateAll((els) => els.map((e) => parseFloat(getComputedStyle(e).fontSize)));
+  expect(Math.min(...fonts)).toBeGreaterThanOrEqual(11.5);
+  expect(await v.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(1);
+  // Scrolling the videos down keeps the screen on Videos.
+  await v.evaluate((e) => e.scrollTo(0, e.scrollHeight));
+  await expect(page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Videos mode' })).toHaveAttribute('aria-current', 'true');
   await noHorizontalScroll(page);
 });
 
 test('no word "feed" anywhere, and tiles outside highlights carry no label', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('body')).not.toContainText(/\bfeed\b/i);
-  const names = await page.locator('.mosaic-list a').allInnerTexts();
-  expect(names.join('\n')).not.toMatch(/\bfeed\b/i);
-  expect(names.some((n) => /^\w{3} \d{1,2}, \d{4}: /.test(n))).toBe(true); // a tile with only its date
+  await expect(videos(page).locator('.vt').first()).toBeVisible();
+  expect((await videos(page).locator('.vt a').allInnerTexts()).join('\n')).not.toMatch(/\bfeed\b/i);
+  await expect(videos(page).locator('.vs-l1 .vt-m .vt-label')).toHaveCount(0); // small tiles carry no label
 });
 
 test('floating controls fade after a few seconds and come back on input', async ({ page }) => {
@@ -125,15 +119,16 @@ test('floating controls fade after a few seconds and come back on input', async 
   await expect(page.locator('.home-pill .earth-btn')).toBeAttached();
 });
 
-test('mosaic: opening a video starts the wheel through that half, most related first', async ({ page }) => {
+test('videos: opening a video starts the wheel, most related first; Close returns to the same spot', async ({ page }) => {
   await page.goto('/');
-  await openFromList(page, 'Every video: videos');
+  await openFromList(page, /^Featured: /);
   const f = feed(page);
   await expect(f).toBeVisible();
   await expect(page).toHaveURL(/\/item\/.+\?ctx=rel%3Aall%3A/);
   await expect(f).toHaveAccessibleName(/^Related: item 1 of \d+$/);
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(f).toHaveCount(0);
+  await expect(videos(page).locator('.vt').first()).toBeVisible();
 });
 
 test('tag graph: a tag opens the wheel for that tag', async ({ page }) => {
@@ -149,7 +144,7 @@ test('timeline: newest first; a video opens the wheel in time order from there; 
   await page.goto('/');
   await page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Timeline mode' }).click();
   await expect(page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Timeline mode' })).toHaveAttribute('aria-current', 'true');
-  await expect.poll(() => page.locator('.modes').evaluate((el) => Math.abs(el.scrollTop - 2 * el.clientHeight))).toBeLessThan(3);
+  await expect.poll(() => page.locator('.modes').evaluate((el) => Math.abs(el.scrollLeft - el.clientWidth))).toBeLessThan(3);
   const links = list(page, 'Every video, newest first').getByRole('link');
   await expect(links).toHaveCount(28);
   await expect(links.first()).toHaveText(/^Oct 2[34], 2026: A sunset run/);
@@ -529,20 +524,17 @@ test('facets: whatever the backend defines, each category opens its wheel', asyn
   await expect(page).toHaveURL(/ctx=facet%3Atopic%3Afood/);
 });
 
-test('home stays tappable: open a tile, close the wheel, open another - several times', async ({ page, isMobile, hasTouch }) => {
+test('home stays tappable: open a tile, close the wheel, open another - several times', async ({ page, hasTouch }) => {
   await page.goto('/');
   for (let i = 0; i < 5; i++) {
-    const mc = page.locator('.mode-mosaic canvas').first();
-    await expect(mc).toHaveAttribute('data-cells', /\[\[/);
-    const c = (await mc.boundingBox())!;
-    const x = c.x + c.width * (0.15 + 0.17 * i), y = c.y + c.height * (0.3 + 0.1 * (i % 3));
-    if (hasTouch) await page.touchscreen.tap(x, y); else await page.mouse.click(x, y);
+    const tile = videos(page).locator('.vt').nth(i);
+    await tile.scrollIntoViewIfNeeded();
+    const c = (await tile.boundingBox())!;
+    if (hasTouch) await page.touchscreen.tap(c.x + c.width / 2, c.y + c.height / 2); else await page.mouse.click(c.x + c.width / 2, c.y + c.height / 2);
     await expect(page).toHaveURL(/\/item\/|watch=/);
-    const close = page.getByRole('button', { name: 'Close' });
-    await close.click();
+    await page.getByRole('button', { name: 'Close' }).click();
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.locator('canvas.mosaic-canvas').first()).toBeVisible();
-    void isMobile;
+    await expect(videos(page).locator('.vt').first()).toBeAttached();
   }
 });
 
@@ -609,46 +601,23 @@ test('timeline: tiles recognisable at the first view', async ({ page }) => {
   expect(tile).toBeGreaterThanOrEqual(Math.min(vw * 0.3, 108));
 });
 
-test('mosaic: a hovered tile previews without flicker', async ({ page, hasTouch }) => {
+test('videos: a hovered tile previews without flicker', async ({ page, hasTouch }) => {
   test.skip(hasTouch, 'hover is for mice');
   await page.goto('/');
-  const canvas = page.locator('.mode-mosaic canvas').first();
-  await expect(canvas).toHaveAttribute('data-cells', /\[\[/);
-  const c = (await canvas.boundingBox())!;
-  const cells: number[][] = JSON.parse((await canvas.getAttribute('data-cells'))!);
-  const v = cells.filter((x) => x[7] === 1).sort((a, b) => b[1] - a[1])[0];
-  await page.mouse.move(c.x + v[3] + v[5] / 2, c.y + v[4] + v[6] / 2);
-  await page.mouse.move(c.x + v[3] + v[5] / 2 + 4, c.y + v[4] + v[6] / 2 + 3);
-  await page.waitForTimeout(400);
+  const tile = videos(page).locator('.vt').first();
+  const c = (await tile.boundingBox())!;
+  await page.mouse.move(c.x + c.width / 2, c.y + c.height / 2);
+  await page.mouse.move(c.x + c.width / 2 + 4, c.y + c.height / 2 + 3);
+  await expect(tile.locator('video')).toHaveCount(1);
   // While the pointer stays on the tile, the preview never goes away and comes back.
-  const states = await page.evaluate(() => new Promise<string[]>((res) => {
-    const v = document.querySelector<HTMLVideoElement>('.mosaic-video')!;
-    const out: string[] = [];
-    let n = 0;
-    const tick = () => { out.push(`${v.style.display}|${v.dataset.src || ''}`); if (++n < 40) requestAnimationFrame(tick); else res(out); };
+  const states = await tile.evaluate((t) => new Promise<number[]>((res) => {
+    const out: number[] = [];
+    const tick = () => { out.push(t.querySelectorAll('video').length); if (out.length < 40) requestAnimationFrame(tick); else res(out); };
     tick();
   }));
-  expect(new Set(states).size, states.join(', ')).toBe(1);
-  expect(states[0].startsWith('none')).toBe(false);
-  // The overlay never takes the pointer away from the canvas.
-  expect(await page.locator('.mode-mosaic .mosaic-video').first().evaluate((v) => getComputedStyle(v).pointerEvents)).toBe('none');
-});
-
-test('mosaic: tile area follows size^exponent', async ({ page }) => {
-  await page.goto('/');
-  const halves = page.locator('.mode-mosaic .mosaic');
-  await expect(halves.first().locator('canvas')).toHaveAttribute('data-cells', /\[/);
-  const data = await halves.evaluateAll((els) => els.map((e) => ({ clamped: e.getAttribute('data-clamped') === '1' || e.querySelector('canvas')!.getAttribute('data-alpha') !== '1', exact: e.querySelector('canvas')!.getAttribute('data-alpha') === '1', cells: JSON.parse(e.querySelector('canvas')!.getAttribute('data-cells') || '[]') as [string, number, number][] })));
-  const ratios = (cells: [string, number, number][]) => cells.filter((x) => x[2] > 0 && x[1] > 400 && !(x as unknown as number[])[8]).map((x) => x[1] / x[2]);
-  for (const h of data) {
-    const r = ratios(h.cells);
-    // Area follows size^display_exponent (weight) wherever the half could keep areas exact.
-    if (h.exact && r.length > 1) expect(Math.max(...r) / Math.min(...r)).toBeLessThan(1.2);
-  }
-  if (data.length === 2 && !data.some((h) => h.clamped) && data.every((h) => ratios(h.cells).length)) {
-    const [a, b] = data.map((h) => ratios(h.cells)).map((r) => r.reduce((s, x) => s + x, 0) / r.length);
-    expect(Math.max(a, b) / Math.min(a, b)).toBeLessThan(1.2);
-  }
+  expect(new Set(states)).toEqual(new Set([1]));
+  await page.mouse.move(2, c.y + c.height + 400 > page.viewportSize()!.height ? 2 : c.y + c.height + 40);
+  await expect(tile.locator('video')).toHaveCount(0);
 });
 
 test('settings: importance - formula, w, age, placement weights and a versioned rubric', async ({ page }) => {
@@ -696,38 +665,4 @@ test('the Earth gesture with real mouse clicks, also while the controls are fade
   await page.mouse.click(x, y, { clickCount: 3 });
   await expect(page.getByRole('dialog', { name: 'Admin key' })).toBeVisible();
   expect(await page.evaluate(() => String(getSelection()))).toBe('');
-});
-
-test('mosaic: no slivers - every tile at most 1:2.5 and at least 48 px a side', async ({ page }) => {
-  await page.goto('/');
-  const halves = page.locator('.mode-mosaic .mosaic canvas');
-  await expect(halves.first()).toHaveAttribute('data-cells', /\[\[/);
-  const all = await halves.evaluateAll((cs) => cs.flatMap((c) => JSON.parse(c.getAttribute('data-cells') || '[]') as number[][]));
-  expect(all.length).toBeGreaterThan(0);
-  for (const c of all) {
-    const [w, h] = [c[5], c[6]];
-    expect(Math.min(w, h), `tile ${c[0]} too small`).toBeGreaterThanOrEqual(46);
-    expect(Math.max(w, h) / Math.min(w, h), `tile ${c[0]} too thin`).toBeLessThanOrEqual(2.6);
-  }
-});
-
-test('mosaic: "+N" holds only the tiniest few; dragging past the end goes on to the next mode', async ({ page }) => {
-  await page.goto('/');
-  const canvas = page.locator('.mode-mosaic canvas');
-  await expect(canvas).toHaveAttribute('data-cells', /\[\[/);
-  const cells: number[][] = JSON.parse((await canvas.getAttribute('data-cells'))!);
-  const folded = cells.reduce((s, c) => s + (c[8] || 0), 0);
-  expect(folded, 'videos folded into "+N"').toBeLessThanOrEqual(8);
-  const [, worldH] = ((await canvas.getAttribute('data-world')) || '0x0').split('x').map(Number);
-  const box = (await canvas.boundingBox())!;
-  expect(worldH).toBeGreaterThanOrEqual(Math.round(box.height) - 1);
-  // Drag up through the whole mosaic and a bit further.
-  const x = box.x + box.width / 2;
-  for (let i = 0; i < Math.ceil(worldH / (box.height * 0.6)) + 1; i++) {
-    await page.mouse.move(x, box.y + box.height * 0.8);
-    await page.mouse.down();
-    await page.mouse.move(x, box.y + box.height * 0.15, { steps: 6 });
-    await page.mouse.up();
-  }
-  await expect(page.getByRole('navigation', { name: 'Modes' }).getByRole('button', { name: 'Tag graph mode' })).toHaveAttribute('aria-current', 'true');
 });

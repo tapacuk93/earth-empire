@@ -31,15 +31,17 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(store.to_key("items/a/0.jpg"), "key:items/a/0.jpg")
         self.assertEqual(store.to_url("key:items/a/0.jpg"), f"{store.config.MEDIA_BASE_URL}/items/a/0.jpg")
 
-    def test_ingest_creates_pipeline_and_hides_until_analyzed(self):
+    def test_ingest_mirrors_the_accounts_own_at_once_and_reposts_after_analysis(self):
         counts = store.upsert_items(self.c, FIXTURES["items"])
         self.assertEqual(counts["inserted"], len(FIXTURES["items"]))
         st = store.pipeline_status(self.c)
         self.assertEqual(st["steps"]["analyze"]["pending"], len(FIXTURES["items"]))
-        self.assertEqual(self.c.execute("SELECT COUNT(*) n FROM items WHERE published_at IS NOT NULL").fetchone()["n"], 0)
-        # oldest first
+        public = {r["id"] for r in self.c.execute("SELECT id FROM items WHERE published_at IS NOT NULL")}
+        own = {i["id"] for i in FIXTURES["items"] if not i.get("repost_of")}
+        self.assertEqual(public, own)   # mirroring is never missed: the account's own before any analysis
+        # the account's own first, oldest first; reposts after
         first = store.claim_next(self.c, "analyze")
-        oldest = min(FIXTURES["items"], key=lambda i: i["taken_at"])["id"]
+        oldest = min((i for i in FIXTURES["items"] if not i.get("repost_of")), key=lambda i: i["taken_at"])["id"]
         self.assertEqual(first, oldest)
 
     def test_repeat_keeps_analysis_unless_content_changes(self):
@@ -195,7 +197,8 @@ class StatusTest(unittest.TestCase):
         for need in ("api", "db", "workers", "analyzer", "collector", "monitor", "x_poster", "facebook_poster",
                      "disk", "queues"):
             self.assertIn(need, ids)
-        self.assertTrue(all(e["item"] is None for e in st["activity"]["events"]))
+        public = {r["id"] for r in c.execute("SELECT id FROM items WHERE published_at IS NOT NULL")}
+        self.assertTrue(all(e["item"] is None or e["item"] in public for e in st["activity"]["events"]))
         self.assertNotIn("abc123456", json.dumps(st))
         c.close()
         tmp.cleanup()

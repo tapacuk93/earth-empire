@@ -82,6 +82,14 @@ def ai_ok(lane: str = "ai"):
 
 
 
+def in_reserve(c) -> bool:
+    """The day's spend reached budget - ai.own_reserve_usd: from here only the analysis of the account's
+    own posts and stories (mirroring) may spend; every other job waits for tomorrow."""
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    spent = c.execute("SELECT COALESCE(SUM(usd), 0) s FROM costs WHERE at >= ? AND ok=1", (day,)).fetchone()["s"]
+    return spent >= float(setting(c, "ai.daily_budget_usd") or 30) - float(setting(c, "ai.own_reserve_usd") or 0)
+
+
 def analyze_once(c) -> bool:
     if setting(c, "analysis.enabled") != "1":
         return False
@@ -89,10 +97,7 @@ def analyze_once(c) -> bool:
     if analysis.analyses_today(c) >= cap:
         return False
     # The last `ai.own_reserve_usd` of the day's budget is kept for the owner's own posts and stories.
-    day = time.strftime("%Y-%m-%d", time.gmtime())
-    spent = c.execute("SELECT COALESCE(SUM(usd), 0) s FROM costs WHERE at >= ? AND ok=1", (day,)).fetchone()["s"]
-    reserve_from = float(setting(c, "ai.daily_budget_usd") or 30) - float(setting(c, "ai.own_reserve_usd") or 0)
-    item_id = store.claim_next(c, "analyze", own_only=spent >= reserve_from)
+    item_id = store.claim_next(c, "analyze", own_only=in_reserve(c))
     if not item_id:
         return False
     store.job_start(c, "analyze", "analyzer", "analyzing an item", item_id, "starting")
@@ -138,6 +143,8 @@ def home_once(c) -> bool:
 
 def facets_once(c) -> bool:
     from . import facets
+    if in_reserve(c):
+        return False
     ok, why = facets.due(c)
     if not ok:
         return False
@@ -162,7 +169,7 @@ def facets_once(c) -> bool:
 
 def rubric_once(c) -> bool:
     """Once a day: Claude reviews the importance rubric and may refine it (a new version re-scores)."""
-    if setting(c, "importance.rubric_review") != "1" or setting(c, "analysis.enabled") != "1":
+    if setting(c, "importance.rubric_review") != "1" or setting(c, "analysis.enabled") != "1" or in_reserve(c):
         return False
     day = utcnow()[:10]
     if (setting(c, "importance.rubric_reviewed") or "") >= day:
@@ -201,6 +208,8 @@ def importance_once(c) -> bool:
 
 def _importance_one(c) -> bool:
     from . import importance
+    if in_reserve(c):
+        return False
     day = utcnow()[:10]
     done = c.execute("SELECT COUNT(*) n FROM costs WHERE purpose='importance' AND at >= ?", (day,)).fetchone()["n"]
     if done >= int(setting(c, "importance.rescore_daily_cap") or 300):
@@ -237,7 +246,7 @@ _heard_failures: dict[str, int] = {}
 def heard_once(c) -> bool:
     """The phrase spoken in each video (ee.heard), from cached transcripts only: alongside analysis
     (every job runs in parallel), several items per call, within heard.daily_cap calls a day and the AI budget."""
-    if setting(c, "analysis.enabled") != "1" or setting(c, "heard.enabled") != "1":
+    if setting(c, "analysis.enabled") != "1" or setting(c, "heard.enabled") != "1" or in_reserve(c):
         return False
     from . import heard
     day = utcnow()[:10]

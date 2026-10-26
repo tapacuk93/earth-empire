@@ -220,16 +220,19 @@ def main(argv=None):
         for r in c.execute("SELECT id, title, heard_label, heard_reason FROM highlights ORDER BY position"):
             print(f"{r['id']}  {r['title']!r} -> {r['heard_label']!r}  ({r['heard_reason'] or ''})")
     elif a.cmd == "unpublish-rule":
-        n = 0
-        for r in c.execute("SELECT id, published_at FROM items WHERE analysis IS NOT NULL").fetchall():
+        # The publish rule on every item: the account's own public at once, reposts once analyzed.
+        n = p = 0
+        for r in c.execute("SELECT id, published_at FROM items").fetchall():
             with db.tx(c):
                 public, why = store.gate(c, r["id"])
             if r["published_at"] and not public:
                 print("unpublished", r["id"], "-", why)
                 n += 1
-        if n:
-            db.set_setting(c, "site.force", db.now())   # the worker rebuilds the site without them
-        print(f"{n} unpublished; public now:",
+            elif public and not r["published_at"]:
+                p += 1
+        if n or p:
+            db.set_setting(c, "site.force", db.now())   # the worker rebuilds the site
+        print(f"{p} published, {n} unpublished; public now:",
               c.execute("SELECT COUNT(*) FROM items WHERE published_at IS NOT NULL").fetchone()[0])
     elif a.cmd == "delete":
         ids = list(a.ids)

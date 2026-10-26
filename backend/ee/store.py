@@ -85,20 +85,24 @@ def publishable(d: dict) -> tuple[bool, str | None]:
 
 
 def gate(c, item_id: str) -> tuple[bool, str]:
-    """Is this item from the owner's profile public? Every mirrored item of the account is, once analyzed, unless it
-    is an image-only repost. A monitor detection is context (shown and used as a start point), never
+    """Is this item from the owner's profile public? Mirroring the account is never missed: the account's
+    own posts and stories are public as soon as they arrive (analysis enriches them later); a repost is
+    once analyzed, unless it is an image-only repost. A monitor detection is context (shown and used as a start point), never
     a condition. Apply the answer: publish (site step posted, the posters may post) or unpublish
     (site skipped; X/Facebook skipped unless they already posted)."""
     row = c.execute("SELECT data, analysis, detection, published_at FROM items WHERE id=?", (item_id,)).fetchone()
     if not row:
         return False, "no such item"
-    ok, why = publishable(json.loads(row["data"]))
-    if not row["analysis"]:
-        public, why = False, "not analyzed yet"
-    elif not ok:
+    d = json.loads(row["data"])
+    ok, why = publishable(d)
+    if not ok:
         public = False
-    else:
+    elif row["analysis"]:
         public, why = True, "analyzed"
+    elif not d.get("repost_of"):
+        public, why = True, "the account's own: mirrored as it arrived, analysis follows"
+    else:
+        public, why = False, "not analyzed yet"
     ts = now()
     if public and not row["published_at"]:
         c.execute("UPDATE items SET published_at=? WHERE id=?", (ts, item_id))
@@ -197,6 +201,7 @@ def upsert_items(c: sqlite3.Connection, items: list[dict]) -> dict:
                 if isinstance(hl, dict) and hl.get("id"):
                     c.execute("INSERT OR IGNORE INTO item_highlights VALUES (?,?)", (item["id"], hl["id"]))
             index_item(c, item["id"])
+            gate(c, item["id"])   # the account's own items are public at once (mirroring is never missed)
     event("ingest.items", **counts)
     return counts
 
@@ -412,7 +417,7 @@ def claim_next(c, step: str, *, requires_analysis: bool = False, newest_first: b
     owner's own, then reposts (the backlog oldest first). Each call is a step boundary, so a newly
     arrived item goes next. `own_only` leaves reposts waiting."""
     ts = now()
-    need = ("AND i.published_at IS NOT NULL" if requires_analysis else "") + (f" AND NOT ({REPOST})" if own_only else "")
+    need = ("AND i.published_at IS NOT NULL AND i.analysis IS NOT NULL" if requires_analysis else "") + (f" AND NOT ({REPOST})" if own_only else "")
     with tx(c):
         row = c.execute(f"""SELECT s.item_id FROM steps s JOIN items i ON i.id = s.item_id
             WHERE s.step=? AND (s.state='pending' OR (s.state='failed' AND s.next_at IS NOT NULL AND s.next_at <= ?))

@@ -64,9 +64,10 @@ the transcript has no times).
 - If nothing in the speech matches a title, text is null. Never invent words that are not in the \
 transcript; automatic transcripts have errors, so a close mishearing of the title counts, a guess \
 does not.
-- Items in no highlight: give a phrase only when a clear short phrase about the owner or the \
-subject is spoken (a name, "це Тарас"), with highlight_id null; otherwise null. Songs, lyrics and \
-speech over music are not phrases.
+- Items in no highlight: the reference is the post's description (given as Description). Give the \
+words actually spoken that say what the description says - where in the video it sounds - as short \
+as a highlight name, with that media, start and end, and highlight_id null. Null when the \
+description is not spoken in the video. Songs, lyrics and speech over music are not phrases.
 Answer with the JSON the response format asks for, one entry per item number."""
 
 
@@ -98,6 +99,18 @@ def _speech_fallback(row) -> str:
     return (sp.get("transcript") or "").strip() if isinstance(sp, dict) else ""
 
 
+def description(row) -> str:
+    """The post's own description (web: describe): the caption's first line without hashtags or
+    mentions, else the first sentence of the item's description."""
+    d = json.loads(row["data"])
+    for line in (d.get("caption") or "").splitlines():
+        line = " ".join(re.sub(r"[#@][\w.]+", "", line).split())
+        if line:
+            return line
+    text = (row["description"] or row["summary"] or "").strip()
+    return re.split(r"(?<=[.!?])\s", text, maxsplit=1)[0] if text else ""
+
+
 def signature(c, row) -> str | None:
     """What the phrase is worked out from; None when the item has no speech to read."""
     d = json.loads(row["data"])
@@ -113,7 +126,8 @@ def signature(c, row) -> str | None:
     if not trs and not fb:
         return None
     hls = [[h["id"], h["title"]] for h in _highlights(c, row["id"])]
-    return hashlib.sha1(j([trs, fb, hls]).encode()).hexdigest()[:16]
+    desc = "" if hls else description(row)
+    return hashlib.sha1(j([trs, fb, hls] + ([desc] if desc else [])).encode()).hexdigest()[:16]
 
 
 def inputs(c, row) -> dict:
@@ -137,8 +151,9 @@ def inputs(c, row) -> dict:
     text = "\n".join(parts)
     if len(text) > MAX_TRANSCRIPT_CHARS:
         text = text[:MAX_TRANSCRIPT_CHARS] + " …"
-    return {"id": row["id"], "kind": row["kind"], "highlights": _highlights(c, row["id"]), "transcript": text,
-            "timed": timed}
+    hls = _highlights(c, row["id"])
+    return {"id": row["id"], "kind": row["kind"], "highlights": hls, "transcript": text, "timed": timed,
+            "description": "" if hls else description(row)}
 
 
 # ------------------------------------------------------------------ the queue
@@ -149,6 +164,8 @@ def pending(c, limit: int = 1000) -> list[str]:
     for r in c.execute("""SELECT i.*, (SELECT COUNT(*) FROM item_highlights ih WHERE ih.item_id=i.id) nh FROM items i
                           WHERE i.data LIKE '%"type":"video"%'
                           ORDER BY nh > 0 DESC, i.published_at IS NULL, i.priority DESC, i.taken_at DESC"""):
+        if owned(r):
+            continue
         sig = signature(c, r)
         if sig and sig != r["heard_sig"]:
             out.append(r["id"])
@@ -219,7 +236,8 @@ def run_batch(c, ids: list[str]) -> dict:
     blocks = []
     for n, inp in enumerate(ins):
         hl = "; ".join(f"{h['id']}: {h['title']!r}" for h in inp["highlights"]) or "none"
-        blocks.append(f"### Item {n} ({inp['kind']})\nHighlights: {hl}\n{inp['transcript']}")
+        desc = f"\nDescription: {inp['description']}" if inp.get("description") else ""
+        blocks.append(f"### Item {n} ({inp['kind']})\nHighlights: {hl}{desc}\n{inp['transcript']}")
     body = {"max_tokens": 400 + 200 * len(ins), "system": SYSTEM,
             "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
             "messages": [{"role": "user", "content": "\n\n".join(blocks)}]}
@@ -243,6 +261,9 @@ def run_batch(c, ids: list[str]) -> dict:
             if n not in answers:
                 continue
             h = clean(answers[n], inp, model)
+            if owned(c.execute("SELECT heard FROM items WHERE id=?", (inp["id"],)).fetchone()):
+                done.append(inp["id"])   # the owner's label stands
+                continue
             c.execute("UPDATE items SET heard=?, heard_sig=? WHERE id=?",
                       (j(h) if h else None, sigs[inp["id"]], inp["id"]))
             done.append(inp["id"])
@@ -256,6 +277,36 @@ def run_batch(c, ids: list[str]) -> dict:
     if missing:
         raise PartialAnswer(missing)
     return res
+
+
+def owned(row) -> bool:
+    """The owner set this item's label: the job never changes it."""
+    try:
+        return bool(row["heard"]) and (json.loads(row["heard"]) or {}).get("by") == "owner"
+    except (ValueError, TypeError):
+        return False
+
+
+def set_by_owner(c, item_id: str, text: str | None) -> dict | None:
+    """The owner's label for an item (`by: "owner"`, kept over Claude's). Empty text hands it back to the job."""
+    row = c.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+    if not row:
+        raise KeyError(item_id)
+    text = " ".join((text or "").split())[:MAX_TEXT]
+    old = json.loads(row["heard"]) if row["heard"] else {}
+    with tx(c):
+        if not text:
+            c.execute("UPDATE items SET heard=NULL, heard_sig=NULL WHERE id=?", (item_id,))
+            h = None
+        else:
+            hls = _highlights(c, item_id)
+            h = {"text": text, "highlight_id": old.get("highlight_id") or (hls[0]["id"] if hls else None),
+                 "media": old.get("media"), "start": old.get("start"), "end": old.get("end"),
+                 "confidence": 1.0, "by": "owner", "model": None, "at": now()}
+            c.execute("UPDATE items SET heard=?, heard_sig=? WHERE id=?", (j(h), signature(c, row), item_id))
+        refresh_labels(c, {x["id"] for x in _highlights(c, item_id)})
+    event("heard.owner", item=item_id, text=text or None)
+    return h
 
 
 class PartialAnswer(RuntimeError):

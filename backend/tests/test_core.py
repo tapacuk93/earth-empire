@@ -431,3 +431,39 @@ class ExplainTest(unittest.TestCase):
         db.set_setting(self.c, "explain.daily_cap", "1")
         with self.assertRaises(self.explain.CapReached):
             self.explain.explain(self.c, post, "fr")
+
+
+class HeardDescriptionTest(unittest.TestCase):
+    """Videos in no highlight: the post's description is the reference the spoken words are matched to."""
+
+    def test_description_is_the_caption_line_else_the_first_sentence(self):
+        from ee import heard
+        tmp = tempfile.TemporaryDirectory()
+        c = db.connect(Path(tmp.name) / "t.sqlite3")
+        data = {"caption": "#ukraine\nВітаю з днем міста @kyiv #kyiv\nmore", "media": [{"type": "video", "url": "key:items/a/0.mp4"}]}
+        c.execute("INSERT INTO items(id, kind, taken_at, data, content_hash, description, updated_at) VALUES (?,?,?,?,?,?,?)",
+                  ("ig_a", "reel", "2026-10-24T10:00:00Z", json.dumps(data), "h", "A greeting. Then more.", db.now()))
+        row = c.execute("SELECT * FROM items WHERE id='ig_a'").fetchone()
+        self.assertEqual(heard.description(row), "Вітаю з днем міста")
+        c.execute("UPDATE items SET data=? WHERE id='ig_a'", (json.dumps({"media": data["media"]}),))
+        self.assertEqual(heard.description(c.execute("SELECT * FROM items WHERE id='ig_a'").fetchone()), "A greeting.")
+        c.close()
+        tmp.cleanup()
+
+    def test_owner_label_stands_and_empty_hands_it_back(self):
+        from ee import heard
+        tmp = tempfile.TemporaryDirectory()
+        c = db.connect(Path(tmp.name) / "t.sqlite3")
+        data = {"caption": "Hi", "media": [{"type": "video", "url": "key:items/b/0.mp4"}]}
+        c.execute("INSERT INTO items(id, kind, taken_at, data, content_hash, updated_at) VALUES (?,?,?,?,?,?)",
+                  ("ig_b", "reel", "2026-10-24T10:00:00Z", db.j(data), "h", db.now()))
+        c.execute("INSERT INTO transcripts(media, language, text, segments, created_at) VALUES (?,?,?,?,?)",
+                  ("items/b/0.mp4", "uk", "у тебе 3", json.dumps([{"start": 1, "end": 2, "text": "у тебе 3"}]), db.now()))
+        self.assertIn("ig_b", heard.pending(c))
+        h = heard.set_by_owner(c, "ig_b", "  у  тебе 3 ")
+        self.assertEqual((h["text"], h["by"]), ("у тебе 3", "owner"))
+        self.assertNotIn("ig_b", heard.pending(c))       # the job leaves the owner's label alone
+        self.assertIsNone(heard.set_by_owner(c, "ig_b", ""))
+        self.assertIn("ig_b", heard.pending(c))          # handed back
+        c.close()
+        tmp.cleanup()

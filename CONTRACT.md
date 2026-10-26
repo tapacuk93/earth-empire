@@ -303,8 +303,15 @@ label a video (and a highlight) with it; the Instagram `title` is never changed.
   cached use the analysis's own transcript, without times) and its highlight titles, and answers with
   the short phrase as spoken - a few words, in the original language and spelling - that a title
   stands for, its media and start/end, and a confidence. Nothing matching: null; nothing is invented.
-  For an item in no highlight the phrase is optional: only a clear short phrase about the owner or the
-  subject, with `highlight_id` null. Stored as Item `heard`.
+  For an item in no highlight the reference is the post's own description (the caption's first line
+  without hashtags or mentions, else the first sentence of its description): the words actually spoken
+  that say it, with where they sound, `highlight_id` null; null when it is not spoken. Stored as Item
+  `heard`. The clients label such a card with that description until then.
+- **The owner's label:** `PUT /v1/admin/items/{id}/heard {"text": "у тебе 3"}` (owner) sets an item's
+  label, `by: "owner"`, confidence 1; the job never changes it, and it counts for its highlight's
+  `heard_label`. `""` or `null` hands it back to the job. → `{"id", "heard"}`. The apps and the site make
+  a card's label (and the fullscreen gold label) editable in place for the owner: a tap edits it,
+  leaving it saves.
 - **Per highlight:** `heard_label` is the phrase most of its items say (ties: the surer one, spelled
   as in its surest item; confidence below 0.3 does not count), with `heard_reason`; null when none of
   its videos says one.

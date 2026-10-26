@@ -494,6 +494,22 @@ def admin_delete(item_id: str):
     return {"ok": True, **out}
 
 
+@app.put("/v1/admin/items/{item_id}/heard", dependencies=[Depends(require_admin)])
+async def admin_item_heard(item_id: str, request: Request):
+    """The owner's label for an item: {"text": "у тебе 3"}; kept over Claude's; "" or null hands it back."""
+    from . import heard
+    body = await request.json()
+    text = body.get("text") if isinstance(body, dict) else None
+    if text is not None and not isinstance(text, str):
+        raise HTTPException(400, "text must be a string or null")
+    c = conn()
+    try:
+        h = heard.set_by_owner(c, item_id, text)
+    except KeyError:
+        raise HTTPException(404, "no such item")
+    return {"id": item_id, "heard": h}
+
+
 @app.post("/v1/admin/items/{item_id}/reanalyze", dependencies=[Depends(require_admin)])
 def admin_reanalyze(item_id: str):
     c = conn()

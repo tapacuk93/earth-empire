@@ -179,7 +179,7 @@ def _guard():
         c = db.conn()
         day = time.strftime("%Y-%m-%d", time.gmtime())
         spent = c.execute("SELECT COALESCE(SUM(usd), 0) s FROM costs WHERE at >= ? AND ok=1", (day,)).fetchone()["s"]
-        budget = float(db.setting(c, "ai.daily_budget_usd") or 20)
+        budget = float(db.setting(c, "ai.daily_budget_usd") or 30)
     except Exception:
         return
     if spent >= budget:

@@ -130,7 +130,8 @@ DEFAULT_SETTINGS = {
     "site.built_at": "",
     "site.force": "",
     "facets.daily_cap": "12",
-    "ai.daily_budget_usd": "20",     # our own second limit; the proxy's per-app cap is the first
+    "ai.daily_budget_usd": "30",     # our own second limit; the proxy's per-app cap is the first
+    "ai.own_reserve_usd": "5",       # the day's last dollars: only the owner's own posts and stories (no reposts)
     "ai.paused_until": "",           # set when the proxy says the app's daily cap is reached
     # Home tile size = placement × age_factor × importance_factor (CONTRACT.md "Home layout")
     "size.half_life_days": "7",

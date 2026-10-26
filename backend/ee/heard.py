@@ -51,6 +51,11 @@ SYSTEM = """You find the short phrase actually spoken in the owner's Instagram v
 names highlights after. The owner names a highlight after a phrase said in its videos, often \
 abbreviated: a highlight "3" may stand for "у тебе 3", "в Тараса 3" for "а в Тараса 3".
 
+You also get the phrases the owner's monitor listens for (with their variants). They come first: in \
+every item, highlight or not, when one of them is spoken - as written, as a variant, misheard, or in \
+wording you judge similar or related in meaning - the text is that moment, made fuller as it is \
+actually spoken around it (a few words), and that wins over a highlight title or a description.
+
 For each item you get its highlight titles (id: title) and the automatic transcripts of its videos, \
 segment by segment with times in seconds within that media. Answer per item:
 - text: the phrase as actually spoken that the highlight title stands for - as short as a highlight \
@@ -99,6 +104,27 @@ def _speech_fallback(row) -> str:
     return (sp.get("transcript") or "").strip() if isinstance(sp, dict) else ""
 
 
+def monitor_phrases() -> list[str]:
+    """The phrases the monitor listens for, each with a few of its variants ("тарас маслов (taras maslov, …)")."""
+    from .home import monitor_conn
+    m = monitor_conn()
+    if not m:
+        return []
+    try:
+        out = []
+        for text, compiled in m.execute("SELECT text, compiled FROM phrases ORDER BY position"):
+            try:
+                v = [x for x in (json.loads(compiled or "{}").get("variants") or []) if x and x != text][:4]
+            except ValueError:
+                v = []
+            out.append(f"{text} ({', '.join(v)})" if v else text)
+        return out
+    except Exception:
+        return []
+    finally:
+        m.close()
+
+
 def description(row) -> str:
     """The post's own description (web: describe): the caption's first line without hashtags or
     mentions, else the first sentence of the item's description."""
@@ -127,7 +153,19 @@ def signature(c, row) -> str | None:
         return None
     hls = [[h["id"], h["title"]] for h in _highlights(c, row["id"])]
     desc = "" if hls else description(row)
-    return hashlib.sha1(j([trs, fb, hls] + ([desc] if desc else [])).encode()).hexdigest()[:16]
+    phrases = _phrases_cached()
+    return hashlib.sha1(j([trs, fb, hls] + ([desc] if desc else []) + ([phrases] if phrases else [])).encode()).hexdigest()[:16]
+
+
+_phrases = {"at": 0.0, "list": []}
+
+
+def _phrases_cached() -> list[str]:
+    """monitor_phrases(), read again at most once a minute (the queue computes many signatures)."""
+    import time
+    if time.time() - _phrases["at"] > 60:
+        _phrases["list"], _phrases["at"] = monitor_phrases(), time.time()
+    return _phrases["list"]
 
 
 def inputs(c, row) -> dict:
@@ -238,6 +276,9 @@ def run_batch(c, ids: list[str]) -> dict:
         hl = "; ".join(f"{h['id']}: {h['title']!r}" for h in inp["highlights"]) or "none"
         desc = f"\nDescription: {inp['description']}" if inp.get("description") else ""
         blocks.append(f"### Item {n} ({inp['kind']})\nHighlights: {hl}{desc}\n{inp['transcript']}")
+    phrases = _phrases_cached()
+    if phrases:
+        blocks.insert(0, "Phrases the monitor listens for:\n" + "\n".join(f"- {p}" for p in phrases))
     body = {"max_tokens": 400 + 200 * len(ins), "system": SYSTEM,
             "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
             "messages": [{"role": "user", "content": "\n\n".join(blocks)}]}

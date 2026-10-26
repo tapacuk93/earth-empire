@@ -467,3 +467,22 @@ class HeardDescriptionTest(unittest.TestCase):
         self.assertIn("ig_b", heard.pending(c))          # handed back
         c.close()
         tmp.cleanup()
+
+
+class OwnFirstTest(unittest.TestCase):
+    """The analyzer takes the owner's own posts and stories before reposts; own_only leaves reposts waiting."""
+
+    def test_own_before_reposts_and_reserve(self):
+        tmp = tempfile.TemporaryDirectory()
+        c = db.connect(Path(tmp.name) / "t.sqlite3")
+        for iid, data, taken in (("ig_rep", {"repost_of": {"author": "x"}, "media": []}, "2026-01-01T00:00:00Z"),
+                                 ("ig_own", {"repost_of": None, "media": []}, "2026-06-01T00:00:00Z")):
+            c.execute("INSERT INTO items(id, kind, taken_at, data, content_hash, updated_at) VALUES (?,?,?,?,?,?)",
+                      (iid, "story", taken, db.j(data), "h", db.now()))
+            c.execute("INSERT INTO steps(item_id, step, state, attempts, updated_at) VALUES (?,?,?,?,?)",
+                      (iid, "analyze", "pending", 0, db.now()))
+        self.assertEqual(store.claim_next(c, "analyze"), "ig_own")   # older repost waits behind the owner's own
+        self.assertIsNone(store.claim_next(c, "analyze", own_only=True))
+        self.assertEqual(store.claim_next(c, "analyze"), "ig_rep")
+        c.close()
+        tmp.cleanup()

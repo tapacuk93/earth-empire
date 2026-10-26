@@ -307,6 +307,11 @@ label a video (and a highlight) with it; the Instagram `title` is never changed.
   without hashtags or mentions, else the first sentence of its description): the words actually spoken
   that say it, with where they sound, `highlight_id` null; null when it is not spoken. Stored as Item
   `heard`. The clients label such a card with that description until then.
+- **The monitor's phrases come first:** every batch carries the phrases the monitor listens for (with
+  a few variants). In any item, highlight or not, a moment where one is spoken - as written, a variant,
+  misheard, or in wording Claude judges similar or related - is the label, made fuller as actually
+  spoken around it; it wins over a highlight title or a description. The phrase list is part of each
+  item's signature, so editing the phrases works every video out again.
 - **The owner's label:** `PUT /v1/admin/items/{id}/heard {"text": "у тебе 3"}` (owner) sets an item's
   label, `by: "owner"`, confidence 1; the job never changes it, and it counts for its highlight's
   `heard_label`. `""` or `null` hands it back to the job. → `{"id", "heard"}`. The apps and the site make

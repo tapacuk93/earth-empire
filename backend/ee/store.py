@@ -393,8 +393,10 @@ def fail_step(c, item_id, step, error: str, *, permanent=False):
         _set_step(c, item_id, step, "failed", error=error[:4000], attempts=attempts, next_at=next_at)
 
 
+REPOST = """i.data LIKE '%"repost_of":{%'"""
+# New items first (newest first), then the owner's own posts and stories, then reposts; the backlog oldest first.
 PRIORITY_ORDER = ("i.priority DESC, CASE WHEN i.priority = 1 THEN i.taken_at END DESC, "
-                  "i.taken_at ASC, i.id ASC")
+                  f"({REPOST}) ASC, i.taken_at ASC, i.id ASC")
 
 
 def _recent(taken_at, days: int = 3) -> bool:
@@ -405,11 +407,12 @@ def _recent(taken_at, days: int = 3) -> bool:
         return False
 
 
-def claim_next(c, step: str, *, requires_analysis: bool = False, newest_first: bool = False):
+def claim_next(c, step: str, *, requires_analysis: bool = False, newest_first: bool = False, own_only: bool = False):
     """The next item whose step is due, marked running: new items first (newest first), then the
-    backlog (oldest first). Each call is a step boundary, so a newly arrived item goes next."""
+    owner's own, then reposts (the backlog oldest first). Each call is a step boundary, so a newly
+    arrived item goes next. `own_only` leaves reposts waiting."""
     ts = now()
-    need = "AND i.published_at IS NOT NULL" if requires_analysis else ""
+    need = ("AND i.published_at IS NOT NULL" if requires_analysis else "") + (f" AND NOT ({REPOST})" if own_only else "")
     with tx(c):
         row = c.execute(f"""SELECT s.item_id FROM steps s JOIN items i ON i.id = s.item_id
             WHERE s.step=? AND (s.state='pending' OR (s.state='failed' AND s.next_at IS NOT NULL AND s.next_at <= ?))

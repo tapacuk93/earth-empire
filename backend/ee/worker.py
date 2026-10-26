@@ -88,7 +88,11 @@ def analyze_once(c) -> bool:
     cap = int(setting(c, "analysis.daily_cap") or 0)
     if analysis.analyses_today(c) >= cap:
         return False
-    item_id = store.claim_next(c, "analyze")
+    # The last `ai.own_reserve_usd` of the day's budget is kept for the owner's own posts and stories.
+    day = time.strftime("%Y-%m-%d", time.gmtime())
+    spent = c.execute("SELECT COALESCE(SUM(usd), 0) s FROM costs WHERE at >= ? AND ok=1", (day,)).fetchone()["s"]
+    reserve_from = float(setting(c, "ai.daily_budget_usd") or 30) - float(setting(c, "ai.own_reserve_usd") or 0)
+    item_id = store.claim_next(c, "analyze", own_only=spent >= reserve_from)
     if not item_id:
         return False
     store.job_start(c, "analyze", "analyzer", "analyzing an item", item_id, "starting")

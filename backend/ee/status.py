@@ -184,8 +184,9 @@ def build(c) -> dict:
                                "next_retry": (setting(c, "ai.next_retry") or None) if ai.get("state") == "waiting" else None,
                                "order": ["anthropic", "google (Gemini)", "openai (GPT)"],
                                "spent_today_usd": round(spent, 2),
-                               "own_daily_budget_usd": float(setting(c, "ai.daily_budget_usd") or 20),
-                               "proxy_daily_cap_usd": 20, "calls_today_by_provider": prov}))
+                               "own_daily_budget_usd": float(setting(c, "ai.daily_budget_usd") or 30),
+                               "own_reserve_usd": float(setting(c, "ai.own_reserve_usd") or 0),
+                               "proxy_daily_cap_usd": 30, "calls_today_by_provider": prov}))
 
     # collector and other parts that report heartbeats
     last = c.execute("SELECT finished_at, ok, counts, received_at FROM runs ORDER BY id DESC LIMIT 1").fetchone()
@@ -194,7 +195,11 @@ def build(c) -> dict:
     ok_age = _age(last_ok["received_at"]) if last_ok else None
     hbs = {r["component"]: r for r in c.execute("SELECT * FROM heartbeats")}
     col_hb = hbs.pop("collector", None)
-    c_state = "down" if ok_age is None or ok_age > 3 * 3600 else ("degraded" if last and not last["ok"] else "ok")
+    hb_age = _age(col_hb["at"]) if col_hb else None
+    stale = ok_age is None or ok_age > 3 * 3600
+    # Down only when no run finished well for 3 hours and nothing reports either; a run at work is degraded.
+    c_state = ("down" if hb_age is None or hb_age > 20 * 60 else "degraded") if stale else \
+        ("degraded" if last and not last["ok"] else "ok")
     counts = json.loads(last["counts"]) if last else {}
     comps.append(comp("collector", "Instagram collector", c_state,
                       last_success=last_ok["received_at"] if last_ok else None,

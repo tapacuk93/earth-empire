@@ -47,6 +47,17 @@ export function DetectedPage({ route }: { route: Route }) {
   const [cur, setCur] = useState(0);
   const [muted, setMuted] = useState(true);
   const wheel = useRef<HTMLDivElement>(null);
+  // Slides start below the toolbar, so the clip is never under it: --bar is its bottom edge.
+  const det = useRef<HTMLDivElement>(null), bar = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const b = bar.current, d = det.current;
+    if (!b || !d) return;
+    const set = () => d.style.setProperty('--bar', `${Math.ceil(b.getBoundingClientRect().bottom)}px`);
+    const ro = new ResizeObserver(set);
+    ro.observe(b);
+    set();
+    return () => ro.disconnect();
+  }, []);
   const loading = useRef(false);
   useEffect(() => { setMeta('Detected', undefined, undefined, true); }, []);
   useEffect(() => {
@@ -102,8 +113,8 @@ export function DetectedPage({ route }: { route: Route }) {
   };
 
   return (
-    <div class="det">
-      <div class="det-bar fui">
+    <div class="det" ref={det}>
+      <div class="det-bar fui" ref={bar}>
         <h1 class="det-h">Detected</h1>
         <div class="kinds" role="group" aria-label="Kind of hit">
           {KINDS.map(([k, l]) => <button key={l} class="kind" aria-pressed={kind === k} onClick={() => navigate(withParam(route, 'kind', k), { replace: true })}>{l}</button>)}
@@ -136,7 +147,7 @@ export function DetectedPage({ route }: { route: Route }) {
                       <video src={h.clip || undefined} poster={h.frame || h.video?.thumbnail || undefined} muted={muted} loop playsinline preload="none"
                         aria-label={`Clip around the moment: ${titleOf(h)}`} onClick={() => setMuted(!muted)} />
                       <div class="wover">
-                        <HitMeta h={h} full />
+                        <HitMeta h={h} full fold />
                         <Approve h={h} onSet={(lv) => place(h, lv)} />
                       </div>
                     </>

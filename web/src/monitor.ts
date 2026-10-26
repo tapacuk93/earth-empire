@@ -34,6 +34,20 @@ export const labelOf = (h: Hit) => h.confidence_label || (typeof h.confidence ==
 export const isLow = (h: Hit) => labelOf(h) === 'low confidence';
 export const LANG: Record<string, string> = { uk: 'Ukrainian', ru: 'Russian', en: 'English' };
 export const whatOf = (h: Hit) => (h.kind === 'language' ? `${LANG[h.matched || ''] || h.matched} speech` : `“${h.matched || h.phrase}”`);
+/**
+ * What sounds in the clip, as short as a highlight name ("в Тараса 3"): the words around the match
+ * in the transcript (two on each side), else the first words, else the match itself.
+ */
+export function heardOf(h: Hit): string {
+  const text = (h.excerpt?.text || '').replace(/\s+/g, ' ').trim();
+  const words = text ? text.split(' ') : [];
+  const key = (h.kind === 'name' ? h.matched || h.phrase || '' : '').toLowerCase().split(' ')[0];
+  const at = key ? words.findIndex((w) => w.toLowerCase().includes(key)) : -1;
+  const strip = (s: string) => s.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+  if (at >= 0) return words.slice(Math.max(0, at - 2), at + 3).map(strip).filter(Boolean).join(' ');
+  if (words.length) return words.slice(0, 6).map(strip).filter(Boolean).join(' ') + (words.length > 6 ? '…' : '');
+  return h.kind === 'language' ? whatOf(h) : h.matched || h.phrase || '';
+}
 export const titleOf = (h: Hit) => h.video?.title || `${whatOf(h)} in ${h.source?.name || h.account || h.platform || 'a video'}`;
 /** Only links a person can open: never a signed storage URL. */
 export const safeUrl = (u?: string | null) => (u && /^https?:\/\//.test(u) && !/X-Amz-Signature=/i.test(u) ? u : undefined);

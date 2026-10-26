@@ -7,7 +7,7 @@
 import type { Facet, LayoutTile } from './homeData';
 import { importance, isVideo } from './layout';
 import type { Hit } from './monitor';
-import { LANG, titleOf, whatOf } from './monitor';
+import { heardOf, LANG, titleOf } from './monitor';
 import { highlightSection } from './sections';
 import type { Highlight, Item } from './types';
 import { cover } from './util';
@@ -24,8 +24,12 @@ export interface VTile {
   text: string;
   audio?: Audio;          // what was heard in it
 }
-/** The audio detected in a video: a matched name or language (the monitor), else the speech, else the music, else none. */
-export interface Audio { kind: 'detected' | 'speech' | 'music' | 'none'; text: string }
+/**
+ * What sounds in a video. `heard`: the phrase spoken - its highlight's name (highlights are named
+ * after what is said in them), a phrase the monitor matched, or for a found clip the words around
+ * the match. Else the language spoken, the music, or none.
+ */
+export interface Audio { kind: 'heard' | 'speech' | 'music' | 'none'; text: string }
 export interface VSection { id: string; title: string; subtitle: string; tiles: VTile[]; level: number; compact: boolean }
 
 const videoOf = (it: Item) => [...it.media, ...(it.repost_of?.media || [])].find((m) => m.type === 'video')?.url;
@@ -69,11 +73,14 @@ const langName = (code?: string | null) => {
 /** The first clause of a free-text note ("Song by X (original reel's music); …" -> "Song by X"). */
 const clause = (s: string) => s.split(/[;(]/)[0].trim().replace(/[.,]$/, '');
 
-export function audioOf(it: Item): Audio | undefined {
+export function audioOf(it: Item): Audio {
+  const titles = [...new Set((it.highlights || []).map((h) => h.title.trim()).filter(Boolean))];
+  if (titles.length) return { kind: 'heard', text: titles.join(' · ') };
   const hits = it.detection?.hits || [];
-  const names = [...new Set(hits.filter((h) => h.kind === 'name' && h.phrase).map((h) => `“${h.phrase}”`))];
+  const names = [...new Set(hits.filter((h) => h.kind === 'name' && h.phrase).map((h) => h.phrase!))];
+  if (names.length) return { kind: 'heard', text: names.join(' · ') };
   const langs = [...new Set(hits.filter((h) => h.kind === 'language').map((h) => `${langName(h.lang)} speech`))];
-  if (names.length || langs.length) return { kind: 'detected', text: [...names, ...langs].join(' · ') };
+  if (langs.length) return { kind: 'speech', text: langs.join(' · ') };
   const speech = it.analysis?.speech;
   if (speech?.language && speech.transcript && !/^(und|unknown|none|n\/a|mul|zxx)$/i.test(speech.language.trim())) return { kind: 'speech', text: `${langName(speech.language.length <= 3 ? speech.language.toLowerCase() : speech.language)} speech` };
   const music = it.music?.title ? [it.music.title, it.music.artist].filter(Boolean).join(' · ') : it.analysis?.music ? clause(it.analysis.music) : '';
@@ -98,7 +105,7 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
       id: h.id, hit: h, level: given.get(h.id)?.level || hitLevel(h), score: h.confidence ?? 0.5,
       cover: h.frame || h.video?.thumbnail || undefined, video: h.clip || undefined,
       date: h.video?.posted_at || h.found_at, text: titleOf(h),
-      audio: { kind: 'detected', text: whatOf(h) },
+      audio: { kind: 'heard', text: heardOf(h) },
     });
   }
 

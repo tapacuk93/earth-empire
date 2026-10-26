@@ -22,7 +22,7 @@ function Tile({ t, size, href, playing, onPlay }: { t: VTile; size: Size; href: 
   const hits = t.item?.detection?.hits?.length || 0;
   return (
     <li class={`vt vt-${size}`} data-id={t.id} data-level={t.level}>
-      <a href={href} onFocus={() => onPlay(t.id)} onBlur={() => onPlay(null)}
+      <a href={href} aria-label={[t.audio && `“${t.audio.text}”`, t.date && fmtShort(t.date), t.text].filter(Boolean).join(', ')} onFocus={() => onPlay(t.id)} onBlur={() => onPlay(null)}
         onPointerEnter={(e) => e.pointerType === 'mouse' && onPlay(t.id, 150)} onPointerLeave={() => onPlay(null)}>
         {t.cover ? <img src={t.cover} alt="" loading="lazy" decoding="async" /> : <span class="vt-blank" />}
         {playing && t.video && (
@@ -32,13 +32,12 @@ function Tile({ t, size, href, playing, onPlay }: { t: VTile; size: Size; href: 
         )}
         {t.audio && (
           <span class={`vt-audio vt-audio-${t.audio.kind}`} title={`Audio: ${t.audio.text}`}>
-            <span aria-hidden="true">{t.audio.kind === 'music' ? '♪' : t.audio.kind === 'none' ? '∅' : '🎙'}</span> {t.audio.text}
+            <span aria-hidden="true">{t.audio.kind === 'music' ? '♪' : t.audio.kind === 'none' ? '∅' : t.audio.kind === 'heard' ? '“' : '🎙'}</span>{t.audio.kind === 'heard' ? `${t.audio.text}”` : ` ${t.audio.text}`}
           </span>
         )}
         {(t.hit || hits > 0) && <span class="vt-badge">{t.hit ? 'AI' : hits}</span>}
         <span class="vt-cap">
           {t.date && <time dateTime={t.date}>{fmtShort(t.date)}</time>}
-          {t.text && <span class="vt-text">{t.text}</span>}
         </span>
       </a>
     </li>

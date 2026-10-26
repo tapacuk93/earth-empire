@@ -740,18 +740,44 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .vt a:focus-visible { outline-offset: -3px; }
 .vt-cap { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 1px; padding: 28px 10px 8px; background: linear-gradient(transparent, rgb(0 0 0 / .78)); font-size: .8rem; line-height: 1.3; pointer-events: none; }
 .vt-cap time { font-weight: 700; font-size: .74rem; opacity: .9; }
-.vt-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.vt-xl .vt-cap { padding: 60px 16px 14px; font-size: clamp(.95rem, .85rem + .3vw, 1.15rem); }
+.vt-xl .vt-cap { padding: 36px 16px 14px; font-size: clamp(.95rem, .85rem + .3vw, 1.15rem); }
 .vt-xl .vt-cap time { font-size: .85rem; }
-.vt-xl .vt-text { -webkit-line-clamp: 3; }
 .vt-wide .vt-cap { font-size: .9rem; }
 .vs-l3 .vt-cap, .vs-l4 .vt-cap { padding: 20px 7px 6px; font-size: .74rem; }
-.vs-l3 .vt-text, .vs-l4 .vt-text { -webkit-line-clamp: 1; }
+
 .vt-badge { position: absolute; top: 6px; right: 6px; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: #e9a35a; color: #111; font-size: .72rem; font-weight: 800; text-align: center; }
 .vs-more { display: block; margin: 10px auto 0; }
 .vt-audio { position: absolute; top: 6px; left: 6px; max-width: calc(100% - 44px); padding: 2px 8px; border-radius: 999px; background: rgb(0 0 0 / .55); color: #fff; font-size: .72rem; font-weight: 600; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
-.vt-audio-detected { background: #e9a35a; color: #111; }
+.vt-audio-heard { background: #e9a35a; color: #111; font-weight: 700; }
 .vt-audio-none { opacity: .75; }
 .vt-xl .vt-audio { top: 10px; left: 10px; font-size: .82rem; padding: 3px 10px; }
 /* Narrow screens: the open zoom control sits above the mode dots instead of under them */
 @media (max-width: 600px) { .home-main .zoom-ctl { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 40px); } }
+
+/* Detected: what sounds in the clip, as on Home's cards */
+.heard-chip { display: inline-block; max-width: 100%; margin: 0 0 6px; padding: 3px 10px; border-radius: 999px; background: #e9a35a; color: #111; font-weight: 700; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Detected: each slide is the whole clip, fitted between the toolbar and a compact panel */
+.det .wslide { display: flex; flex-direction: column; padding-top: var(--bar, 0px); box-sizing: border-box; }
+.det .wslide video { flex: 1 1 0; min-height: 120px; width: 100%; height: auto; object-fit: contain; }
+.det .wover { position: relative; inset: auto; flex: 0 0 auto; max-height: 50%; width: auto; padding: 10px 16px max(12px, env(safe-area-inset-bottom)); border-radius: 0; background: rgb(10 10 10 / .92); }
+.det .wover .mon-title { margin-bottom: 2px; }
+.mon-more summary { cursor: pointer; color: rgb(255 255 255 / .8); font-size: .85rem; margin: 2px 0 6px; }
+@media (min-width: 900px) { .det .wslide { flex-direction: row; } .det .wover { width: min(460px, 36%); max-height: none; overflow-y: auto; } }
+@media (max-width: 600px) {
+  /* Phones: a two-row toolbar (the page name is in the nav above it) and a shorter panel, so the clip keeps most of the screen */
+  .det-bar { left: max(10px, env(safe-area-inset-left)); gap: 4px 6px; padding: 4px 8px; }
+  .det-bar .det-h { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .det-bar .fetch label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .det-bar .fetch input { width: 4em; min-height: 34px; padding: 4px 8px; }
+  .det-bar .fetch .btn { min-height: 34px; padding: 4px 10px; }
+  .det .wover { max-height: 40%; overflow-y: auto; }
+  .det .wover .mon-tags, .det .wover .mon-what { margin-bottom: 4px; }
+}
+/* The Earth icon and its panel on the right (the icon at the very edge); the other tools on the left */
+.home-pill { left: auto; right: max(10px, env(safe-area-inset-right)); text-align: right; }
+.home-pill h1 { flex-direction: row-reverse; }
+.home-pill .earth-btn { margin: -6px -6px -6px 2px; }
+.float-home { left: auto; right: max(10px, env(safe-area-inset-right)); }
+.float-tools { right: auto; left: max(8px, env(safe-area-inset-left)); }
+.det-bar { left: auto; right: max(10px, env(safe-area-inset-right)); max-width: calc(100% - 20px); justify-content: flex-end; }
+@media (min-width: 900px) { .det .wheel-side { right: calc(min(460px, 36%) + 10px); } }

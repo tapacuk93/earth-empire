@@ -92,7 +92,7 @@ test('videos: every card is labelled with the audio detected in it', async ({ pa
   const cards = await v.locator('.vt').count();
   await expect(v.locator('.vt .vt-audio')).toHaveCount(cards);
   // A found clip shows what was heard; an item with speech its language.
-  await expect(v.locator('.vt[data-id^="h_"] .vt-audio-detected').first()).toBeVisible();
+  await expect(v.locator('.vt[data-id^="h_"] .vt-audio-heard').first()).toBeVisible();
   await expect(v.locator(`.vt[data-id="${REEL}"] .vt-audio`)).toHaveText(/speech|“|♪|No speech/);
 });
 
@@ -108,7 +108,7 @@ test('videos: laid out for the screen - readable tiles and text, nothing sideway
     expect(r).toBeLessThanOrEqual(vp.width + 1);
     expect(h).toBeLessThanOrEqual(vp.height * 0.8); // a large tile still fits on screen
   }
-  const fonts = await v.locator('.vt-text, .vt-cap time').evaluateAll((els) => els.map((e) => parseFloat(getComputedStyle(e).fontSize)));
+  const fonts = await v.locator('.vt-cap time, .vt-audio').evaluateAll((els) => els.map((e) => parseFloat(getComputedStyle(e).fontSize)));
   expect(Math.min(...fonts)).toBeGreaterThanOrEqual(11.5);
   expect(await v.evaluate((e) => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(1);
   // Scrolling the videos down keeps the screen on Videos.

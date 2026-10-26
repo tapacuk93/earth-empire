@@ -98,6 +98,14 @@ billing refusal, with a screenshot in `/var/lib/earth-empire/monitor/screenshots
 the downloader's password only when its session is logged out, once; any challenge stops it.
 `ee-monitor resume <platform>` clears a stop.
 
+**Instagram, read by the monitor** (`instagram.direct`, off by default): through the collector's
+browser session, with every request counted in one log shared with the collector
+(`/var/lib/earth-empire/browser/instagram-requests.log`). The monitor's lane takes at most
+`EE_MONITOR_IG_PER_HOUR` (12) requests an hour and never the hourly room kept for the owner's own profile;
+when the hour is used it stops instead of waiting. It browses like a person: only between
+`instagram.hours` (8-23 Kyiv time), one short session every `instagram.session_gap_min` (45-90) minutes,
+at most `instagram.daily_requests` (80) a day.
+
 **Recommendations:** seeds are the owner's reposts first, then hits with confidence >= 0.25. Around
 a seed: Instagram's reels viewer started at that reel (the reels it plays next) and the author's
 other reels; Facebook's watch/reel page suggestions. Found videos are `recommended`, `via` the

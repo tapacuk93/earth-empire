@@ -40,6 +40,8 @@ class Settings:
     per_hour: int = field(default_factory=lambda: int(env("EE_MAX_PER_HOUR", "80")))
     # of those, kept for the owner's own profile (posts, stories, highlights): reposts never use them
     own_reserve: int = field(default_factory=lambda: int(env("EE_OWN_RESERVE_PER_HOUR", "20")))
+    # the monitor's recommendations through the same account: at most this many an hour, never the reserve
+    monitor_per_hour: int = field(default_factory=lambda: int(env("EE_MONITOR_IG_PER_HOUR", "12")))
 
     # Which machine runs the collector: the SSM parameter /earth-empire/collector/runner names it
     # ("box" or "mac"); a runner whose EE_RUNNER differs stays off Instagram. Missing = anyone.
@@ -50,6 +52,11 @@ class Settings:
     def profile_lock(self) -> Path:
         """CONTRACT.md: hold flock /var/lib/earth-empire/browser/<name>.lock while using a profile."""
         return self.profile_dir.parent / f"{self.profile_dir.name}.lock"
+
+    @property
+    def request_log(self) -> Path:
+        """Every Instagram request on the account, by any process: '<unix time> <lane>' lines."""
+        return self.profile_dir.parent / f"{self.profile_dir.name}-requests.log"
 
     @property
     def state_db(self) -> Path:

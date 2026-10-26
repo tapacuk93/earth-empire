@@ -349,7 +349,7 @@ def test_pacing_keeps_room_for_the_owner_and_never_sleeps_past_the_run():
     s = Settings()
     s.per_hour, s.own_reserve, s.min_gap, s.max_gap = 10, 3, 0, 0
     p = Pacer(s)
-    p.window = [time.monotonic() - 10] * 7            # 7 requests this hour
+    p.window = [(time.time() - 10, "own")] * 7        # 7 requests this hour
     p.lane = "repost"
     try:
         p.wait()
@@ -359,10 +359,37 @@ def test_pacing_keeps_room_for_the_owner_and_never_sleeps_past_the_run():
     p.lane = "own"
     p.n = 1
     p.wait()                                          # the owner still has room
-    p.window = [time.monotonic() - 10] * 10
+    p.window = [(time.time() - 10, "own")] * 10
     p.deadline = time.time() + 60                     # a pause of ~an hour would outlast the run
     try:
         p.wait()
         assert False, "never sleeps past the run's deadline"
     except PaceFull as e:
         assert e.lane == "own" and e.wait_s > 60
+
+
+def test_pacing_is_shared_with_the_monitor_which_never_takes_the_owners_room(tmp_path):
+    from eecollector.config import Settings
+    from eecollector.igweb import PaceFull, Pacer
+    s = Settings()
+    s.per_hour, s.own_reserve, s.monitor_per_hour, s.min_gap, s.max_gap = 10, 3, 2, 0, 0
+    log_ = tmp_path / "requests.log"
+    col, mon = Pacer(s, log_), Pacer(s, log_)
+    mon.lane = "monitor"
+    mon.wait(); mon.wait()
+    try:
+        mon.wait()
+        assert False, "the monitor has its own small hourly cap"
+    except PaceFull as e:
+        assert e.lane == "monitor"
+    col.lane = "repost"
+    for _ in range(5):
+        col.wait()                                    # 2 monitor + 5 reposts = 7 = per_hour - own_reserve
+    try:
+        col.wait()
+        assert False, "the collector counts the monitor's requests too"
+    except PaceFull:
+        pass
+    col.lane = "own"
+    col.wait()                                        # the owner's profile still has its room
+    assert log_.read_text().split().count("monitor") == 2

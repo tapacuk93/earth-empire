@@ -68,32 +68,64 @@ class PaceFull(RuntimeError):
 
 
 class Pacer:
-    """At most `per_hour` requests an hour. The owner's own profile (`lane = "own"`) may use all of
-    them; reposts (`lane = "repost"`) only `per_hour - own_reserve`, so the profile always has room.
-    With a `deadline` (wall clock), a pause that would outlast it raises PaceFull instead."""
+    """At most `per_hour` Instagram requests an hour on the account, counted across processes when
+    `shared` names a log file (the collector and the monitor both use the account). The owner's own
+    profile (`lane = "own"`) may use all of them; reposts (`"repost"`) only `per_hour - own_reserve`,
+    so the profile always has room; the monitor's recommendations (`"monitor"`) the same, and at most
+    `monitor_per_hour` of their own. With a `deadline` (wall clock), a pause that would outlast it raises
+    PaceFull instead; only the own lane ever waits for the hour to free up."""
 
-    def __init__(self, s: Settings):
+    def __init__(self, s: Settings, shared: Path | None = None):
         self.s = s
+        self.shared = shared
         self.last = 0.0
         self.n = 0
-        self.window: list[float] = []
+        self.window: list[tuple[float, str]] = []   # (time.time(), lane) - used when there is no shared log
         self.lane = "own"
         self.deadline: float | None = None
 
     def limit(self) -> int:
         return self.s.per_hour if self.lane == "own" else max(1, self.s.per_hour - self.s.own_reserve)
 
+    def _hour(self, now: float) -> list[tuple[float, str]]:
+        if self.shared:
+            try:
+                lines = self.shared.read_text().split()
+                pairs = [(float(lines[i]), lines[i + 1]) for i in range(0, len(lines) - 1, 2)]
+                recent = [(t, ln) for t, ln in pairs if now - t < 3600]
+                if len(recent) < len(pairs) and len(pairs) > 400:   # keep the file small
+                    self.shared.write_text("".join(f"{t:.1f} {ln}\n" for t, ln in recent))
+                return recent
+            except (OSError, ValueError, IndexError):
+                pass
+        self.window = [(t, ln) for t, ln in self.window if now - t < 3600]
+        return self.window
+
+    def _record(self, t: float) -> None:
+        if self.shared:
+            try:
+                with open(self.shared, "a") as f:
+                    f.write(f"{t:.1f} {self.lane}\n")
+                return
+            except OSError:
+                pass
+        self.window.append((t, self.lane))
+
     def wait(self) -> None:
-        now = time.monotonic()
-        self.window = [t for t in self.window if now - t < 3600]
-        if len(self.window) >= self.limit():
-            k = len(self.window) - self.limit()      # this many must age out of the hour first
-            sleep = 3600 - (now - self.window[k]) + random.uniform(5, 60)
+        now = time.time()
+        hour = self._hour(now)
+        if self.lane == "monitor":
+            mine = [t for t, ln in hour if ln == "monitor"]
+            if len(mine) >= self.s.monitor_per_hour:
+                raise PaceFull(self.lane, 3600 - (now - mine[0]))
+        if len(hour) >= self.limit():
+            k = len(hour) - self.limit()      # this many must age out of the hour first
+            sleep = 3600 - (now - sorted(t for t, _ in hour)[k]) + random.uniform(5, 60)
             if self.lane != "own" or (self.deadline and time.time() + sleep > self.deadline):
                 log.info("pacing: %d requests in the last hour (%s may use %d); stopping instead of a %.0fs pause",
-                         len(self.window), self.lane, self.limit(), sleep)
+                         len(hour), self.lane, self.limit(), sleep)
                 raise PaceFull(self.lane, sleep)
-            log.info("pacing: %d requests in the last hour, pausing %.0fs", len(self.window), sleep)
+            log.info("pacing: %d requests in the last hour, pausing %.0fs", len(hour), sleep)
             time.sleep(sleep)
         gap = random.uniform(self.s.min_gap, self.s.max_gap)
         if self.n and self.n % random.randint(18, 26) == 0:
@@ -102,7 +134,7 @@ class Pacer:
         if delay > 0:
             time.sleep(delay)
         self.last = time.monotonic()
-        self.window.append(self.last)
+        self._record(time.time())
         self.n += 1
 
 
@@ -135,7 +167,7 @@ class IGBrowser:
         self.creds = creds
         self.session_state = session_state
         self.state = state
-        self.pacer = Pacer(settings)
+        self.pacer = Pacer(settings, settings.request_log)
         self.pw = self.ctx = self.page = None
         self.seen: list[dict] = []   # responses intercepted while browsing
         self.harvest = False

@@ -111,7 +111,10 @@ DEFAULTS = {
     "telegram.enabled": "1", "telegram.daily_requests": "600", "telegram_api.daily_downloads": "60",
     "youtube.enabled": "0", "youtube.daily_requests": "400",
     "x.enabled": "0", "x.daily_requests": "50",
-    "instagram.enabled": "1", "instagram.daily_requests": "300",
+    "instagram.enabled": "1", "instagram.daily_requests": "80",
+    # Instagram read by the monitor itself (recommendations around reposts), through the collector's
+    # session and shared hourly pacing: off until the owner turns it on; daytime sessions every 45-90 min.
+    "instagram.direct": "0", "instagram.hours": "8-23", "instagram.session_gap_min": "45-90",
     "facebook.enabled": "1", "facebook.daily_requests": "200",
     "tiktok.enabled": "1", "tiktok.daily_requests": "120",
     # Recommendations around seeds (hits and the owner's reposts).

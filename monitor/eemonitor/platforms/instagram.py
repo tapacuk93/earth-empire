@@ -51,6 +51,39 @@ def to_video(m: dict, parse) -> dict | None:
     }
 
 
+def direct(c) -> bool:
+    """Whether the monitor reads Instagram itself (setting `instagram.direct`, or the old env switch)."""
+    from .. import db
+    return os.environ.get("EE_MONITOR_INSTAGRAM_DIRECT") == "1" or db.setting(c, "instagram.direct") == "1"
+
+
+def like_a_person(c, start: bool = True) -> bool:
+    """A browsing session now? Only in the owner's daytime (`instagram.hours`, Kyiv time), and one session
+    every 45-90 minutes (`instagram.session_gap_min`), like a person opening the app now and then.
+    `start=False` only asks; True also books the session (the next one waits its gap)."""
+    import random
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from .. import db
+    try:
+        lo, hi = (int(x) for x in (db.setting(c, "instagram.hours") or "8-23").split("-"))
+    except ValueError:
+        lo, hi = 8, 23
+    if not lo <= datetime.now(ZoneInfo("Europe/Kyiv")).hour < hi:
+        return False
+    nxt = db.setting(c, "instagram.next_session_at")
+    if nxt and nxt > db.now():
+        return False
+    if not start:
+        return True
+    try:
+        a, b = (int(x) for x in (db.setting(c, "instagram.session_gap_min") or "45-90").split("-"))
+    except ValueError:
+        a, b = 45, 90
+    db.set_setting(c, "instagram.next_session_at", db.later(random.uniform(a, b) * 60))
+    return True
+
+
 def session_exists() -> bool:
     """A logged-in Instagram session, judged without touching Instagram: a `sessionid` cookie in the
     collector's profile, or in earth-empire/instagram-session. A profile that merely exists is not
@@ -103,6 +136,7 @@ class Instagram:
             raise pace.Stop("instagram", "busy", "the collector holds the Instagram profile") from None
         sec = Secrets(s)
         self._ig = IGBrowser(s, creds=None, session_state=sec.session_state).start()
+        self._ig.pacer.lane = "monitor"   # counted with the collector's requests; never the owner's reserve
         self.client = self._ig
         try:
             self._ig.ensure_session()
@@ -129,6 +163,8 @@ class Instagram:
         try:
             return fn(*args)
         except Exception as e:  # noqa: BLE001
+            if type(e).__name__ == "PaceFull":   # this hour's room is used: stop the round, try later
+                raise pace.Stop("instagram", "busy", str(e)) from None
             kind = getattr(e, "kind", None)
             if kind:
                 raise pace.Stop("instagram", kind, str(e)) from None

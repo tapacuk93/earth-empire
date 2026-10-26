@@ -175,12 +175,21 @@ def test_expand_instagram_seed_with_fake_browser(monkeypatch):
             return [], None
 
     c().execute("UPDATE videos SET state='done' WHERE source_kind='reposted'")
-    monkeypatch.setattr(worker, "INSTAGRAM_DIRECT", True)   # the later stage; off on the box
+    db.set_setting(c(), "instagram.direct", "1")   # on the box: the owner turns it on
+    db.set_setting(c(), "instagram.hours", "0-24")
+    db.set_setting(c(), "instagram.next_session_at", "")
     monkeypatch.setattr(instagram, "Instagram", FakeIG)
     monkeypatch.setattr(instagram, "session_exists", lambda: True)
     assert worker.expand_one(c()) == 1
     v = c().execute("SELECT * FROM videos WHERE id='ig:999'").fetchone()
     assert v["source_kind"] == "recommended" and v["via"] == "ig_story_1" and v["hop"] == 1
+    # like a person: the next Instagram session waits 45-90 minutes, and none at night
+    assert db.setting(c(), "instagram.next_session_at") > db.later(44 * 60)
+    assert not instagram.like_a_person(c(), start=False)
+    db.set_setting(c(), "instagram.next_session_at", "")
+    db.set_setting(c(), "instagram.hours", "0-0")
+    assert not instagram.like_a_person(c(), start=False)
+    db.set_setting(c(), "instagram.direct", "0")
     hits = api.hits(kind=None, platform=None, source_kind="recommended", phrase=None, min_confidence=0,
                     published=None, sort="confidence", before=None, limit=10)
     assert hits["hits"] == []
@@ -299,7 +308,7 @@ def test_no_instagram_requests_by_default(monkeypatch):
         raise AssertionError("the monitor must not open Instagram")
     monkeypatch.setattr(instagram, "Instagram", boom)
     monkeypatch.setattr(instagram, "session_exists", lambda: True)
-    assert worker.INSTAGRAM_DIRECT is False
+    assert not instagram.direct(c())
     c().execute("UPDATE videos SET expanded=0 WHERE platform='instagram'")
     assert worker.expand_one(c()) == 0
     v = c().execute("SELECT * FROM videos WHERE id='ig:999'").fetchone()

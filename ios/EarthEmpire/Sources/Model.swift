@@ -61,6 +61,10 @@ struct Item: Codable, Identifiable, Hashable, Sendable {
     var collectedAt: String?
     var updatedAt: String?
     var publishedAt: String?
+    /// 0-1, how significant the content is (CONTRACT.md); orders Home's videos within a level.
+    var importance: Double?
+    /// Why the item is public (CONTRACT.md): the monitor's matched moments.
+    var detection: Detection?
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -89,6 +93,8 @@ struct Item: Codable, Identifiable, Hashable, Sendable {
         collectedAt = try c.decodeIfPresent(String.self, forKey: .collectedAt)
         updatedAt = try c.decodeIfPresent(String.self, forKey: .updatedAt)
         publishedAt = try c.decodeIfPresent(String.self, forKey: .publishedAt)
+        importance = try? c.decodeIfPresent(Double.self, forKey: .importance)
+        detection = try? c.decodeIfPresent(Detection.self, forKey: .detection)
     }
 
     var takenDate: Date? { takenAt.flatMap(ISODate.parse) }
@@ -98,6 +104,8 @@ struct Item: Codable, Identifiable, Hashable, Sendable {
         let m = media.first ?? repostOf?.media?.first
         return URL(string: m?.poster ?? "")
     }
+    /// The first video, of the item or of the original it reposts.
+    var videoURL: String? { (media + (repostOf?.media ?? [])).first { $0.type == .video }?.url }
 
     /// What VoiceOver reads for the item wherever it appears as a tile: kind, what the analysis
     /// saw, and when.
@@ -376,4 +384,14 @@ enum ISODate {
     }()
 
     static func parse(_ s: String) -> Date? { plain.date(from: s) ?? fractional.date(from: s) }
+}
+
+/// The monitor's matches in an item's audio: a name heard, or a language spoken where it is not expected.
+struct Detection: Codable, Hashable, Sendable {
+    struct Hit: Codable, Hashable, Sendable {
+        var kind: String
+        var phrase: String?
+        var lang: String?
+    }
+    var hits: [Hit]?
 }

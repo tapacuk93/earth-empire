@@ -14,7 +14,7 @@ final class MainFlowUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// `mode` pins the home screen's tag cloud / chronological switch for the run (nil: whatever
+    /// `mode` pins the home page shown first (videos, timeline or tags) for the run (nil: whatever
     /// the settings hold).
     private func launch(open url: String? = nil, mode: String? = "timeline") -> XCUIApplication {
         let app = XCUIApplication()
@@ -32,17 +32,30 @@ final class MainFlowUITests: XCTestCase {
         try? XCUIScreen.main.screenshot().pngRepresentation.write(to: URL(fileURLWithPath: "\(dir)/\(name).png"))
     }
 
+    /// Scrolls the page until `el` is on screen: up first (it is usually below), then back down.
+    @discardableResult
+    private func reveal(_ app: XCUIApplication, _ el: XCUIElement) -> XCUIElement {
+        for _ in 0..<6 where !(el.waitForExistence(timeout: 1.5) && el.isHittable) { app.swipeUp() }
+        for _ in 0..<8 where !(el.exists && el.isHittable) { app.swipeDown() }
+        return el
+    }
+
     private func element(_ app: XCUIApplication, _ id: String) -> XCUIElement {
         app.descendants(matching: .any)[id].firstMatch
     }
 
-    func testHomeShowsProfileHighlightsAndGrid() {
-        let app = launch()
-        XCTAssertTrue(element(app, "profile.header").waitForExistence(timeout: 15))
-        XCTAssertTrue(element(app, "highlight.\(travel)").waitForExistence(timeout: 10))
-        XCTAssertTrue(element(app, "grid.item.\(reel)").waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["Earth Empire"].exists)
+    func testHomeShowsOnlyVideosInSections() {
+        let app = launch(mode: "videos")
+        XCTAssertTrue(element(app, "video.\(reel)").waitForExistence(timeout: 15))
+        XCTAssertFalse(element(app, "section.featured").exists, "sections are subjects, not levels")
+        XCTAssertTrue(element(app, "video.\(reel)").label.contains("Audio: "), "every card says what sounds in it")
+        XCTAssertFalse(element(app, "video.ig_3400000000000000007").exists, "a photo post is not a video")
+        XCTAssertFalse(element(app, "profile.header").exists)
         shot("01-home")
+        let tile = element(app, "video.\(reel)")
+        XCTAssertTrue(tile.waitUntilHittable())
+        tile.tap()
+        XCTAssertTrue(element(app, "media.pager").waitForExistence(timeout: 10))
     }
 
     func testTagCloudFiltersItems() {
@@ -53,33 +66,42 @@ final class MainFlowUITests: XCTestCase {
         shot("11-tag-cloud")
         surf.tap()
         XCTAssertTrue(element(app, "tag.selected").waitForExistence(timeout: 5))
-        XCTAssertTrue(element(app, "grid.item.\(reel)").waitForExistence(timeout: 10))
+        let tile = element(app, "grid.item.\(reel)")
+        for _ in 0..<6 where !tile.waitForExistence(timeout: 2) { app.swipeUp() }
+        XCTAssertTrue(tile.exists)
         XCTAssertFalse(element(app, "grid.item.ig_3400000000000000006").waitForExistence(timeout: 2))
         shot("12-tag-filtered")
         element(app, "tag.selected").tap()
         XCTAssertFalse(element(app, "tag.selected").waitForExistence(timeout: 2))
     }
 
-    func testHomeModeSwitch() {
-        let app = launch(mode: nil)
-        let picker = element(app, "home.mode")
-        XCTAssertTrue(picker.waitForExistence(timeout: 15))
-        app.buttons["Chronological"].tap()
+    func testHomePagesSideBySide() {
+        let app = launch(mode: "videos")
+        XCTAssertTrue(element(app, "video.\(reel)").waitForExistence(timeout: 15))
+        let pages = app.scrollViews.firstMatch
+        pages.swipeLeft()
         XCTAssertTrue(element(app, "timeline.month.2026-10").waitForExistence(timeout: 10))
-        shot("13-chronological")
-        app.buttons["Tag cloud"].tap()
+        shot("13-timeline")
+        pages.swipeLeft()
         XCTAssertTrue(element(app, "tag.cloud").waitForExistence(timeout: 10))
+        pages.swipeRight()
+        pages.swipeRight()
+        XCTAssertTrue(element(app, "video.\(reel)").waitForExistence(timeout: 10))
     }
 
     func testKindFilterShowsOnlyThatKind() {
-        let app = launch()
-        XCTAssertTrue(element(app, "grid.item.\(reel)").waitForExistence(timeout: 15))
-        element(app, "filter.kind.carousel").tap()
-        XCTAssertTrue(element(app, "grid.item.\(carousel)").waitForExistence(timeout: 10))
+        let app = launch(mode: "tags")
+        XCTAssertTrue(element(app, "tag.cloud").waitForExistence(timeout: 15))
+        // The grid is below the tag cloud; a lazy grid has its tiles only once they scroll in.
+        let tile = element(app, "grid.item.\(reel)")
+        for _ in 0..<6 where !tile.waitForExistence(timeout: 2) { app.swipeUp() }
+        XCTAssertTrue(tile.exists)
+        reveal(app, element(app, "filter.kind.carousel")).tap()
+        XCTAssertTrue(reveal(app, element(app, "grid.item.\(carousel)")).exists)
         XCTAssertFalse(element(app, "grid.item.\(reel)").waitForExistence(timeout: 2))
         shot("02-filter-carousels")
-        element(app, "filter.kind.all").tap()
-        XCTAssertTrue(element(app, "grid.item.\(reel)").waitForExistence(timeout: 10))
+        reveal(app, element(app, "filter.kind.all")).tap()
+        XCTAssertTrue(reveal(app, element(app, "grid.item.\(reel)")).exists)
     }
 
     func testItemShowsAnalysisAndTimelineSeeksVideo() {
@@ -116,7 +138,7 @@ final class MainFlowUITests: XCTestCase {
 
     func testCategoriesList() {
         let app = launch()
-        XCTAssertTrue(element(app, "profile.header").waitForExistence(timeout: 15))
+        XCTAssertTrue(element(app, "home.pages").waitForExistence(timeout: 15))
         let food = element(app, "category.food")
         // The toolbar can take a moment to accept taps after launch; tap again if the list
         // did not open.
@@ -131,11 +153,8 @@ final class MainFlowUITests: XCTestCase {
     }
 
     func testHighlightStoryViewer() {
-        let app = launch()
-        let ring = element(app, "highlight.\(travel)")
-        XCTAssertTrue(ring.waitForExistence(timeout: 15))
-        ring.tap()
-        XCTAssertTrue(element(app, "story.viewer").waitForExistence(timeout: 10))
+        let app = launch(open: "earthempire://highlight/\(travel)")
+        XCTAssertTrue(element(app, "story.viewer").waitForExistence(timeout: 15))
         XCTAssertEqual(element(app, "story.title").label, "Travel")
         let progress = element(app, "story.progress")
         XCTAssertTrue(progress.waitForExistence(timeout: 10))
@@ -146,7 +165,7 @@ final class MainFlowUITests: XCTestCase {
         element(app, "story.previous").tap()
         XCTAssertTrue(progress.label.hasPrefix("Story 1 of"), progress.label)
         element(app, "story.close").tap()
-        XCTAssertTrue(element(app, "profile.header").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "home.pages").waitForExistence(timeout: 5))
     }
 
     func testSearchFindsByAnalysis() {
@@ -181,6 +200,12 @@ final class MainFlowUITests: XCTestCase {
 }
 
 private extension XCUIElement {
+    func waitUntilHittable(timeout: TimeInterval = 10) -> Bool {
+        let end = Date().addingTimeInterval(timeout)
+        while Date() < end { if exists && isHittable { return true }; Thread.sleep(forTimeInterval: 0.2) }
+        return false
+    }
+
     func tapWhenReady(timeout: TimeInterval = 15) {
         XCTAssertTrue(waitForExistence(timeout: timeout))
         tap()

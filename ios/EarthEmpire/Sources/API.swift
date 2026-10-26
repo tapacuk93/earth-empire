@@ -25,6 +25,26 @@ protocol ArchiveAPI: Sendable {
     func categories() async throws -> [Category]
     /// The tag cloud, by count.
     func tags(limit: Int) async throws -> [Tag]
+    /// Home's levels (`GET /v1/layout`); nil when the API has none.
+    func layout() async -> [LayoutTile]?
+    /// The AI-defined groupings (`GET /v1/facets`); nil when the API has none.
+    func facets() async -> [Facet]?
+    /// The monitor hits the owner approved for Home (`GET /v1/published`).
+    func published() async -> [PublishedHit]
+}
+
+extension ArchiveAPI {
+    /// Every item, newest first, page by page (at most `cap`).
+    func allItems(cap: Int = 2000) async throws -> [Item] {
+        var items: [Item] = []
+        var cursor: String?
+        repeat {
+            let page = try await self.items(ItemQuery(), before: cursor, limit: 100)
+            items += page.items
+            cursor = page.next
+        } while cursor != nil && items.count < cap
+        return items
+    }
 }
 
 enum APIError: LocalizedError {
@@ -112,6 +132,21 @@ final class LiveAPI: ArchiveAPI, @unchecked Sendable {
             } while cursor != nil && items.count < 1000
             return Array(TagIndex.cloud(items).prefix(limit))
         }
+    }
+
+    func layout() async -> [LayoutTile]? {
+        guard let r: LayoutResponse = try? await get("v1/layout") else { return nil }
+        return r.tiles ?? ((r.halves?.top ?? []) + (r.halves?.bottom ?? []))
+    }
+
+    func facets() async -> [Facet]? {
+        let r: FacetList? = try? await get("v1/facets")
+        return r?.facets.isEmpty == false ? r?.facets : nil
+    }
+
+    func published() async -> [PublishedHit] {
+        let r: PublishedList? = try? await get("v1/published", query: [.init(name: "limit", value: "50")])
+        return r?.hits ?? []
     }
 
     func url(_ path: String, query: [URLQueryItem] = []) -> URL {
@@ -230,6 +265,17 @@ final class SampleAPI: ArchiveAPI, @unchecked Sendable {
     func highlights() async throws -> [Highlight] { await wait(); return fixture.highlights }
     func categories() async throws -> [Category] { await wait(); return fixture.categories }
     func tags(limit: Int) async throws -> [Tag] { await wait(); return Array(TagIndex.cloud(fixture.items).prefix(limit)) }
+    func layout() async -> [LayoutTile]? { nil }
+    func published() async -> [PublishedHit] { [] }
+
+    /// Topics from the items' categories, like the web's mock.
+    func facets() async -> [Facet]? {
+        var ids: [String: [String]] = [:]
+        for item in fixture.items { for c in item.categories ?? [] { ids[c, default: []].append(item.id) } }
+        let cats = ids.map { FacetCategory(id: $0.key, name: $0.key.capitalized, description: nil, count: $0.value.count, itemIds: $0.value) }
+            .sorted { $0.count > $1.count }
+        return [Facet(id: "topic", name: "Topic", description: nil, categories: cats)]
+    }
 
     func item(id: String) async throws -> Item {
         await wait()

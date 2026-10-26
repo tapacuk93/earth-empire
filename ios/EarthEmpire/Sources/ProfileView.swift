@@ -1,6 +1,8 @@
+import AVKit
 import SwiftUI
 
-/// The account's home: header, highlights, filters, the grid, search.
+/// Home: three pages side by side - the videos in sections (the main screen), then the timeline,
+/// then the tags with the grid they filter. A search replaces them with its results.
 struct ProfileView: View {
     @Environment(AppModel.self) private var model
     @State private var search = ""
@@ -9,7 +11,9 @@ struct ProfileView: View {
     @State private var category: String?
     @State private var tag: String?
     @State private var pager: Pager<Item>?
-    @AppStorage(HomeMode.storageKey) private var mode: HomeMode = .tags
+    @State private var timeline: Pager<Item>?
+    @State private var hit: PublishedHit?
+    @AppStorage(HomeMode.storageKey) private var mode: HomeMode = .videos
     @State private var showSettings = false
 
     private var query: ItemQuery {
@@ -17,56 +21,27 @@ struct ProfileView: View {
     }
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                if committedSearch.isEmpty {
-                    ProfileHeader()
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-                    HighlightsRow()
-                        .padding(.vertical, 12)
+        Group {
+            if !committedSearch.isEmpty {
+                ScrollView { if let pager { ItemGrid(pager: pager) } }
+            } else {
+                TabView(selection: $mode) {
+                    videos.tag(HomeMode.videos)
+                    ScrollView { if let timeline { TimelineList(pager: timeline) } }
+                        .accessibilityIdentifier("page.timeline")
+                        .tag(HomeMode.timeline)
+                    tagsPage.tag(HomeMode.tags)
                 }
-                Picker("Show", selection: $mode) {
-                    ForEach(HomeMode.allCases) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal)
-                .padding(.bottom, 10)
-                .accessibilityIdentifier("home.mode")
-                if mode == .tags && committedSearch.isEmpty {
-                    TagCloud(tags: model.tags, selected: $tag)
-                        .padding(.horizontal)
-                        .padding(.bottom, 10)
-                }
-                if let tag {
-                    Button { self.tag = nil } label: {
-                        Label("#\(tag)", systemImage: "xmark.circle.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .padding(.horizontal, 12).padding(.vertical, 6)
-                            .background(Theme.accent.opacity(0.2), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                    .accessibilityLabel("Filtered by \(tag). Clear")
-                    .accessibilityIdentifier("tag.selected")
-                }
-                FilterBar(kind: $kind, category: $category)
-                    .padding(.bottom, 8)
-                if let error = model.homeError, model.profile == nil {
-                    ErrorBanner(error: error) { Task { await model.loadHome() } }
-                        .padding()
-                }
-                if let pager {
-                    if mode == .timeline { TimelineList(pager: pager) } else { ItemGrid(pager: pager) }
-                }
+                .tabViewStyle(.page(indexDisplayMode: .always))
+                .indexViewStyle(.page(backgroundDisplayMode: .always))
+                .accessibilityIdentifier("home.pages")
             }
         }
         .refreshable {
             await model.loadHome()
             await pager?.refresh()
         }
-        .navigationTitle(model.profile?.username ?? "Earth Empire")
+        .navigationTitle(committedSearch.isEmpty ? mode.label : "Search")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .automatic),
                     prompt: "Search captions, people, places")
@@ -85,6 +60,7 @@ struct ProfileView: View {
             }
         }
         .sheet(isPresented: $showSettings) { SettingsView() }
+        .fullScreenCover(item: $hit) { HitPlayer(hit: $0) }
         .safeAreaInset(edge: .top) {
             if model.fellBackToSample || OfflineState.shared.isOffline {
                 StatusStrip(text: model.fellBackToSample ? "API unreachable: showing sample data" : "Offline: showing saved items")
@@ -100,6 +76,11 @@ struct ProfileView: View {
             pager = p
             await p.loadIfNeeded()
         }
+        .task(id: model.apiGeneration) {
+            let p = Pager.items(model.api, ItemQuery())
+            timeline = p
+            await p.loadIfNeeded()
+        }
         .onChange(of: model.pendingQuery) { _, q in
             guard let q else { return }
             search = q.q ?? ""
@@ -107,8 +88,56 @@ struct ProfileView: View {
             kind = q.kind
             category = q.category
             tag = q.tag
+            if !q.isEmpty && (q.q ?? "").isEmpty { mode = .tags }
             model.pendingQuery = nil
         }
+    }
+
+    /// The main screen: only videos, in sections by importance.
+    @ViewBuilder private var videos: some View {
+        if let sections = model.videoSections {
+            if sections.isEmpty {
+                if let error = model.homeError {
+                    ErrorBanner(error: error) { Task { await model.loadHome() } }.padding()
+                } else {
+                    ContentUnavailableView("Nothing is public yet", systemImage: "play.rectangle", description: Text("Videos appear here as they arrive."))
+                }
+            } else {
+                VideoSectionsView(sections: sections) { hit = $0 }
+            }
+        } else if let error = model.homeError {
+            ErrorBanner(error: error) { Task { await model.loadHome() } }.padding()
+        } else {
+            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    /// The tags, the filters, and the grid they narrow.
+    private var tagsPage: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                TagCloud(tags: model.tags, selected: $tag)
+                    .padding(.horizontal)
+                    .padding(.vertical, 10)
+                if let tag {
+                    Button { self.tag = nil } label: {
+                        Label("#\(tag)", systemImage: "xmark.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            .background(Theme.accent.opacity(0.2), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                    .accessibilityLabel("Filtered by \(tag). Clear")
+                    .accessibilityIdentifier("tag.selected")
+                }
+                FilterBar(kind: $kind, category: $category)
+                    .padding(.bottom, 8)
+                if let pager { ItemGrid(pager: pager) }
+            }
+        }
+        .accessibilityIdentifier("page.tags")
     }
 
     private struct QueryKey: Hashable { var query: ItemQuery; var generation: Int }
@@ -124,83 +153,6 @@ struct StatusStrip: View {
             .background(.yellow.opacity(0.85))
             .foregroundStyle(.black)
             .accessibilityIdentifier("status.strip")
-    }
-}
-
-struct ProfileHeader: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        let p = model.profile
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 20) {
-                RemoteImage(p?.avatar, accessibilityLabel: nil)
-                    .frame(width: 86, height: 86)
-                    .clipShape(Circle())
-                    .overlay(Circle().strokeBorder(Theme.ring, lineWidth: 3).padding(-5))
-                    .padding(5)
-                    .accessibilityHidden(true)
-                ViewThatFits {
-                    HStack(spacing: 18) { counts }
-                    VStack(alignment: .leading, spacing: 4) { counts }
-                }
-                .frame(maxWidth: .infinity)
-            }
-            if let name = p?.fullName { Text(name).font(.headline) }
-            if let bio = p?.bio { Text(bio).font(.subheadline) }
-            ForEach(p?.links ?? [], id: \.self) { link in
-                if let url = URL(string: link) {
-                    Link(url.host ?? link, destination: url).font(.subheadline.weight(.semibold))
-                }
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("profile.header")
-        .redacted(reason: p == nil ? .placeholder : [])
-    }
-
-    @ViewBuilder private var counts: some View {
-        let c = model.profile?.counts
-        stat(c?.posts, "posts")
-        stat(c?.followers, "followers")
-        stat(c?.following, "following")
-    }
-
-    private func stat(_ n: Int?, _ label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(n.map { $0.formatted(.number.notation(.compactName)) } ?? "–").font(.headline)
-            Text(label).font(.caption).foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-struct HighlightsRow: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        if !model.highlights.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 16) {
-                    ForEach(model.highlights) { h in
-                        Button { model.story = StoryRequest(highlightID: h.id, itemID: nil) } label: {
-                            VStack(spacing: 6) {
-                                RemoteImage(h.cover)
-                                    .frame(width: 64, height: 64)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().strokeBorder(.secondary.opacity(0.4), lineWidth: 1).padding(-4))
-                                    .padding(4)
-                                Text(h.title).font(.caption).lineLimit(1).frame(maxWidth: 76)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Highlight \(h.title), \(h.itemIds.count) stories")
-                        .accessibilityIdentifier("highlight.\(h.id)")
-                    }
-                }
-                .padding(.horizontal)
-            }
-        }
     }
 }
 
@@ -331,5 +283,40 @@ struct ErrorBanner: View {
         }
         .frame(maxWidth: .infinity)
         .accessibilityIdentifier("error.banner")
+    }
+}
+
+/// A clip the monitor found elsewhere, full screen.
+struct HitPlayer: View {
+    let hit: PublishedHit
+    @Environment(\.dismiss) private var dismiss
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Color.black.ignoresSafeArea()
+            if let player { VideoPlayer(player: player).ignoresSafeArea() } else { RemoteImage(hit.frame ?? hit.video?.thumbnail, contentMode: .fit) }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Found by AI").font(.caption.weight(.heavy)).foregroundStyle(.orange)
+                Text(hit.title).font(.headline)
+                Text(hit.what).font(.subheadline).opacity(0.85)
+            }
+            .foregroundStyle(.white)
+            .padding(12)
+            .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 14))
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            Button { dismiss() } label: {
+                Image(systemName: "xmark").font(.headline).padding(12).background(.ultraThinMaterial, in: Circle())
+            }
+            .accessibilityLabel("Close")
+            .accessibilityIdentifier("hit.close")
+            .padding()
+        }
+        .onAppear {
+            if let clip = MediaURL.resolve(hit.clip) { player = AVPlayer(url: clip); player?.play() }
+        }
+        .onDisappear { player?.pause() }
+        .accessibilityIdentifier("hit.player")
     }
 }

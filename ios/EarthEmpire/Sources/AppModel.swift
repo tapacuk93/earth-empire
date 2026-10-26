@@ -2,11 +2,12 @@ import Foundation
 import Observation
 import SwiftUI
 
-/// What the home screen shows under the highlights, remembered in settings.
+/// Home's three pages, side by side: the videos, then the timeline, then the tags. The one on
+/// screen is remembered in settings.
 enum HomeMode: String, CaseIterable, Identifiable {
-    case tags, timeline
+    case videos, timeline, tags
     var id: String { rawValue }
-    var label: String { self == .tags ? "Tag cloud" : "Chronological" }
+    var label: String { switch self { case .videos: "Videos"; case .timeline: "Timeline"; case .tags: "Tags" } }
     static let storageKey = "EEHomeMode"
 }
 
@@ -39,6 +40,8 @@ final class AppModel {
     var highlights: [Highlight] = []
     var categories: [Category] = []
     var tags: [Tag] = []
+    /// Home's main screen; nil until loaded.
+    var videoSections: [VideoSection]?
     var homeError: Error?
     var path = NavigationPath()
     var story: StoryRequest?
@@ -68,6 +71,7 @@ final class AppModel {
         highlights = []
         categories = []
         tags = []
+        videoSections = nil
         path = NavigationPath()
     }
 
@@ -84,6 +88,7 @@ final class AppModel {
             do { tags = try await api.tags(limit: 300) } catch {
                 log.error("tags failed: \(error.localizedDescription, privacy: .public)")
             }
+            await loadVideos()
         } catch {
             log.error("home failed: \(error.localizedDescription, privacy: .public)")
             #if DEBUG
@@ -101,6 +106,23 @@ final class AppModel {
             }
             #endif
             homeError = error
+        }
+    }
+
+    /// Every video in Home's sections: all items, with the API's levels, facets and approved hits.
+    func loadVideos() async {
+        do {
+            let api = api
+            async let items = api.allItems()
+            async let layout = api.layout()
+            async let facets = api.facets()
+            async let hits = api.published()
+            let (i, l, f, h) = try await (items, layout, facets, hits)
+            videoSections = HomeSections.build(items: i, highlights: highlights, hits: h, layout: l, facets: f)
+            log.info("home: \(i.count) items, \(l?.count ?? -1) layout tiles, \(f?.count ?? 0) facets, \(h.count) hits -> \(self.videoSections?.count ?? 0) sections")
+        } catch {
+            log.error("videos failed: \(error.localizedDescription, privacy: .public)")
+            if videoSections == nil { videoSections = [] }
         }
     }
 

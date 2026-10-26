@@ -82,7 +82,10 @@ export async function checkAdmin(token: string): Promise<boolean> {
 }
 
 // ---- the monitor's phrases ----
-export interface Phrase { text: string; variants?: string[]; mishearings?: string[]; claude_variants?: string[]; updated_at?: string }
+export interface Phrase { text: string; origin?: 'owner' | 'highlight'; variants?: string[]; mishearings?: string[]; claude_variants?: string[]; updated_at?: string }
+/** A highlight title the monitor has seen; archived ones (`current: false`) left the profile but are still listened for. */
+export interface HighlightTitle { title: string; phrase: string | null; items: number; current: boolean; first_seen: string; last_seen: string }
+export interface PhraseConfig { phrases: Phrase[]; owner_phrases: string[]; from_highlights: boolean; highlight_titles: HighlightTitle[] }
 
 let mockPhrases: Phrase[] = [{ text: 'тарас' }, { text: 'тарас маслов' }, { text: 'маслов' }].map((p) => ({ ...p, variants: mockVariants(p.text) }));
 function mockVariants(t: string): string[] {
@@ -94,6 +97,29 @@ function mockVariants(t: string): string[] {
 export async function getPhrases(): Promise<Phrase[]> {
   if (MOCK) return mockPhrases.map((p) => ({ ...p }));
   return (await call<{ phrases: Phrase[] }>('GET', '/v1/monitor/phrases', undefined, !!adminToken())).phrases || [];
+}
+
+let mockFromHighlights = true;
+const mockTitles: HighlightTitle[] = [
+  { title: 'в Тараса 3', phrase: 'тараса три', items: 9, current: true, first_seen: '2026-10-01T00:00:00Z', last_seen: '2026-10-26T00:00:00Z' },
+  { title: 'ці дєвки', phrase: 'дєвки', items: 0, current: false, first_seen: '2026-10-01T00:00:00Z', last_seen: '2026-10-20T00:00:00Z' },
+];
+
+/** The owner's own phrases, whether highlight titles are listened for too, and those titles. */
+export async function getPhraseConfig(): Promise<PhraseConfig> {
+  if (MOCK) {
+    const own = mockPhrases.map((p) => ({ ...p, origin: 'owner' as const }));
+    const hl = mockFromHighlights ? mockTitles.filter((t) => t.phrase).map((t) => ({ text: t.phrase!, origin: 'highlight' as const, variants: mockVariants(t.phrase!) })) : [];
+    return { phrases: [...own, ...hl], owner_phrases: own.map((p) => p.text), from_highlights: mockFromHighlights, highlight_titles: mockTitles };
+  }
+  const r = await call<PhraseConfig>('GET', '/v1/monitor/phrases', undefined, true);
+  return { phrases: r.phrases || [], owner_phrases: r.owner_phrases || (r.phrases || []).map((p) => p.text), from_highlights: !!r.from_highlights, highlight_titles: r.highlight_titles || [] };
+}
+
+export async function setFromHighlights(on: boolean): Promise<PhraseConfig> {
+  if (MOCK) { if (adminToken() !== 'owner') throw new ApiError(401, '401 Unauthorized'); mockFromHighlights = on; return getPhraseConfig(); }
+  await call('PUT', '/v1/monitor/phrases/settings', { from_highlights: on }, true);
+  return getPhraseConfig();
 }
 
 export async function savePhrases(texts: string[]): Promise<Phrase[]> {

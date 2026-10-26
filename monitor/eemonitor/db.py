@@ -98,6 +98,8 @@ DEFAULTS = {
     "fetch.max_n": "50",
     # Claude (through the aicoin proxy): translations of excerpts and judging borderline name hits.
     "claude.enabled": "1",
+    # Every highlight title (current and archived) is listened for, beside the owner's phrases.
+    "phrases.from_highlights": "1",
     "claude.daily_usd": "0.50",
     "claude.model": "claude-haiku-4-5",
     # Detection thresholds: recall over precision; low hits are kept and labelled.

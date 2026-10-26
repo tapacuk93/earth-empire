@@ -394,3 +394,31 @@ def test_heard_on_hits(monkeypatch):
     db.add_usage(c(), "usd.claude", db.fsetting(c(), "claude.daily_usd"))
     n = len(prompts)
     assert worker.heard_backfill(c()) == 0 and len(prompts) == n
+
+
+def test_highlight_titles_are_listened_for_current_and_archived():
+    from fastapi.testclient import TestClient
+    from eemonitor import highlights
+    cl = TestClient(api.app)
+    auth = {"Authorization": "Bearer secret-admin"}
+    assert highlights.phrase_of("в Тараса 3") == "тараса три" and highlights.phrase_of("ці 3") == "три"
+    assert highlights.phrase_of("у тебя 3") == "тебя три" and highlights.phrase_of("3") == "три"
+    highlights.sync_titles(c(), [{"title": "в Тараса 3", "item_ids": ["a", "b"]}, {"title": "має цих трьох", "item_ids": ["c"]}])
+    assert highlights.apply(c())
+    texts = [p["text"] for p in worker.list_phrases(c())]
+    assert "тараса три" in texts and "має цих трьох" in texts and texts.index("тарас") < texts.index("тараса три")
+    # a title that left the profile stays (archived) and is still listened for
+    highlights.sync_titles(c(), [{"title": "ці дєвки", "item_ids": ["d"]}])
+    highlights.apply(c())
+    ph = cl.get("/v1/monitor/phrases", headers=auth).json()
+    arch = {t["title"]: t["current"] for t in ph["highlight_titles"]}
+    assert arch == {"ці дєвки": True, "в Тараса 3": False, "має цих трьох": False}
+    assert {"тараса три", "дєвки"} <= {p["text"] for p in ph["phrases"] if p["origin"] == "highlight"}
+    assert ph["from_highlights"] is True and "тарас" in ph["owner_phrases"]
+    # the owner's own list is kept apart; switching highlights off leaves only it
+    ph = cl.put("/v1/monitor/phrases", json={"phrases": ["тарас", "маслов"], "claude": False}, headers=auth).json()
+    assert "тараса три" in [p["text"] for p in ph["phrases"]] and ph["owner_phrases"] == ["тарас", "маслов"]
+    ph = cl.put("/v1/monitor/phrases/settings", json={"from_highlights": False}, headers=auth).json()
+    assert [p["text"] for p in ph["phrases"]] == ["тарас", "маслов"]
+    cl.put("/v1/monitor/phrases/settings", json={"from_highlights": True}, headers=auth)
+    cl.put("/v1/monitor/phrases", json={"phrases": ["тарас", "тарас маслов", "маслов"], "claude": False}, headers=auth)

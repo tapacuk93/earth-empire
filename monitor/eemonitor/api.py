@@ -267,7 +267,27 @@ async def add_source(request: Request):
 def get_phrases():
     from . import highlights
     c = conn()
-    return {"phrases": worker.list_phrases(c), "suggested": highlights.list_suggestions(c)}
+    return {"phrases": worker.list_phrases(c), "suggested": highlights.list_suggestions(c),
+            "owner_phrases": highlights.owner_phrases(c),
+            "from_highlights": db.setting(c, "phrases.from_highlights") == "1",
+            "highlight_titles": highlights.titles(c)}
+
+
+@owner.put("/v1/monitor/phrases/settings")
+async def put_phrase_settings(request: Request):
+    """{"from_highlights": true | false}: listen for every highlight title (current and archived) too."""
+    from . import highlights
+    body = await request.json()
+    if not isinstance(body, dict) or not isinstance(body.get("from_highlights"), bool):
+        raise HTTPException(400, 'body must be {"from_highlights": true | false}')
+    c = conn()
+    db.set_setting(c, "phrases.from_highlights", "1" if body["from_highlights"] else "0")
+    try:
+        highlights.sync_titles(c)
+    except Exception as e:  # noqa: BLE001 - the titles already recorded still apply
+        log.warning("highlight titles: %s", e)
+    highlights.apply(c)
+    return get_phrases()
 
 
 @owner.post("/v1/monitor/phrases/suggested/{text}/accept")
@@ -303,8 +323,9 @@ async def put_phrases(request: Request):
     ps = body.get("phrases") if isinstance(body, dict) else None
     if not isinstance(ps, list) or not all(isinstance(p, str) for p in ps) or not ps:
         raise HTTPException(400, 'body must be {"phrases": ["...", ...]}')
+    from . import highlights
     c = conn()
-    worker.set_phrases(c, ps, use_claude=body.get("claude", True) is not False)
+    highlights.apply(c, ps, use_claude=body.get("claude", True) is not False)   # the owner's own phrases
     if body.get("rescan", True):
         db.set_setting(c, "rescan.requested", db.now())
     return get_phrases()

@@ -362,6 +362,12 @@ progress { accent-color: var(--accent); height: 8px; }
 .phrases { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 8px; }
 .phrase { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; }
 .phrase-text { font-weight: 600; flex: 1; }
+.hl-phrases { margin-top: 16px; }
+.hl-phrases .check { display: block; margin: 6px 0 10px; }
+.hl-titles .phrase { gap: 6px; }
+.variants .more { background: none; padding: 0; }
+.link-btn { background: none; border: 0; padding: 1px 8px; color: var(--accent, inherit); font: inherit; font-size: .8rem; cursor: pointer; text-decoration: underline; }
+.hl-titles .archived .phrase-text { font-weight: 400; color: var(--muted); }
 .variants { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px; list-style: none; padding: 0; margin: 0; }
 .variants li { padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: .8rem; }
 

@@ -99,13 +99,15 @@ def ensure_phrases(c) -> None:
         set_phrases(c, phrases.DEFAULT_PHRASES, use_claude=False)
 
 
-def set_phrases(c, texts: list[str], use_claude: bool = True) -> list[dict]:
-    texts = [t.strip() for t in texts if t and t.strip()][:30]
+def set_phrases(c, texts: list[str], use_claude=True) -> list[dict]:
+    """Replace the phrases. `use_claude`: a bool, or a predicate saying which new phrases Claude may spell."""
+    texts = list(dict.fromkeys(t.strip().lower() for t in texts if t and t.strip()))[:300]
+    may = use_claude if callable(use_claude) else (lambda t: use_claude)
     old = {r["text"]: json.loads(r["claude_variants"]) for r in c.execute("SELECT text, claude_variants FROM phrases")}
     c.execute("DELETE FROM phrases")
     for i, t in enumerate(texts):
         extra = old.get(t.lower())
-        if extra is None and use_claude:
+        if extra is None and may(t.lower()):
             from . import judge
             try:
                 extra = phrases.claude_expand(t, lambda p: judge.ask(c, p, "phrase-variants", max_tokens=600))
@@ -119,10 +121,12 @@ def set_phrases(c, texts: list[str], use_claude: bool = True) -> list[dict]:
 
 
 def list_phrases(c) -> list[dict]:
+    from . import highlights
     out = []
+    own = set(highlights.owner_phrases(c))
     for r in c.execute("SELECT * FROM phrases ORDER BY position"):
         comp = json.loads(r["compiled"])
-        out.append({"text": r["text"], "variants": comp["variants"], "mishearings": comp.get("mishearings", []),
+        out.append({"text": r["text"], "origin": "owner" if r["text"] in own else "highlight", "variants": comp["variants"], "mishearings": comp.get("mishearings", []),
                     "claude_variants": json.loads(r["claude_variants"]), "updated_at": r["updated_at"]})
     return out
 
@@ -880,6 +884,12 @@ def loop() -> None:
                 last_seed = time.time()
                 setup(c)
                 repost_seeds(c)
+                try:
+                    from . import highlights
+                    highlights.sync_titles(c)
+                    highlights.apply(c)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("highlight phrases failed: %s", e)
                 try:
                     from . import highlights
                     highlights.suggest_phrases(c)

@@ -87,7 +87,10 @@ def main(argv=None):
         db.set_setting(c, args[0], args[1])
         out = {args[0]: db.setting(c, args[0])}
     elif cmd == "phrases":
-        out = worker.set_phrases(c, args) if args else worker.list_phrases(c)
+        if args:   # the owner's own phrases; highlight titles join them (phrases.from_highlights)
+            from . import highlights
+            highlights.apply(c, args)
+        out = worker.list_phrases(c)
     elif cmd == "rescan":
         out = worker.rescan(c)
     elif cmd == "load-registry":

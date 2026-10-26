@@ -480,6 +480,14 @@ test('status and settings for the owner: health, activity, stats, phrases', asyn
   await phrases.getByRole('button', { name: 'Save' }).click();
   await expect(phrases.getByText('Saved.', { exact: false })).toBeVisible();
   await expect(phrases.locator('.phrases').first().locator('.phrase')).toHaveCount(4);
+  // highlight names: current and archived ones are listened for, apart from the owner's own list
+  const names = phrases.getByRole('list', { name: 'Highlight names' });
+  await expect(names.locator('.phrase')).toHaveCount(2);
+  await expect(names.locator('.archived')).toContainText('ці дєвки');
+  await expect(names.getByRole('list', { name: 'Variants of “в Тараса 3”' })).toContainText('taras');
+  await phrases.getByLabel('Also listen for every highlight name', { exact: false }).uncheck();
+  await expect(phrases.getByText('no longer listened for', { exact: false })).toBeVisible();
+  await phrases.getByLabel('Also listen for every highlight name', { exact: false }).check();
   await phrases.getByRole('button', { name: 'Rescan stored transcripts' }).click();
   await expect(phrases.getByText('Rescan started.', { exact: false })).toBeVisible();
   await page.goto('/status');

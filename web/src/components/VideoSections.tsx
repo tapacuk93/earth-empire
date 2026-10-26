@@ -30,9 +30,13 @@ function Tile({ t, size, href, playing, onPlay }: { t: VTile; size: Size; href: 
             ref={(v) => { if (v) { claimPlayback(v); v.play().catch(() => undefined); } }}
             onPlaying={(e) => (e.currentTarget as HTMLVideoElement).classList.add('on')} />
         )}
+        {t.audio && (
+          <span class={`vt-audio vt-audio-${t.audio.kind}`} title={`Audio: ${t.audio.text}`}>
+            <span aria-hidden="true">{t.audio.kind === 'music' ? '♪' : t.audio.kind === 'none' ? '∅' : '🎙'}</span> {t.audio.text}
+          </span>
+        )}
         {(t.hit || hits > 0) && <span class="vt-badge">{t.hit ? 'AI' : hits}</span>}
         <span class="vt-cap">
-          {size !== 'm' && t.label && <span class="vt-label">{t.label}</span>}
           {t.date && <time dateTime={t.date}>{fmtShort(t.date)}</time>}
           {t.text && <span class="vt-text">{t.text}</span>}
         </span>
@@ -68,11 +72,11 @@ export function VideoSections({ sections, hrefFor }: { sections: VSection[]; hre
 
   return (
     <div class="vsections" ref={root}>
-      {w > 0 && sections.map((s) => {
+      {w > 0 && sections.map((s, si) => {
         const { cols, row } = grid(w, h, s.compact);
-        const sized = s.tiles.map((t, i) => [t, sizeOf(t, i, s.tiles.length, cols)] as const);
-        // Each section shows its first rows (Featured four, the others two) until opened.
-        const budget = open.has(s.id) ? Infinity : cols * (s.level === 1 ? 4 : 2);
+        const sized = s.tiles.map((t, i) => [t, sizeOf(t, i, s.tiles.length, cols, si === 0)] as const);
+        // Each section shows its first rows (the first four, the others two, three on a phone) until opened.
+        const budget = open.has(s.id) ? Infinity : cols * (si === 0 ? 4 : cols <= 2 ? 3 : 2);
         let used = 0;
         const shown = sized.filter(([, z]) => (used += CELLS[z]) <= budget);
         return (

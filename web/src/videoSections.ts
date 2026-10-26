@@ -7,7 +7,7 @@
 import type { Facet, LayoutTile } from './homeData';
 import { importance, isVideo } from './layout';
 import type { Hit } from './monitor';
-import { titleOf, whatOf } from './monitor';
+import { LANG, titleOf, whatOf } from './monitor';
 import { highlightSection } from './sections';
 import type { Highlight, Item } from './types';
 import { cover } from './util';
@@ -22,8 +22,10 @@ export interface VTile {
   video?: string;
   date?: string;
   text: string;
-  label?: string;         // the highlight it belongs to, shown on large tiles
+  audio?: Audio;          // what was heard in it
 }
+/** The audio detected in a video: a matched name or language (the monitor), else the speech, else the music, else none. */
+export interface Audio { kind: 'detected' | 'speech' | 'music' | 'none'; text: string }
 export interface VSection { id: string; title: string; subtitle: string; tiles: VTile[]; level: number; compact: boolean }
 
 const videoOf = (it: Item) => [...it.media, ...(it.repost_of?.media || [])].find((m) => m.type === 'video')?.url;
@@ -58,10 +60,29 @@ export function themeFacet(facets: Facet[], ids: Set<string>): Facet | undefined
   return best;
 }
 
+const langName = (code?: string | null) => {
+  if (!code) return '';
+  if (code.length > 3) return code[0].toUpperCase() + code.slice(1); // already a name ("English")
+  if (LANG[code]) return LANG[code];
+  try { return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) || code; } catch { return code; }
+};
+/** The first clause of a free-text note ("Song by X (original reel's music); …" -> "Song by X"). */
+const clause = (s: string) => s.split(/[;(]/)[0].trim().replace(/[.,]$/, '');
+
+export function audioOf(it: Item): Audio | undefined {
+  const hits = it.detection?.hits || [];
+  const names = [...new Set(hits.filter((h) => h.kind === 'name' && h.phrase).map((h) => `“${h.phrase}”`))];
+  const langs = [...new Set(hits.filter((h) => h.kind === 'language').map((h) => `${langName(h.lang)} speech`))];
+  if (names.length || langs.length) return { kind: 'detected', text: [...names, ...langs].join(' · ') };
+  const speech = it.analysis?.speech;
+  if (speech?.language && speech.transcript && !/^(und|unknown|none|n\/a|mul|zxx)$/i.test(speech.language.trim())) return { kind: 'speech', text: `${langName(speech.language.length <= 3 ? speech.language.toLowerCase() : speech.language)} speech` };
+  const music = it.music?.title ? [it.music.title, it.music.artist].filter(Boolean).join(' · ') : it.analysis?.music ? clause(it.analysis.music) : '';
+  return music ? { kind: 'music', text: music } : { kind: 'none', text: 'No speech detected' };
+}
+
 export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[], layout?: LayoutTile[], facets?: Facet[] | null): VSection[] {
   const given = new Map((layout || []).map((t) => [t.id, t]));
   const byScore = (a: VTile, b: VTile) => a.level - b.level || b.score - a.score || (b.date || '').localeCompare(a.date || '');
-  const shared = new Map(highlights.filter((h) => highlightSection(h, highlights) === 'common').map((h) => [h.id, h.title]));
 
   const tiles: VTile[] = items.filter(isVideo).map((it) => {
     const g = given.get(it.id);
@@ -69,55 +90,63 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
     return {
       id: it.id, item: it, level, score: it.importance ?? g?.importance ?? importance(it),
       cover: cover(it), video: videoOf(it), date: it.taken_at, text: it.summary || it.description || it.caption || '',
-      label: it.highlights?.find((h) => shared.has(h.id))?.title || it.highlights?.[0]?.title,
+      audio: audioOf(it),
     };
   });
-  const found: VTile[] = hits.filter((h) => h.clip || h.frame || h.video?.thumbnail).map((h) => ({
-    id: h.id, hit: h, level: given.get(h.id)?.level || hitLevel(h), score: h.confidence ?? 0.5,
-    cover: h.frame || h.video?.thumbnail || undefined, video: h.clip || undefined,
-    date: h.video?.posted_at || h.found_at, text: `${whatOf(h)} · ${titleOf(h)}`, label: h.source?.name || h.platform,
-  }));
-
-  const out: VSection[] = [];
-  const add = (id: string, title: string, subtitle: string, list: VTile[], level: number) => {
-    if (list.length) out.push({ id, title, subtitle, tiles: list.sort(byScore), level, compact: level >= 3 });
-  };
-  add('featured', 'Featured', 'Posts and dedicated highlights, the most important first', tiles.filter((t) => t.level === 1), 1);
-  const ai = () => add('ai', 'Found by AI', 'Public videos elsewhere that mention Earth Empire, rated by Claude and approved', found, Math.min(...found.map((t) => t.level)));
-  if (found.some((t) => t.level <= 2)) ai();
-  // Level 2: one section per theme, the largest (and most important) first; each video in its biggest theme.
-  const l2 = tiles.filter((t) => t.level === 2);
-  const facet = themeFacet(facets || [], new Set(l2.map((t) => t.id)));
-  const cats = (facet?.categories || []).map((c) => ({ c, ids: new Set(c.item_ids) }));
-  const groups = new Map<string, VTile[]>(), rest: VTile[] = [];
-  for (const t of l2) {
-    const home = cats.filter((x) => x.ids.has(t.id)).sort((a, b) => b.c.count - a.c.count)[0];
-    if (home) groups.set(home.c.id, [...(groups.get(home.c.id) || []), t]); else rest.push(t);
+  for (const h of hits.filter((h) => h.clip || h.frame || h.video?.thumbnail)) {
+    tiles.push({
+      id: h.id, hit: h, level: given.get(h.id)?.level || hitLevel(h), score: h.confidence ?? 0.5,
+      cover: h.frame || h.video?.thumbnail || undefined, video: h.clip || undefined,
+      date: h.video?.posted_at || h.found_at, text: titleOf(h),
+      audio: { kind: 'detected', text: whatOf(h) },
+    });
   }
-  const weight = (l: VTile[]) => l.length * (0.5 + l.reduce((s, t) => s + t.score, 0) / l.length);
-  const about = (l: VTile[], what?: string) => {
-    const dates = l.map((t) => t.date || '').filter(Boolean).sort();
-    return [what, plural(l.length), span(dates[0], dates[dates.length - 1])].filter(Boolean).join(' · ');
-  };
-  [...groups.entries()].filter(([, l]) => l.length >= MIN_THEME || !rest.push(...l)).sort((a, b) => weight(b[1]) - weight(a[1])).forEach(([id, list]) => {
-    const c = cats.find((x) => x.c.id === id)!.c;
-    add(`theme:${id}`, c.name, about(list, c.description), list, 2);
-  });
-  add('highlights', groups.size ? 'More from the highlights' : 'Highlights', about(rest, 'From the shared highlights'), rest, 2);
-  if (!found.some((t) => t.level <= 2)) ai();
-  add('reposts', 'Reposts', 'Videos shared from other accounts', tiles.filter((t) => t.level === 3), 3);
-  add('stories', 'Stories', 'Moments from stories kept outside any highlight', tiles.filter((t) => t.level === 4), 4);
-  return out;
+
+  // Sections by subject: each video in the biggest category of the facet that splits them best; the
+  // ones left go through the next facet; categories under three videos give theirs back.
+  const groups: { id: string; title: string; about?: string; tiles: VTile[] }[] = [];
+  let rest = tiles;
+  for (let round = 0; round < 2 && rest.length >= MIN_THEME; round++) {
+    const facet = themeFacet(facets || [], new Set(rest.map((t) => t.id)));
+    if (!facet) break;
+    const cats = facet.categories.map((c) => ({ c, ids: new Set(c.item_ids), tiles: [] as VTile[] }));
+    const left: VTile[] = [];
+    for (const t of rest) {
+      const home = cats.filter((x) => x.ids.has(t.id)).sort((a, b) => b.c.count - a.c.count)[0];
+      (home ? home.tiles : left).push(t);
+    }
+    for (const x of cats) {
+      if (x.tiles.length >= MIN_THEME) groups.push({ id: `${facet.id}:${x.c.id}`, title: x.c.name, about: x.c.description, tiles: x.tiles });
+      else left.push(...x.tiles);
+    }
+    rest = left;
+    facets = (facets || []).filter((f) => f !== facet);
+  }
+  if (rest.length) groups.push({ id: 'more', title: groups.length ? 'More videos' : 'Videos', tiles: rest });
+
+  // The most important sections first: their best level, then their weight.
+  const LW = [1, 0.5, 0.25, 0.125];
+  const weight = (l: VTile[]) => l.reduce((s, t) => s + LW[t.level - 1] * (0.5 + t.score), 0);
+  const best = (l: VTile[]) => Math.min(...l.map((t) => t.level));
+  return groups
+    .sort((a, b) => (a.id === 'more' ? 1 : 0) - (b.id === 'more' ? 1 : 0) || best(a.tiles) - best(b.tiles) || weight(b.tiles) - weight(a.tiles))
+    .map((g) => {
+      const dates = g.tiles.map((t) => t.date || '').filter(Boolean).sort();
+      const level = best(g.tiles);
+      return { id: g.id, title: g.title, subtitle: [g.about, plural(g.tiles.length), span(dates[0], dates[dates.length - 1])].filter(Boolean).join(' · '),
+        tiles: g.tiles.sort(byScore), level, compact: level >= 3 };
+    });
 }
 
 export type Size = 'xl' | 'wide' | 'm';
 /**
- * A tile's footprint in a grid `cols` wide: the most important tiles of the top levels get the
- * space, so on a phone (2 columns) the first Featured video fills the width and the rest stay readable.
+ * A tile's footprint in a grid `cols` wide: the most important tiles get the space. The first
+ * section's L1 videos lead (on a phone the first fills the width); every other section opens with
+ * one large tile and keeps the rest readable.
  */
-export function sizeOf(t: VTile, rank: number, n: number, cols: number): Size {
+export function sizeOf(t: VTile, rank: number, n: number, cols: number, lead = false): Size {
   if (cols < 2 || t.level >= 3) return 'm';
   const heroes = Math.max(1, Math.floor(cols / 4));
-  if (t.level === 1) return rank < heroes && n >= 3 ? 'xl' : rank < heroes + Math.floor(cols / 2) && n > cols ? 'wide' : 'm';
-  return rank === 0 && n >= 4 ? (cols >= 3 ? 'xl' : 'wide') : rank === 0 && n >= 2 ? 'wide' : 'm';
+  if (lead && t.level === 1) return rank < heroes && n >= 3 ? 'xl' : rank < heroes + Math.floor(cols / 2) && n > cols ? 'wide' : 'm';
+  return rank === 0 && n >= 4 && cols >= 4 ? 'xl' : rank === 0 && n >= 2 ? 'wide' : 'm';
 }

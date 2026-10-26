@@ -57,10 +57,14 @@ test('home: three full-screen modes side by side - videos, timeline, tags - with
 
 const videos = (page: Page) => page.getByRole('region', { name: 'Videos mode', exact: true });
 
-test('videos: only videos, in titled sections by level, most important first', async ({ page }) => {
+test('videos: only videos, in sections by subject, most important first', async ({ page }) => {
   await page.goto('/');
   const v = videos(page);
-  await expect(v.getByRole('heading', { level: 2 })).toHaveText(['Featured', 'Found by AI', 'Reposts']);
+  await expect(v.locator('.vt').first()).toBeVisible();
+  const titles = await v.getByRole('heading', { level: 2 }).allInnerTexts();
+  expect(titles.length).toBeGreaterThan(0);
+  // Subjects, never the technical groupings (levels, sources, kinds).
+  for (const t of titles) expect(t).not.toMatch(/^(Featured|Found by AI|Reposts|Stories|Highlights|More from the highlights)$/);
   for (const sub of await v.locator('.vs-sub').allInnerTexts()) expect(sub.length).toBeGreaterThan(10);
   // Every tile is a video: an item with a video, or a found clip.
   const ids = await v.locator('.vt').evaluateAll((els) => els.map((e) => e.getAttribute('data-id')!));
@@ -70,13 +74,26 @@ test('videos: only videos, in titled sections by level, most important first', a
   for (const id of ids) expect(id.startsWith('h_') || isVideo.get(id), `${id} is a video`).toBe(true);
   expect(ids).toContain(REEL);
   // Found by AI opens the fullscreen player; the rest open the wheel.
-  await expect(v.getByRole('list', { name: /^Found by AI/ }).getByRole('link').first()).toHaveAttribute('href', /watch=h_mock/);
-  await expect(v.getByRole('list', { name: /^Featured/ }).getByRole('link').first()).toHaveAttribute('href', /ctx=rel%3Aall%3A/);
-  // Levels never go up within a section, and the first Featured video is the largest tile.
-  const levels = await v.locator('.vs-l1 .vt').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-level'))));
-  expect(levels).toEqual([...levels].sort((a, b) => a - b));
-  const areas = await v.locator('.vs-l1 .vt').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width * e.getBoundingClientRect().height));
+  await expect(v.locator('.vt[data-id^="h_"] a').first()).toHaveAttribute('href', /watch=h_mock/);
+  await expect(v.locator('.vt[data-id^="ig_"] a').first()).toHaveAttribute('href', /ctx=rel%3Aall%3A/);
+  // Levels never go up within a section, and the first section's first video is its largest tile.
+  for (const sec of await v.locator('.vsection').all()) {
+    const levels = await sec.locator('.vt').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-level'))));
+    expect(levels).toEqual([...levels].sort((a, b) => a - b));
+  }
+  const areas = await v.locator('.vsection').first().locator('.vt').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width * e.getBoundingClientRect().height));
   expect(areas[0]).toBe(Math.max(...areas));
+});
+
+test('videos: every card is labelled with the audio detected in it', async ({ page }) => {
+  await page.goto('/');
+  const v = videos(page);
+  await expect(v.locator('.vt').first()).toBeVisible();
+  const cards = await v.locator('.vt').count();
+  await expect(v.locator('.vt .vt-audio')).toHaveCount(cards);
+  // A found clip shows what was heard; an item with speech its language.
+  await expect(v.locator('.vt[data-id^="h_"] .vt-audio-detected').first()).toBeVisible();
+  await expect(v.locator(`.vt[data-id="${REEL}"] .vt-audio`)).toHaveText(/speech|“|♪|No speech/);
 });
 
 test('videos: laid out for the screen - readable tiles and text, nothing sideways', async ({ page }) => {
@@ -105,7 +122,7 @@ test('no word "feed" anywhere, and tiles outside highlights carry no label', asy
   await expect(page.locator('body')).not.toContainText(/\bfeed\b/i);
   await expect(videos(page).locator('.vt').first()).toBeVisible();
   expect((await videos(page).locator('.vt a').allInnerTexts()).join('\n')).not.toMatch(/\bfeed\b/i);
-  await expect(videos(page).locator('.vs-l1 .vt-m .vt-label')).toHaveCount(0); // small tiles carry no label
+
 });
 
 test('floating controls fade after a few seconds and come back on input', async ({ page }) => {
@@ -121,7 +138,9 @@ test('floating controls fade after a few seconds and come back on input', async 
 
 test('videos: opening a video starts the wheel, most related first; Close returns to the same spot', async ({ page }) => {
   await page.goto('/');
-  await openFromList(page, /^Featured: /);
+  const link = videos(page).locator('.vt[data-id^="ig_"] a').first();
+  await link.focus();
+  await page.keyboard.press('Enter');
   const f = feed(page);
   await expect(f).toBeVisible();
   await expect(page).toHaveURL(/\/item\/.+\?ctx=rel%3Aall%3A/);
@@ -526,8 +545,10 @@ test('facets: whatever the backend defines, each category opens its wheel', asyn
 
 test('home stays tappable: open a tile, close the wheel, open another - several times', async ({ page, hasTouch }) => {
   await page.goto('/');
+  await expect(videos(page).locator('.vt').first()).toBeVisible();
+  const shown = await videos(page).locator('.vt').count();
   for (let i = 0; i < 5; i++) {
-    const tile = videos(page).locator('.vt').nth(i);
+    const tile = videos(page).locator('.vt').nth(i % shown);
     await tile.scrollIntoViewIfNeeded();
     const c = (await tile.boundingBox())!;
     if (hasTouch) await page.touchscreen.tap(c.x + c.width / 2, c.y + c.height / 2); else await page.mouse.click(c.x + c.width / 2, c.y + c.height / 2);

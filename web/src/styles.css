@@ -741,7 +741,6 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .vt-cap { position: absolute; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; gap: 1px; padding: 28px 10px 8px; background: linear-gradient(transparent, rgb(0 0 0 / .78)); font-size: .8rem; line-height: 1.3; pointer-events: none; }
 .vt-cap time { font-weight: 700; font-size: .74rem; opacity: .9; }
 .vt-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.vt-label { align-self: flex-start; max-width: 100%; margin-bottom: 4px; padding: 2px 8px; border-radius: 999px; background: rgb(0 0 0 / .45); font-size: .72rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vt-xl .vt-cap { padding: 60px 16px 14px; font-size: clamp(.95rem, .85rem + .3vw, 1.15rem); }
 .vt-xl .vt-cap time { font-size: .85rem; }
 .vt-xl .vt-text { -webkit-line-clamp: 3; }
@@ -750,5 +749,9 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .vs-l3 .vt-text, .vs-l4 .vt-text { -webkit-line-clamp: 1; }
 .vt-badge { position: absolute; top: 6px; right: 6px; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: #e9a35a; color: #111; font-size: .72rem; font-weight: 800; text-align: center; }
 .vs-more { display: block; margin: 10px auto 0; }
+.vt-audio { position: absolute; top: 6px; left: 6px; max-width: calc(100% - 44px); padding: 2px 8px; border-radius: 999px; background: rgb(0 0 0 / .55); color: #fff; font-size: .72rem; font-weight: 600; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.vt-audio-detected { background: #e9a35a; color: #111; }
+.vt-audio-none { opacity: .75; }
+.vt-xl .vt-audio { top: 10px; left: 10px; font-size: .82rem; padding: 3px 10px; }
 /* Narrow screens: the open zoom control sits above the mode dots instead of under them */
 @media (max-width: 600px) { .home-main .zoom-ctl { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 40px); } }

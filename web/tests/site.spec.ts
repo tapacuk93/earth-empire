@@ -57,7 +57,7 @@ test('home: three full-screen modes side by side - videos, timeline, tags - with
 
 const videos = (page: Page) => page.getByRole('region', { name: 'Videos mode', exact: true });
 
-test('videos: only videos, in sections by subject, most important first', async ({ page }) => {
+test('videos: only videos, in sections by subject, by freshness × level', async ({ page }) => {
   await page.goto('/');
   const v = videos(page);
   await expect(v.locator('.vt').first()).toBeVisible();
@@ -76,11 +76,15 @@ test('videos: only videos, in sections by subject, most important first', async 
   // Found by AI opens the fullscreen player; the rest open the wheel.
   await expect(v.locator('.vt[data-id^="h_"] a').first()).toHaveAttribute('href', /watch=h_mock/);
   await expect(v.locator('.vt[data-id^="ig_"] a').first()).toHaveAttribute('href', /ctx=rel%3Aall%3A/);
-  // Levels never go up within a section, and the first section's first video is its largest tile.
+  // Within a section the highest freshness × level first, and the section whose best video ranks
+  // highest comes first; the first section's first video is its largest tile.
+  const tops: number[] = [];
   for (const sec of await v.locator('.vsection').all()) {
-    const levels = await sec.locator('.vt').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-level'))));
-    expect(levels).toEqual([...levels].sort((a, b) => a - b));
+    const ranks = await sec.locator('.vt').evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-rank'))));
+    expect(ranks).toEqual([...ranks].sort((a, b) => b - a));
+    tops.push(ranks[0]);
   }
+  expect(tops).toEqual([...tops].sort((a, b) => b - a));
   const areas = await v.locator('.vsection').first().locator('.vt').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width * e.getBoundingClientRect().height));
   expect(areas[0]).toBe(Math.max(...areas));
 });

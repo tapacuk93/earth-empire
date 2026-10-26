@@ -147,7 +147,7 @@ def facets_once(c) -> bool:
         return False
     ok, why = facets.due(c)
     if not ok:
-        return False
+        return bool(facets.place_new(c))   # new videos join their categories at once, without AI
     store.job_start(c, "facets", "facets", "Claude is redefining the site's facets", progress=why)
     from .db import set_setting
     set_setting(c, "facets.started_at", utcnow())

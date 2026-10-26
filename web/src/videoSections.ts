@@ -1,5 +1,7 @@
 // Home's main screen: every video (items with video and the approved monitor hits), grouped into
-// sections by the four levels of CONTRACT.md "Home layout", most important first within each.
+// sections by subject (the AI's facet categories). Ordered by freshness × level: a video's rank is its
+// level's weight (L1 1, L2 ½, L3 ¼, L4 ⅛) halved every RECENCY_HALF_LIFE days since it arrived, so
+// today's videos lead their category and a category with a fresh, important video rises to the top.
 // L1: posts and dedicated highlights -> Featured. L2: shared highlights -> one section per theme (the
 // AI facet that splits them best), the rest under More highlights.
 // L3: reposts. L4: stories in no highlight. Hits -> Found by AI, at their own levels.
@@ -21,6 +23,7 @@ export interface VTile {
   cover?: string;
   video?: string;
   date?: string;
+  added?: string;         // when it arrived: the post's time, or when a found clip was published
   text: string;
   audio?: Audio;          // what was heard in it
 }
@@ -48,6 +51,21 @@ function span(a?: string, b?: string): string {
   if (!a || !b || isNaN(Date.parse(a)) || isNaN(Date.parse(b))) return '';
   const [x, y] = [fmt(a), fmt(b)];
   return x === y ? x : `${x} – ${y}`;
+}
+/** The local calendar day of a time ('' when unknown), so "today" means the viewer's today. */
+export function dayOf(s?: string | null): string {
+  const t = s ? Date.parse(s) : NaN;
+  if (isNaN(t)) return '';
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+export const RECENCY_HALF_LIFE = 30;   // days, as the backend's size.half_life_days
+const LW = [1, 0.5, 0.25, 0.125];
+/** freshness × level: the level's weight, halved every RECENCY_HALF_LIFE days since it arrived (by day). */
+export function rankOf(t: VTile, today = dayOf(new Date().toISOString())): number {
+  const d = dayOf(t.added);
+  const age = d ? Math.max(0, (Date.parse(today) - Date.parse(d)) / 864e5) : 3650;
+  return LW[t.level - 1] * 0.5 ** (age / RECENCY_HALF_LIFE);
 }
 const plural = (n: number) => `${n} video${n === 1 ? '' : 's'}`;
 const MIN_THEME = 3;
@@ -89,7 +107,7 @@ export function audioOf(it: Item, _labels?: Map<string, string>): Audio {
 
 export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[], layout?: LayoutTile[], facets?: Facet[] | null): VSection[] {
   const given = new Map((layout || []).map((t) => [t.id, t]));
-  const byScore = (a: VTile, b: VTile) => a.level - b.level || b.score - a.score || (b.date || '').localeCompare(a.date || '');
+  const byScore = (a: VTile, b: VTile) => rankOf(b) - rankOf(a) || b.score - a.score || (b.added || '').localeCompare(a.added || '');
 
   // A highlight's fuller label (from what its videos say) where the backend has one, else its name.
   const labels = new Map(highlights.map((h) => [h.id, h.heard_label || h.title]));
@@ -98,7 +116,7 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
     const level = g?.level && g.level >= 1 && g.level <= 4 ? g.level : itemLevel(it, highlights);
     return {
       id: it.id, item: it, level, score: it.importance ?? g?.importance ?? importance(it),
-      cover: cover(it), video: videoOf(it), date: it.taken_at, text: it.summary || it.description || it.caption || '',
+      cover: cover(it), video: videoOf(it), date: it.taken_at, added: it.taken_at, text: it.summary || it.description || it.caption || '',
       audio: audioOf(it, labels),
     };
   });
@@ -106,7 +124,7 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
     tiles.push({
       id: h.id, hit: h, level: given.get(h.id)?.level || hitLevel(h), score: h.confidence ?? 0.5,
       cover: h.frame || h.video?.thumbnail || undefined, video: h.clip || undefined,
-      date: h.video?.posted_at || h.found_at, text: titleOf(h),
+      date: h.video?.posted_at || h.found_at, added: h.published_at || h.found_at || h.video?.posted_at || undefined, text: titleOf(h),
       audio: heardOf(h) ? { kind: 'heard', text: heardOf(h) } : undefined,
     });
   }
@@ -133,12 +151,11 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
   }
   if (rest.length) groups.push({ id: 'more', title: groups.length ? 'More videos' : 'Videos', tiles: rest });
 
-  // The most important sections first: their best level, then their weight.
-  const LW = [1, 0.5, 0.25, 0.125];
-  const weight = (l: VTile[]) => l.reduce((s, t) => s + LW[t.level - 1] * (0.5 + t.score), 0);
+  // The section whose best video ranks highest (freshness × level) first.
+  const top = (l: VTile[]) => Math.max(...l.map((t) => rankOf(t)));
   const best = (l: VTile[]) => Math.min(...l.map((t) => t.level));
   return groups
-    .sort((a, b) => (a.id === 'more' ? 1 : 0) - (b.id === 'more' ? 1 : 0) || best(a.tiles) - best(b.tiles) || weight(b.tiles) - weight(a.tiles))
+    .sort((a, b) => top(b.tiles) - top(a.tiles) || (a.id === 'more' ? 1 : 0) - (b.id === 'more' ? 1 : 0))
     .map((g) => {
       const dates = g.tiles.map((t) => t.date || '').filter(Boolean).sort();
       const level = best(g.tiles);

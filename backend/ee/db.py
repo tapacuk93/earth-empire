@@ -39,6 +39,7 @@ CREATE INDEX IF NOT EXISTS item_highlights_hl ON item_highlights(highlight_id);
 CREATE TABLE IF NOT EXISTS item_tags (item_id TEXT, tag TEXT, kind TEXT, PRIMARY KEY(item_id, tag, kind));
 CREATE INDEX IF NOT EXISTS item_tags_tag ON item_tags(tag);
 
+CREATE TABLE IF NOT EXISTS facet_notes (at TEXT NOT NULL, notes TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS categories (
   slug TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL, created_by_item TEXT

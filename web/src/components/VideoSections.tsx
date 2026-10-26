@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { fmtShort } from '../util';
-import { sizeOf, type Size, type VSection, type VTile } from '../videoSections';
+import { sizeOf, type Size, type VSection, type VTile, rankOf } from '../videoSections';
 import { claimPlayback } from './zoom';
 import { EditableLabel } from './EditableLabel';
 
@@ -21,7 +21,7 @@ function grid(w: number, h: number, compact: boolean) {
 
 function Tile({ t, size, href, playing, onPlay }: { t: VTile; size: Size; href: string; playing: boolean; onPlay: (id: string | null, delay?: number) => void }) {
   return (
-    <li class={`vt vt-${size}`} data-id={t.id} data-level={t.level}>
+    <li class={`vt vt-${size}`} data-id={t.id} data-level={t.level} data-rank={rankOf(t)}>
       <a href={href} aria-label={[t.audio?.text, t.date && fmtShort(t.date), t.text].filter(Boolean).join(', ')} onFocus={() => onPlay(t.id)} onBlur={() => onPlay(null)}
         onPointerEnter={(e) => e.pointerType === 'mouse' && onPlay(t.id, 150)} onPointerLeave={() => onPlay(null)}>
         {t.cover ? <img src={t.cover} alt="" loading="lazy" decoding="async" /> : <span class="vt-blank" />}

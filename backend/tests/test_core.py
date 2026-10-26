@@ -487,3 +487,72 @@ class OwnFirstTest(unittest.TestCase):
         self.assertEqual(store.claim_next(c, "analyze"), "ig_rep")
         c.close()
         tmp.cleanup()
+
+
+class FacetsTest(unittest.TestCase):
+    """Categories improve from Claude's own notes; new videos join their categories between runs."""
+
+    def setUp(self):
+        from ee import aicoin, facets
+        self.tmp = tempfile.TemporaryDirectory()
+        self.c = db.connect(Path(self.tmp.name) / "t.sqlite3")
+        db.set_setting(self.c, "analysis.enabled", "1")
+        self.facets, self.prompts = facets, []
+        self.notes = "Royals keep growing; split by country next time."
+
+        def fake(body, timeout=300):
+            self.prompts.append(body["messages"][0]["content"])
+            out = {"notes": self.notes, "facets": [{"id": "themes", "name": "Themes", "description": "",
+                   "categories": [{"id": "royals", "name": "Royals", "description": "", "items": [0, 1]}]}]}
+            return {"model": "claude-test", "usage": {"input_tokens": 10, "output_tokens": 5}, "stop_reason": "end_turn",
+                    "content": [{"type": "text", "text": json.dumps(out)}]}, 0.01
+        self.real, aicoin.claude = aicoin.claude, fake
+        self.real_hits, facets.published_hit_ids = facets.published_hit_ids, lambda: []
+        for n in range(3):
+            self.add(f"ig_{n}", f"2026-10-2{n}T10:00:00Z")
+
+    def tearDown(self):
+        from ee import aicoin
+        aicoin.claude = self.real
+        self.facets.published_hit_ids = self.real_hits
+        self.c.close()
+        self.tmp.cleanup()
+
+    def add(self, i, at):
+        self.c.execute("INSERT INTO items(id, kind, taken_at, data, content_hash, summary, published_at, updated_at) "
+                       "VALUES (?,?,?,?,?,?,?,?)", (i, "reel", at, "{}", "h", "A king", db.now(), db.now()))
+
+    def test_notes_are_kept_and_read_by_the_next_run(self):
+        self.facets.run(self.c)
+        self.assertIn("first run", self.prompts[-1])
+        self.assertEqual(self.facets.current(self.c)["notes"], self.notes)
+        self.c.execute("UPDATE settings SET value='2000-01-01T00:00:00Z' WHERE key='facets.last_run'")
+        self.facets.run(self.c)
+        self.assertIn(self.notes, self.prompts[-1])
+        self.assertIn('"in_no_category"', self.prompts[-1])
+        self.assertEqual(self.c.execute("SELECT COUNT(*) FROM facet_notes").fetchone()[0], 2)
+
+    def test_runs_are_spread_over_the_day(self):
+        self.facets.run(self.c)
+        self.add("ig_new", "2026-10-26T10:00:00Z")
+        ok, why = self.facets.due(self.c)
+        self.assertFalse(ok, why)   # 12 a day: not again within 2 hours, however much arrives
+
+    def test_new_videos_join_their_nearest_category_without_ai(self):
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy")
+        from ee import home
+        self.facets.run(self.c)
+        self.add("ig_new", "2026-10-26T10:00:00Z")
+        v = {"ig_0": [1, 0], "ig_1": [0.9, 0.1], "ig_2": [0, 1], "ig_new": [0.95, 0.05]}
+        real, home.vectors = home.vectors, lambda c, ids=None: {k: np.array(x, dtype=np.float32) / np.linalg.norm(x) for k, x in v.items()}
+        try:
+            self.assertEqual(self.facets.place_new(self.c), 1)
+            self.assertEqual(self.facets.place_new(self.c), 0)
+        finally:
+            home.vectors = real
+        cat = self.facets.public_view(self.c)["facets"][0]["categories"][0]
+        self.assertIn("ig_new", cat["item_ids"])
+        self.assertEqual(self.facets.fared(self.c, self.facets.current(self.c))["categories"][0]["joined_by_similarity_since"], 1)

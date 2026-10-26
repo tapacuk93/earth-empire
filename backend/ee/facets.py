@@ -7,8 +7,14 @@ categories within each, and which items belong where. It keeps existing ids and 
 no longer fit, so the site does not reshuffle. Items beyond what one call can hold are assigned by
 embedding similarity to the categories Claude filled.
 
-Runs: hourly when something changed, and after every 5 newly published items; at most
-`facets.daily_cap` runs a day (the cost guard), through the server's aicoin wallet.
+Runs: when something changed, spaced so that `facets.daily_cap` runs (the cost guard) cover the
+whole day, through the server's aicoin wallet. Between runs every newly published video (and found
+clip) joins, per facet, the category its members are most like, so new videos show in their
+category at once.
+
+Improving: each run Claude writes notes to itself (what worked, what to change, what to watch), and
+the next run reads them along with how the last categories fared: their sizes, how many videos
+joined each by similarity since, and how many fit nowhere.
 """
 from __future__ import annotations
 
@@ -24,8 +30,8 @@ from .logs import event
 MAX_ITEMS_IN_PROMPT = 400
 
 SCHEMA = {
-    "type": "object", "additionalProperties": False, "required": ["facets"],
-    "properties": {"facets": {"type": "array", "items": {
+    "type": "object", "additionalProperties": False, "required": ["facets", "notes"],
+    "properties": {"notes": {"type": "string"}, "facets": {"type": "array", "items": {
         "type": "object", "additionalProperties": False, "required": ["id", "name", "description", "categories"],
         "properties": {
             "id": {"type": "string"}, "name": {"type": "string"}, "description": {"type": "string"},
@@ -50,6 +56,16 @@ Rules:
 - ids are short lowercase-ascii-with-hyphens; names are short, in English, as shown on the site.
 - Items are given as numbers; answer with those numbers.
 
+- Improve every run. Your notes from earlier runs are below with how the categories fared since:
+  act on them (merge what stays tiny, split what grew into a catch-all, rename what misleads, make a
+  category for what keeps fitting nowhere). Then write `notes` for your next run: what you changed
+  and why, what to watch, ideas still to try. Rewrite the whole notebook each time, keeping what still
+  holds; at most 400 words.
+
+Your notes from earlier runs: {notes}
+
+How the current categories fared since the last run (JSON): {fared}
+
 Current facets (JSON): {current}
 
 Public items, one per line: number | date | summary | keywords | place | categories
@@ -70,6 +86,11 @@ def current(c) -> dict:
     return json.loads(raw) if raw else {"facets": [], "generated_at": None}
 
 
+def gap_seconds(c) -> float:
+    """The daily cap spread over the day: 12 runs -> at most one every 2 hours."""
+    return max(600.0, 86400.0 / max(1, int(setting(c, "facets.daily_cap") or 12)))
+
+
 def due(c) -> tuple[bool, str]:
     if setting(c, "analysis.enabled") != "1":
         return False, "analysis off"
@@ -86,12 +107,11 @@ def due(c) -> tuple[bool, str]:
     from datetime import datetime, timezone
     age = (datetime.now(timezone.utc) - datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
            ).total_seconds() if last else 1e9
-    if age < 600:
-        return False, "ran in the last 10 minutes"
-    if new >= 5:
-        return True, f"{new} newly published"
-    if age >= 3600 and (new or public["n"] != seen):
-        return True, "hourly, content changed"
+    gap = gap_seconds(c)
+    if age < gap:
+        return False, f"ran in the last {gap / 60:.0f} minutes"
+    if new or public["n"] != seen:
+        return True, f"{new} newly published" if new else "content changed"
     return False, "nothing new"
 
 
@@ -102,7 +122,8 @@ def run(c) -> dict:
     cur = current(c)
     cur_brief = [{"id": f["id"], "name": f["name"], "categories": [{"id": k["id"], "name": k["name"]}
                                                                     for k in f["categories"]]} for f in cur["facets"]]
-    prompt = PROMPT.replace("{current}", j(cur_brief)).replace(
+    prompt = PROMPT.replace("{notes}", cur.get("notes") or "(none yet: this is the first run with notes)").replace(
+        "{fared}", j(fared(c, cur))).replace("{current}", j(cur_brief)).replace(
         "{items}", "\n".join(_line(n, r) for n, r in enumerate(in_prompt)))
     body = {"max_tokens": 16000, "output_config": {"effort": "medium", "format": {"type": "json_schema", "schema": SCHEMA}},
             "messages": [{"role": "user", "content": prompt}]}
@@ -135,29 +156,42 @@ def run(c) -> dict:
             facets.append({"id": fid, "name": (f.get("name") or fid)[:60], "description": (f.get("description") or "")[:300],
                            "categories": cats})
 
-    rest = rows[MAX_ITEMS_IN_PROMPT:]
-    if rest:
-        _assign_by_similarity(c, facets, [r["id"] for r in rest])
+    rest = [r["id"] for r in rows[MAX_ITEMS_IN_PROMPT:]] + ["hit:" + h for h in published_hit_ids()]
+    _assign_by_similarity(c, facets, rest)
 
-    doc = {"facets": facets, "generated_at": now(), "model": model, "items": len(rows)}
+    notes = (out.get("notes") or "").strip()[:4000]
+    doc = {"facets": facets, "generated_at": now(), "model": model, "items": len(rows), "notes": notes,
+           "considered": [r["id"] for r in in_prompt] + rest, "joined": []}
     with tx(c):
         set_setting(c, "facets.current", j(doc))
         set_setting(c, "facets.last_run", now())
         set_setting(c, "facets.public_seen", str(len(rows)))
-    event("facets.generated", facets=[f["id"] for f in facets], categories=sum(len(f["categories"]) for f in facets),
+    if notes:
+        c.execute("INSERT INTO facet_notes(at, notes) VALUES (?,?)", (now(), notes))
+    event("facets.generated", notes=len(notes), facets=[f["id"] for f in facets], categories=sum(len(f["categories"]) for f in facets),
           items=len(rows), coins=coins, input_tokens=usage.get("input_tokens"), output_tokens=usage.get("output_tokens"))
     return doc
 
 
-def _assign_by_similarity(c, facets, ids, threshold: float = 0.45):
-    """Items beyond one call: each joins, per facet, the category whose members it is most like."""
+def _key(i: str) -> str:
+    """A category member's id as the site knows it: an item's id, or a found clip's without "hit:"."""
+    return i[4:] if i.startswith("hit:") else i
+
+
+def _assign_by_similarity(c, facets, ids, threshold: float = 0.45, vec=None) -> list[str]:
+    """Videos Claude has not seen (beyond one call, or new since): each joins, per facet, the category
+    whose members it is most like. `ids` are embedding ids ("hit:<id>" for found clips). Returns the
+    "<facet>:<category>" each joined."""
+    if not ids:
+        return []
     import numpy as np
     from .home import vectors
-    vec = vectors(c)
+    vec = vec if vec is not None else vectors(c)
+    joined = []
     for f in facets:
         cents = []
         for k in f["categories"]:
-            vs = [vec[i] for i in k["item_ids"] if i in vec]
+            vs = [vec[i] for i in k["item_ids"] if i in vec] + [vec["hit:" + i] for i in k["item_ids"] if "hit:" + i in vec]
             if vs:
                 m = np.mean(vs, axis=0)
                 cents.append((k, m / (np.linalg.norm(m) + 1e-9)))
@@ -165,14 +199,64 @@ def _assign_by_similarity(c, facets, ids, threshold: float = 0.45):
             if i not in vec or not cents:
                 continue
             k, sim = max(((k, float(m @ vec[i])) for k, m in cents), key=lambda t: t[1])
-            if sim >= threshold:
-                k["item_ids"].append(i)
+            if sim >= threshold and _key(i) not in k["item_ids"]:
+                k["item_ids"].append(_key(i))
+                joined.append(f"{f['id']}:{k['id']}")
+    return joined
+
+
+def published_hit_ids() -> list[str]:
+    from .home import published_hits
+    return [h["id"] for h in published_hits()]
+
+
+def place_new(c) -> int:
+    """Between runs: every video published since (and every found clip) joins its nearest categories,
+    once it has an embedding. Free (no AI). Returns how many were placed."""
+    doc = current(c)
+    if not doc.get("facets"):
+        return 0
+    from .home import vectors
+    vec = vectors(c)
+    done = set(doc.get("considered") or [])
+    for f in doc["facets"]:
+        for k in f["categories"]:
+            done.update(k["item_ids"])
+    ids = [r["id"] for r in c.execute("SELECT id FROM items WHERE published_at IS NOT NULL ORDER BY taken_at DESC")]
+    ids += ["hit:" + h for h in published_hit_ids()]
+    todo = [i for i in ids if _key(i) not in done and i not in done and i in vec]
+    if not todo:
+        return 0
+    joined = _assign_by_similarity(c, doc["facets"], todo, vec=vec)
+    doc["considered"] = sorted(set(doc.get("considered") or []) | set(todo))
+    doc["joined"] = (doc.get("joined") or []) + joined
+    doc["placed_at"] = now()
+    set_setting(c, "facets.current", j(doc))
+    event("facets.placed", videos=len(todo), joined=len(joined))
+    return len(todo)
+
+
+def fared(c, doc: dict) -> dict:
+    """How the current categories did since they were made: what the next run's notes act on."""
+    public = {r["id"] for r in c.execute("SELECT id FROM items WHERE published_at IS NOT NULL")} | set(published_hit_ids())
+    joined: dict[str, int] = {}
+    for x in doc.get("joined") or []:
+        joined[x] = joined.get(x, 0) + 1
+    inside = set()
+    cats = []
+    for f in doc.get("facets") or []:
+        for k in f["categories"]:
+            ids = [i for i in k["item_ids"] if i in public]
+            inside.update(ids)
+            cats.append({"category": f"{f['id']}:{k['id']}", "videos": len(ids),
+                         "joined_by_similarity_since": joined.get(f"{f['id']}:{k['id']}", 0)})
+    return {"public_videos": len(public), "in_no_category": len(public - inside), "categories": cats}
 
 
 def public_view(c) -> dict:
     """The facets with only the items that are public right now, and their counts."""
     doc = current(c)
-    public = {r["id"] for r in c.execute("SELECT id FROM items WHERE published_at IS NOT NULL")}
+    public = {r["id"] for r in c.execute("SELECT id FROM items WHERE published_at IS NOT NULL")} | set(published_hit_ids())
     facets = []
     for f in doc.get("facets") or []:
         cats = []

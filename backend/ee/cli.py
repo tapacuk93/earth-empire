@@ -13,7 +13,7 @@
   ee steps retry [step]               put failed steps back in the queue
   ee wallet init | show               the server's aicoin wallet
   ee home [refresh|layout|graph]      embeddings and Home layout now / print them
-  ee facets [run|show]                let Claude redefine the facets now / print them
+  ee facets [run|place|show]          let Claude redefine the facets now / place new videos / print them
   ee importance [--n N]               score importance for items analyzed before it existed
   ee heard [show|run|labels] [--n N]  the phrase spoken per video: list / work the queue now / highlight labels
   ee backup                           back up every part's databases to S3 now
@@ -46,7 +46,7 @@ def main(argv=None):
     p = sub.add_parser("steps"); p.add_argument("action", choices=["set", "retry"]); p.add_argument("rest", nargs="*")
     p = sub.add_parser("wallet"); p.add_argument("action", choices=["init", "show"])
     p = sub.add_parser("home"); p.add_argument("action", nargs="?", default="refresh", choices=["refresh", "layout", "graph", "full"])
-    p = sub.add_parser("facets"); p.add_argument("action", nargs="?", default="show", choices=["run", "show"])
+    p = sub.add_parser("facets"); p.add_argument("action", nargs="?", default="show", choices=["run", "place", "show"])
     p = sub.add_parser("importance"); p.add_argument("--n", type=int, default=1000)
     p = sub.add_parser("heard"); p.add_argument("action", nargs="?", default="show", choices=["show", "run", "labels"])
     p.add_argument("--n", type=int, default=1000)
@@ -201,10 +201,13 @@ def main(argv=None):
     elif a.cmd == "facets":
         from . import facets
         doc = facets.run(c) if a.action == "run" else None
+        if a.action == "place":
+            print("placed", facets.place_new(c))
         view = facets.public_view(c)
         for f in view["facets"]:
             print(f"{f['name']} ({f['id']}): " + ", ".join(f"{k['name']} {k['count']}" for k in f["categories"]))
         print("generated", view["generated_at"])
+        print("notes:", facets.current(c).get("notes") or "-")
     elif a.cmd == "importance":
         from . import importance
         for r in importance.run(c, a.n):

@@ -765,3 +765,25 @@ test('owner: a label is editable in place - a click edits, a click outside saves
   await expect(feed(page)).toBeVisible();
   await expect(feed(page).locator('.islide:not([aria-hidden]) .igold')).toHaveText('у тебе 3');
 });
+
+test('wheel: a swipe right (or ←) starts the video again from the beginning', async ({ page, hasTouch }) => {
+  await page.goto(`/item/${REEL}`);
+  const video = feed(page).locator('.islide:not([aria-hidden]) video').first();
+  const playable = await video.evaluate((v: HTMLVideoElement) => v.canPlayType('video/mp4; codecs="avc1.4D401E, mp4a.40.2"') !== '');
+  test.skip(!playable, 'this browser cannot play the mock mp4');
+  await page.locator('.ifeed-ctx').click();
+  const past = async () => { await video.evaluate((v: HTMLVideoElement) => { v.currentTime = 2.5; }); await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeGreaterThan(2); };
+  await past();
+  await page.locator('.ifeed-list').focus();
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeLessThan(1.5);
+  if (!hasTouch) {
+    await past();
+    const box = (await feed(page).locator('.islide:not([aria-hidden]) .imedia').boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.5);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.52, { steps: 8 });
+    await page.mouse.up();
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeLessThan(1.5);
+  }
+});

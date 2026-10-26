@@ -89,6 +89,8 @@ const MUTE_KEY = 'ee-muted';
 function readMuted(): boolean { try { return localStorage.getItem(MUTE_KEY) === '1'; } catch { return false; } }
 function saveMuted(m: boolean) { try { localStorage.setItem(MUTE_KEY, m ? '1' : '0'); } catch { /* storage blocked */ } }
 let onForcedMute: (() => void) | null = null;
+/** The item on screen's "start again from the beginning" (a swipe right, or ←). */
+let restartActive: (() => void) | null = null;
 export function playWithSound(v: HTMLVideoElement, muted: boolean) {
   v.muted = muted;
   v.play().catch((e) => {
@@ -226,6 +228,7 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
         else if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'k') { e.preventDefault(); go(cur - 1); }
         else if (e.key === 'Escape') { e.preventDefault(); if (ask) setAsk(false); else if (info) setInfo(false); else close(); }
         else if (e.key === '?') setAsk(!ask);
+        else if (e.key === 'ArrowLeft' && !(e.target as HTMLElement).closest('.imedia')) restartActive?.();
         else if (e.key === 'm') setMuted(!muted);
         else if (e.key === 'i') setInfo(!info);
       }}>
@@ -310,10 +313,30 @@ function Slide({ item, active, muted, forced, onTapVideo, info, setInfo, gold, a
   const [sar, setSar] = useState(() => innerWidth / Math.max(1, innerHeight));
   useEffect(() => { const on = () => setSar(innerWidth / Math.max(1, innerHeight)); addEventListener('resize', on); return () => removeEventListener('resize', on); }, []);
   const fit = (i: number) => { const ar = arOf(i); return 1 - Math.min(ar, sar) / Math.max(ar, sar) <= 0.12 ? 'fit-cover' : 'fit-contain'; };
+  // A swipe right (or a mouse drag right) on the first picture starts its video again from the beginning;
+  // on a later one it goes back to the previous, as the carousel does.
+  const swipe = useRef<{ x: number; y: number; t: number } | null>(null);
+  const at = (e: TouchEvent | PointerEvent) => ('changedTouches' in e ? e.changedTouches[0] : e);
+  const swipeStart = (e: TouchEvent | PointerEvent) => { const p = at(e); swipe.current = { x: p.clientX, y: p.clientY, t: Date.now() }; };
+  const swipeEnd = (e: TouchEvent | PointerEvent) => {
+    const s0 = swipe.current, p = at(e);
+    swipe.current = null;
+    if (!s0 || m !== 0) return;
+    const dx = p.clientX - s0.x, dy = p.clientY - s0.y;
+    if (dx > 60 && Math.abs(dy) < Math.max(40, dx * 0.6) && Date.now() - s0.t < 800) restart();
+  };
+  const restart = () => {
+    const v = row.current?.querySelectorAll<HTMLElement>('.imedia-slide')[m]?.querySelector('video');
+    if (!v) return;
+    v.currentTime = 0;
+    setT({ cur: 0, dur: v.duration || 0 });
+    v.play().catch(() => undefined);
+  };
+  useEffect(() => { if (active) restartActive = restart; return () => { if (restartActive === restart) restartActive = null; }; });
   const learn = (i: number, w: number, h: number) => { if (w && h && Math.abs((dims[i] || 0) - w / h) > 0.01) setDims((d) => ({ ...d, [i]: w / h })); };
   return (
     <>
-      <div class="imedia" ref={row} onScroll={(e) => { const el = e.currentTarget as HTMLElement; const i = Math.round(el.scrollLeft / (el.clientWidth || 1)); if (i !== m) setM(i); }}
+      <div class="imedia" ref={row} onTouchStart={swipeStart} onTouchEnd={swipeEnd} onPointerDown={(e) => e.pointerType === 'mouse' && swipeStart(e)} onPointerUp={(e) => e.pointerType === 'mouse' && swipeEnd(e)} onScroll={(e) => { const el = e.currentTarget as HTMLElement; const i = Math.round(el.scrollLeft / (el.clientWidth || 1)); if (i !== m) setM(i); }}
         aria-roledescription={media.length > 1 ? 'carousel' : undefined} aria-label={media.length > 1 ? `${media.length} photos and videos; swipe sideways` : undefined}>
         {media.map((md, i) => (
           <div key={i} class="imedia-slide" data-n={i} data-on={i === m ? '1' : '0'}>

@@ -77,7 +77,7 @@ export interface Item {
   published_at?: string | null;
   importance?: number | null;
   /** The short phrase actually spoken (CONTRACT.md "Heard"): what the highlight's name stands for. */
-  heard?: { text: string; highlight_id?: string | null; start?: number | null; end?: number | null; confidence?: number } | null;
+  heard?: { text: string; by?: string | null; highlight_id?: string | null; start?: number | null; end?: number | null; confidence?: number } | null;
   /** Why the item is public (CONTRACT.md): the monitor's matched moments. */
   detection?: { matched?: boolean; hits?: DetectionHit[]; model?: string; scanned_at?: string } | null;
 }

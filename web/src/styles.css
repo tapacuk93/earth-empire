@@ -755,7 +755,7 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .vs-more { display: block; margin: 10px auto 0; }
 .vt-audio { position: absolute; top: 6px; left: 6px; max-width: calc(100% - 12px); padding: 2px 8px; border-radius: 999px; background: rgb(0 0 0 / .55); color: #fff; font-size: .72rem; font-weight: 600; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
 .vt-audio-heard { background: #e9a35a; color: #111; font-weight: 700; }
-.vt-audio-none { opacity: .75; }
+.label-empty { opacity: .7; font-style: italic; }
 .vt-xl .vt-audio { top: 10px; left: 10px; font-size: .82rem; padding: 3px 10px; }
 /* Narrow screens: the open zoom control sits above the mode dots instead of under them */
 @media (max-width: 600px) { .home-main .zoom-ctl { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 40px); } }

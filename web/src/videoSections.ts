@@ -68,22 +68,23 @@ export function themeFacet(facets: Facet[], ids: Set<string>): Facet | undefined
  * The post's own description as a label: its caption (first line, without hashtags or mentions), else
  * the first sentence of its description. The backend's heard job finds when it sounds in the video.
  */
+/** The post's own name: its caption's first line, without hashtags and mentions (never a generated text). */
 export function describe(it: Item): string {
-  const cap = (it.caption || '').split(/\n/).map((l) => l.replace(/[#@][\p{L}\p{N}_.]+/gu, '').replace(/\s+/g, ' ').trim()).find(Boolean) || '';
-  if (cap) return cap;
-  const d = (it.description || it.summary || '').trim();
-  return d.split(/(?<=[.!?])\s/)[0] || '';
+  return (it.caption || '').split(/\n/).map((l) => l.replace(/[#@][\p{L}\p{N}_.]+/gu, '').replace(/\s+/g, ' ').trim()).find(Boolean) || '';
 }
 
-export function audioOf(it: Item, labels?: Map<string, string>): Audio {
-  if (it.heard?.text) return { kind: 'heard', text: it.heard.text };
-  const titles = [...new Set((it.highlights || []).map((h) => (labels?.get(h.id) || h.title).trim()).filter(Boolean))];
-  if (titles.length) return { kind: 'heard', text: titles.join(' · ') };
-  const hits = it.detection?.hits || [];
-  const names = [...new Set(hits.filter((h) => h.kind === 'name' && h.phrase).map((h) => h.phrase!))];
-  if (names.length) return { kind: 'heard', text: names.join(' · ') };
+/**
+ * One label per card, and only one the owner gave or listens for: his own label, the highlight's name,
+ * a phrase from Settings the monitor matched in it, or the post's own caption. Nothing generated.
+ */
+export function audioOf(it: Item, _labels?: Map<string, string>): Audio {
+  if (it.heard?.by === 'owner' && it.heard.text) return { kind: 'heard', text: it.heard.text };
+  const title = (it.highlights || []).map((h) => h.title.trim()).find(Boolean);
+  if (title) return { kind: 'heard', text: title };
+  const phrase = (it.detection?.hits || []).find((h) => h.kind === 'name' && h.phrase)?.phrase;
+  if (phrase) return { kind: 'heard', text: phrase };
   const said = describe(it);
-  return said ? { kind: 'heard', text: said } : { kind: 'none', text: 'No speech detected' };
+  return said ? { kind: 'heard', text: said } : { kind: 'none', text: '' };
 }
 
 export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[], layout?: LayoutTile[], facets?: Facet[] | null): VSection[] {
@@ -106,7 +107,7 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
       id: h.id, hit: h, level: given.get(h.id)?.level || hitLevel(h), score: h.confidence ?? 0.5,
       cover: h.frame || h.video?.thumbnail || undefined, video: h.clip || undefined,
       date: h.video?.posted_at || h.found_at, text: titleOf(h),
-      audio: { kind: 'heard', text: heardOf(h) },
+      audio: heardOf(h) ? { kind: 'heard', text: heardOf(h) } : undefined,
     });
   }
 

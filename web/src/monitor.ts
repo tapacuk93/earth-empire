@@ -36,23 +36,10 @@ export const labelOf = (h: Hit) => h.confidence_label || (typeof h.confidence ==
 export const isLow = (h: Hit) => labelOf(h) === 'low confidence';
 export const LANG: Record<string, string> = { uk: 'Ukrainian', ru: 'Russian', en: 'English' };
 export const whatOf = (h: Hit) => (h.kind === 'language' ? `${LANG[h.matched || ''] || h.matched} speech` : `“${h.matched || h.phrase}”`);
-/**
- * The gold label of a found clip: the phrase the monitor listens for that matched (a name hit), else
- * the backend's heard phrase, else the words around the match in the transcript (two on each side),
- * else the first words, else the match itself.
- */
+/** The gold label of a found clip: the phrase from Settings that matched (a name hit), else none. */
 export function heardOf(h: Hit): string {
-  // First the phrase the monitor listens for (Settings, as the owner wrote it), then the backend's heard phrase.
-  if (h.kind === 'name' && h.phrase?.trim()) return h.phrase.trim();
-  if (h.heard?.text) return h.heard.text;
-  const text = (h.excerpt?.text || '').replace(/\s+/g, ' ').trim();
-  const words = text ? text.split(' ') : [];
-  const key = (h.kind === 'name' ? h.matched || h.phrase || '' : '').toLowerCase().split(' ')[0];
-  const at = key ? words.findIndex((w) => w.toLowerCase().includes(key)) : -1;
-  const strip = (s: string) => s.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
-  if (at >= 0) return words.slice(Math.max(0, at - 2), at + 3).map(strip).filter(Boolean).join(' ');
-  if (words.length) return words.slice(0, 6).map(strip).filter(Boolean).join(' ') + (words.length > 6 ? '…' : '');
-  return h.kind === 'language' ? whatOf(h) : h.matched || h.phrase || '';
+  // Only a phrase from Settings that the monitor matched; nothing else is a label.
+  return h.kind === 'name' && h.phrase?.trim() ? h.phrase.trim() : '';
 }
 export const titleOf = (h: Hit) => h.video?.title || `${whatOf(h)} in ${h.source?.name || h.account || h.platform || 'a video'}`;
 /** Only links a person can open: never a signed storage URL. */

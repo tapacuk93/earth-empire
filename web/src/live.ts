@@ -58,7 +58,7 @@ export async function setHeard(item: Item, text: string): Promise<void> {
   const t = text.replace(/\s+/g, ' ').trim();
   if (MOCK) { if (adminToken() !== 'owner') throw new ApiError(401, '401 Unauthorized'); }
   else await call('PUT', `/v1/admin/items/${encodeURIComponent(item.id)}/heard`, { text: t || null }, true);
-  item.heard = t ? { ...(item.heard || {}), text: t, confidence: 1 } : null;
+  item.heard = t ? { ...(item.heard || {}), text: t, confidence: 1, by: 'owner' } : null;
 }
 
 export type State = 'ok' | 'degraded' | 'down' | 'off';

@@ -35,9 +35,9 @@ function Tile({ t, size, href, playing, onPlay }: { t: VTile; size: Size; href: 
         </span>
       </a>
       {/* Outside the link: for the owner the label is editable in place */}
-      {t.audio && (t.audio.kind === 'heard'
-        ? <EditableLabel item={t.item} text={t.audio.text} class="vt-audio vt-audio-heard" title="What is heard" />
-        : <span class={`vt-audio vt-audio-${t.audio.kind}`}>{t.audio.text}</span>)}
+      {t.item
+        ? <EditableLabel item={t.item} text={t.audio?.kind === 'heard' ? t.audio.text : ''} class="vt-audio vt-audio-heard" title="What is heard" />
+        : t.audio?.text && <span class="vt-audio vt-audio-heard">{t.audio.text}</span>}
     </li>
   );
 }

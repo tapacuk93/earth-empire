@@ -5,7 +5,8 @@ import type { Item } from '../types';
 /**
  * A gold label. For the owner (token checked) it is editable in place: a click or Enter edits it,
  * leaving the field (a click outside, Enter or Tab) saves it as the item's label, Escape cancels.
- * Emptied, the label goes back to what the backend works out.
+ * Emptied, the label goes back to the highlight's name, the matched phrase or the caption. With no
+ * label at all, visitors see nothing and the owner an "add a label" button.
  */
 export function EditableLabel({ item, text, class: cls, title }: { item?: Item; text: string; class: string; title?: string }) {
   const owner = useOwner();
@@ -17,7 +18,7 @@ export function EditableLabel({ item, text, class: cls, title }: { item?: Item; 
   useEffect(() => { if (!editing) setShown(text); }, [text]);
   useEffect(() => { if (editing) { field.current?.focus(); field.current?.select(); } }, [editing]);
   const editable = !!owner && !!item;
-  if (!editable) return <span class={cls} title={title}>{shown}</span>;
+  if (!editable) return shown ? <span class={cls} title={title}>{shown}</span> : null;
 
   const save = async () => {
     const v = (field.current?.value || '').replace(/\s+/g, ' ').trim();
@@ -32,6 +33,6 @@ export function EditableLabel({ item, text, class: cls, title }: { item?: Item; 
     ? <input ref={field} class={`${cls} label-edit`} defaultValue={shown} aria-label="Label (what is heard)" maxLength={80}
         onClick={stop} onPointerDown={(e) => e.stopPropagation()} onBlur={save}
         onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') field.current?.blur(); else if (e.key === 'Escape') { if (field.current) field.current.value = shown; field.current?.blur(); } }} />
-    : <button type="button" class={`${cls} label-btn ${busy ? 'busy' : ''}`} title={err || 'Edit the label'} aria-label={`Label: ${shown}. Edit it.`}
-        onClick={(e) => { stop(e); setEditing(true); }} onPointerDown={(e) => e.stopPropagation()}>{shown}{err && <span class="label-err" aria-hidden="true"> !</span>}</button>;
+    : <button type="button" class={`${cls} label-btn ${shown ? '' : 'label-empty'} ${busy ? 'busy' : ''}`} title={err || 'Edit the label'} aria-label={shown ? `Label: ${shown}. Edit it.` : 'Add a label'}
+        onClick={(e) => { stop(e); setEditing(true); }} onPointerDown={(e) => e.stopPropagation()}>{shown || '+ label'}{err && <span class="label-err" aria-hidden="true"> !</span>}</button>;
 }

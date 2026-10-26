@@ -357,7 +357,7 @@ function Slide({ item, active, muted, forced, onTapVideo, info, setInfo, gold, a
           {curHits.map((h, k) => typeof h.at === 'number' && <span key={k} class="hit-mark" style={{ left: `${(h.at / t.dur) * 100}%` }} />)}
         </div>
       )}
-      {gold && <EditableLabel item={item} text={gold} class="igold" title="What is heard" />}
+      {(gold || item) && <EditableLabel item={item} text={gold} class="igold" title="What is heard" />}
       {ask && (
         <div class={`iask ${info ? 'open' : ''}`} role="region" aria-label="What is happening">
           <button class="icon-btn iask-close" onClick={onCloseAsk} aria-label="Close the explanation"><Icon name="close" /></button>

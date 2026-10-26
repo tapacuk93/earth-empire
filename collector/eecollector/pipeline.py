@@ -15,7 +15,7 @@ from typing import Any
 
 from . import parse
 from .backend import Backend
-from .igweb import IGError, IGStop
+from .igweb import IGError, IGStop, PaceFull
 from .media import Downloader, MediaGone, fetch_video, image_size, thumb, to_jpeg, video_frame
 from .state import State
 
@@ -34,7 +34,11 @@ class Collector:
         self.ig, self.backend, self.state, self.dl, self.target = ig, backend, state, dl, target
         self.limit = limit
         self.deadline = time.time() + budget_s if budget_s else None
+        if hasattr(ig, "pacer"):
+            ig.pacer.deadline = self.deadline
         self.incomplete = False
+        self.paced = False          # this hour's own requests are used up: the run winds down
+        self.reposts_paced = False  # this hour's repost requests are used up: own items only
         self.mode = "incremental"
         self.started = parse.now_iso()
         self.total_posts: int | None = None
@@ -120,8 +124,14 @@ class Collector:
             self.state.set("backfill.done_at", parse.now_iso())
         return self.counts
 
+    def lane(self, name: str) -> None:
+        """Whose requests these are, for the pacer: the owner's own profile, or reposts."""
+        p = getattr(self.ig, "pacer", None)
+        if p is not None:
+            p.lane = name
+
     def out_of_time(self) -> bool:
-        if self.deadline and time.time() > self.deadline:
+        if self.paced or (self.deadline and time.time() > self.deadline):
             self.incomplete = True
             return True
         return False
@@ -133,6 +143,9 @@ class Collector:
             fn(*args)
         except IGStop:
             raise
+        except PaceFull as e:
+            log.info("%s: stopped by pacing (%s); the next run continues", name, e)
+            self.paced = self.incomplete = True
         except Exception as e:  # noqa: BLE001
             log.warning("step %s failed, skipped: %s: %s", name, type(e).__name__, str(e)[:300])
             self.bump("errors")
@@ -456,10 +469,11 @@ class Collector:
         total = self.state.timeline_priority_len() if priority_only else self.state.timeline_len()
         done = 0
         while True:
+            self.lane("own")    # the checks for new items are the owner's own profile
             if not priority_only and time.time() - self.last_check > CHECK_EVERY and not self.out_of_time():
                 self.flush()
                 self.check_new()          # new items jump the queue
-            row = self.state.timeline_next(priority_only)
+            row = self.state.timeline_next(priority_only, skip_reposts=self.reposts_paced)
             if row is None:
                 break
             if self.out_of_time() or (self.limit and self.counts.get("items", 0) >= self.limit):
@@ -468,6 +482,7 @@ class Collector:
             self.priority = priority
             self.beat(f"{'new items' if priority else 'timeline'} {done}/{total} ({parse.iso(taken)[:10]}) (downloads)",
                       done / max(total, 1))
+            self.lane("repost" if kind == "repost" else "own")
             try:
                 if kind == "repost":
                     self.take_repost_tab(m)
@@ -476,6 +491,13 @@ class Collector:
                 self.state.timeline_done(item_id)
             except IGStop:
                 raise
+            except PaceFull as e:
+                if e.lane == "repost":
+                    log.info("reposts wait for the next hour; the owner's own items go on")
+                    self.reposts_paced = True
+                    continue
+                self.paced = self.incomplete = True
+                break
             except MediaGone as e:
                 # CDN links listed in an earlier run expire; a post can be read again once
                 try:

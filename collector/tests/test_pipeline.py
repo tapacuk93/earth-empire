@@ -272,7 +272,7 @@ def test_failing_step_does_not_end_the_run(env):
     assert "ig_3300000000000000003" in store.items      # posts were still reached
 
 
-def test_timeline_newest_first_across_kinds(env):
+def test_timeline_own_items_then_reposts_newest_first(env):
     """Reposts (placed by the original's pk time), stories, highlight stories and posts are
     ingested in one order, newest first."""
     store, backend, state = env
@@ -306,8 +306,10 @@ def test_timeline_newest_first_across_kinds(env):
         if i.startswith("ig_repost_"):
             return parse.pk_time(i.rsplit("_", 1)[1])
         return calendar.timegm(time.strptime(store.items[i]["taken_at"], "%Y-%m-%dT%H:%M:%SZ"))
-    keys = [key(i) for i in first]
-    assert keys == sorted(keys, reverse=True), first
+    # the owner's own items before reposts (beyond the new ones the cheap check put first); newest first within each
+    own = [key(i) for i in first if not i.startswith("ig_repost_")]
+    rep = [key(i) for i in first if i.startswith("ig_repost_")]
+    assert own == sorted(own, reverse=True) and rep == sorted(rep, reverse=True), first
     assert state.timeline_len() == 0
 
 
@@ -339,3 +341,28 @@ def test_new_items_first(env):
     order = [i for i in sent if i in ("ig_3300000000000000777", "ig_3300000000000000888", "ig_3300000000000000099")]
     assert order.index("ig_3300000000000000099") > order.index("ig_3300000000000000777")
     assert order.index("ig_3300000000000000888") < order.index("ig_3300000000000000777")   # newest first
+
+
+def test_pacing_keeps_room_for_the_owner_and_never_sleeps_past_the_run():
+    from eecollector.config import Settings
+    from eecollector.igweb import PaceFull, Pacer
+    s = Settings()
+    s.per_hour, s.own_reserve, s.min_gap, s.max_gap = 10, 3, 0, 0
+    p = Pacer(s)
+    p.window = [time.monotonic() - 10] * 7            # 7 requests this hour
+    p.lane = "repost"
+    try:
+        p.wait()
+        assert False, "reposts may use only per_hour - own_reserve"
+    except PaceFull as e:
+        assert e.lane == "repost"
+    p.lane = "own"
+    p.n = 1
+    p.wait()                                          # the owner still has room
+    p.window = [time.monotonic() - 10] * 10
+    p.deadline = time.time() + 60                     # a pause of ~an hour would outlast the run
+    try:
+        p.wait()
+        assert False, "never sleeps past the run's deadline"
+    except PaceFull as e:
+        assert e.lane == "own" and e.wait_s > 60

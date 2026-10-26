@@ -58,18 +58,41 @@ class IGStop(RuntimeError):
         self.kind = kind
 
 
+class PaceFull(RuntimeError):
+    """This hour's requests for the lane are used up, or waiting for room would outlast the run:
+    the run stops what it is doing (cleanly, incomplete) instead of sleeping past its deadline."""
+
+    def __init__(self, lane: str, wait_s: float):
+        super().__init__(f"pacing: no room for {lane} requests for {wait_s:.0f}s")
+        self.lane, self.wait_s = lane, wait_s
+
+
 class Pacer:
+    """At most `per_hour` requests an hour. The owner's own profile (`lane = "own"`) may use all of
+    them; reposts (`lane = "repost"`) only `per_hour - own_reserve`, so the profile always has room.
+    With a `deadline` (wall clock), a pause that would outlast it raises PaceFull instead."""
+
     def __init__(self, s: Settings):
         self.s = s
         self.last = 0.0
         self.n = 0
         self.window: list[float] = []
+        self.lane = "own"
+        self.deadline: float | None = None
+
+    def limit(self) -> int:
+        return self.s.per_hour if self.lane == "own" else max(1, self.s.per_hour - self.s.own_reserve)
 
     def wait(self) -> None:
         now = time.monotonic()
         self.window = [t for t in self.window if now - t < 3600]
-        if len(self.window) >= self.s.per_hour:
-            sleep = 3600 - (now - self.window[0]) + random.uniform(5, 60)
+        if len(self.window) >= self.limit():
+            k = len(self.window) - self.limit()      # this many must age out of the hour first
+            sleep = 3600 - (now - self.window[k]) + random.uniform(5, 60)
+            if self.lane != "own" or (self.deadline and time.time() + sleep > self.deadline):
+                log.info("pacing: %d requests in the last hour (%s may use %d); stopping instead of a %.0fs pause",
+                         len(self.window), self.lane, self.limit(), sleep)
+                raise PaceFull(self.lane, sleep)
             log.info("pacing: %d requests in the last hour, pausing %.0fs", len(self.window), sleep)
             time.sleep(sleep)
         gap = random.uniform(self.s.min_gap, self.s.max_gap)

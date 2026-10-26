@@ -83,11 +83,13 @@ class State:
         self.db.commit()
         return new
 
-    def timeline_next(self, priority_only: bool = False) -> tuple[str, float, str, dict, int, int] | None:
-        """New items first (priority), then the backfill; newest first within each."""
-        where = "where priority > 0 " if priority_only else ""
+    def timeline_next(self, priority_only: bool = False, skip_reposts: bool = False) -> tuple[str, float, str, dict, int, int] | None:
+        """New items first (priority), then the owner's own posts and stories, then reposts; newest
+        first within each. `skip_reposts` once this hour's repost requests are used up."""
+        cond = (["priority > 0"] if priority_only else []) + (["kind != 'repost'"] if skip_reposts else [])
+        where = ("where " + " and ".join(cond) + " ") if cond else ""
         row = self.db.execute("select id, taken_at, kind, json, attempts, priority from timeline " + where +
-                              "order by priority desc, taken_at desc limit 1").fetchone()
+                              "order by priority desc, kind = 'repost', taken_at desc limit 1").fetchone()
         return (row[0], row[1], row[2], json.loads(row[3]), row[4], row[5]) if row else None
 
     def timeline_priority_len(self) -> int:

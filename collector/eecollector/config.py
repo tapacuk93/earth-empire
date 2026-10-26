@@ -38,6 +38,8 @@ class Settings:
     min_gap: float = field(default_factory=lambda: float(env("EE_MIN_GAP", "12")))
     max_gap: float = field(default_factory=lambda: float(env("EE_MAX_GAP", "30")))
     per_hour: int = field(default_factory=lambda: int(env("EE_MAX_PER_HOUR", "80")))
+    # of those, kept for the owner's own profile (posts, stories, highlights): reposts never use them
+    own_reserve: int = field(default_factory=lambda: int(env("EE_OWN_RESERVE_PER_HOUR", "20")))
 
     # Which machine runs the collector: the SSM parameter /earth-empire/collector/runner names it
     # ("box" or "mac"); a runner whose EE_RUNNER differs stays off Instagram. Missing = anyone.

@@ -1,6 +1,6 @@
 // Home's main screen: every video (items with video and the approved monitor hits), grouped into
 // sections by subject (the AI's facet categories). Ordered by freshness × level: a video's rank is its
-// level's weight (L1 1, L2 ½, L3 ¼, L4 ⅛) halved every half-life (the backend's size.half_life_days) since it arrived, so
+// level's weight (L1 1, L2 ½, L3 ¼, L4 ⅛) halved every day since it arrived, so
 // today's videos lead their category and a category with a fresh, important video rises to the top.
 // L1: posts and dedicated highlights -> Featured. L2: shared highlights -> one section per theme (the
 // AI facet that splits them best), the rest under More highlights.
@@ -60,7 +60,8 @@ export function dayOf(s?: string | null): string {
   const d = new Date(t);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-export const RECENCY_HALF_LIFE = 7;   // days; the backend's size.half_life_days when /v1/layout gives it
+// days. One: a video from today outranks yesterday's of the next level up, so today's lead.
+export const RECENCY_HALF_LIFE = 1;
 const LW = [1, 0.5, 0.25, 0.125];
 /** freshness × level: the level's weight, halved every `halfLife` days since it arrived (by day). */
 export function rankOf(t: VTile, halfLife = RECENCY_HALF_LIFE, today = dayOf(new Date().toISOString())): number {

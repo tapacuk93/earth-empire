@@ -77,7 +77,7 @@ export function Home({ route }: { route: Route }) {
   const sections = useMemo(() => {
     if (!ready || lay.loading || fc.loading) return null;
     const L = lay.data;
-    return buildSections(items, hl, hits, L ? L.tiles || [...L.top, ...L.bottom] : undefined, fc.data, L?.halfLife);
+    return buildSections(items, hl, hits, L ? L.tiles || [...L.top, ...L.bottom] : undefined, fc.data);
   }, [ready, lay.loading, fc.loading, items, hl, hits]);
   const graph = useMemo(() => (tg.loading || !ready ? null : tg.data ? graphFromApi(tg.data.nodes, tg.data.edges) : buildTagGraph(items, tagsOf(items))), [ready, tg.loading, items]);
   useEffect(() => { if (fc.data) setFacets(fc.data); }, [fc.data]);

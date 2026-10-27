@@ -342,7 +342,7 @@ Claude defines them from the public content and redefines them as it changes:
   to try); the next run reads them with how the categories fared since (sizes, how many joined by
   similarity, how many fit nowhere). Notes are kept in `facet_notes`; `ee facets show` prints them.
 - **Order on Home:** a video's rank is freshness × level - its level's weight (L1 1, L2 ½, L3 ¼, L4 ⅛)
-  halved every 30 days since it arrived (a found clip: since it was published). Inside a category
+  halved every day since it arrived (a found clip: since it was published). Inside a category
   the highest rank leads; categories go by their best video's rank, so today's videos and their
   categories rise to the top.
 - **From what:** a compact summary of the public items only (date, summary, keywords, place,

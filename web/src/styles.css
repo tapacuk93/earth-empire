@@ -299,6 +299,11 @@ a.tag:hover { background: var(--line); }
 .cloud-active { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0 0; }
 .skeleton-cloud { height: 140px; border-radius: var(--radius); background: var(--surface-2); margin-bottom: 20px; }
 .cloud-empty { padding: 8px 0 16px; }
+/* Home while the videos load: the Earth, large, on the page's own background (no grey bars) */
+.home-loading { display: grid; place-items: center; min-height: 100%; padding: 96px 16px 48px; box-sizing: border-box; }
+.home-loading img { width: min(78vmin, 640px); height: auto; aspect-ratio: 1; filter: drop-shadow(0 0 40px rgba(80, 150, 255, .25)); animation: earth-breathe 3.2s ease-in-out infinite; }
+@keyframes earth-breathe { 50% { transform: scale(1.025); opacity: .9; } }
+@media (prefers-reduced-motion: reduce) { .home-loading img { animation: none; } }
 .tl-month { margin-bottom: 24px; }
 .tl-h { position: sticky; top: calc(57px + env(safe-area-inset-top)); z-index: 5; margin: 0; padding: 8px 0; background: var(--bg); font-size: 1rem; color: var(--muted); }
 .tl-list { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--line); }

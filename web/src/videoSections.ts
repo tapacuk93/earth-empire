@@ -1,6 +1,6 @@
 // Home's main screen: every video (items with video and the approved monitor hits), grouped into
 // sections by subject (the AI's facet categories). Ordered by freshness × level: a video's rank is its
-// level's weight (L1 1, L2 ½, L3 ¼, L4 ⅛) halved every RECENCY_HALF_LIFE days since it arrived, so
+// level's weight (L1 1, L2 ½, L3 ¼, L4 ⅛) halved every half-life (the backend's size.half_life_days) since it arrived, so
 // today's videos lead their category and a category with a fresh, important video rises to the top.
 // L1: posts and dedicated highlights -> Featured. L2: shared highlights -> one section per theme (the
 // AI facet that splits them best), the rest under More highlights.
@@ -26,6 +26,7 @@ export interface VTile {
   added?: string;         // when it arrived: the post's time, or when a found clip was published
   text: string;
   audio?: Audio;          // what was heard in it
+  rank?: number;          // freshness × level (rankOf): the order on Home
 }
 /**
  * What sounds in a video. `heard`: the phrase spoken - its highlight's name (highlights are named
@@ -59,13 +60,13 @@ export function dayOf(s?: string | null): string {
   const d = new Date(t);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-export const RECENCY_HALF_LIFE = 30;   // days, as the backend's size.half_life_days
+export const RECENCY_HALF_LIFE = 7;   // days; the backend's size.half_life_days when /v1/layout gives it
 const LW = [1, 0.5, 0.25, 0.125];
-/** freshness × level: the level's weight, halved every RECENCY_HALF_LIFE days since it arrived (by day). */
-export function rankOf(t: VTile, today = dayOf(new Date().toISOString())): number {
+/** freshness × level: the level's weight, halved every `halfLife` days since it arrived (by day). */
+export function rankOf(t: VTile, halfLife = RECENCY_HALF_LIFE, today = dayOf(new Date().toISOString())): number {
   const d = dayOf(t.added);
   const age = d ? Math.max(0, (Date.parse(today) - Date.parse(d)) / 864e5) : 3650;
-  return LW[t.level - 1] * 0.5 ** (age / RECENCY_HALF_LIFE);
+  return LW[t.level - 1] * 0.5 ** (age / (halfLife > 0 ? halfLife : RECENCY_HALF_LIFE));
 }
 const plural = (n: number) => `${n} video${n === 1 ? '' : 's'}`;
 const MIN_THEME = 3;
@@ -105,9 +106,10 @@ export function audioOf(it: Item, _labels?: Map<string, string>): Audio {
   return said ? { kind: 'heard', text: said } : { kind: 'none', text: '' };
 }
 
-export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[], layout?: LayoutTile[], facets?: Facet[] | null): VSection[] {
+export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[], layout?: LayoutTile[], facets?: Facet[] | null, halfLife = RECENCY_HALF_LIFE): VSection[] {
+  const rankOf_ = (t: VTile) => rankOf(t, halfLife);
   const given = new Map((layout || []).map((t) => [t.id, t]));
-  const byScore = (a: VTile, b: VTile) => rankOf(b) - rankOf(a) || b.score - a.score || (b.added || '').localeCompare(a.added || '');
+  const byScore = (a: VTile, b: VTile) => rankOf_(b) - rankOf_(a) || b.score - a.score || (b.added || '').localeCompare(a.added || '');
 
   // A highlight's fuller label (from what its videos say) where the backend has one, else its name.
   const labels = new Map(highlights.map((h) => [h.id, h.heard_label || h.title]));
@@ -128,6 +130,8 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
       audio: heardOf(h) ? { kind: 'heard', text: heardOf(h) } : undefined,
     });
   }
+
+  for (const t of tiles) t.rank = rankOf_(t);
 
   // Sections by subject: each video in the biggest category of the facet that splits them best; the
   // ones left go through the next facet; categories under three videos give theirs back.
@@ -152,7 +156,7 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
   if (rest.length) groups.push({ id: 'more', title: groups.length ? 'More videos' : 'Videos', tiles: rest });
 
   // The section whose best video ranks highest (freshness × level) first.
-  const top = (l: VTile[]) => Math.max(...l.map((t) => rankOf(t)));
+  const top = (l: VTile[]) => Math.max(...l.map(rankOf_));
   const best = (l: VTile[]) => Math.min(...l.map((t) => t.level));
   return groups
     .sort((a, b) => top(b.tiles) - top(a.tiles) || (a.id === 'more' ? 1 : 0) - (b.id === 'more' ? 1 : 0))

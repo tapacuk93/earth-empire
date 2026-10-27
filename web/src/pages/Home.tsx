@@ -77,7 +77,7 @@ export function Home({ route }: { route: Route }) {
   const sections = useMemo(() => {
     if (!ready || lay.loading || fc.loading) return null;
     const L = lay.data;
-    return buildSections(items, hl, hits, L ? L.tiles || [...L.top, ...L.bottom] : undefined, fc.data);
+    return buildSections(items, hl, hits, L ? L.tiles || [...L.top, ...L.bottom] : undefined, fc.data, L?.halfLife);
   }, [ready, lay.loading, fc.loading, items, hl, hits]);
   const graph = useMemo(() => (tg.loading || !ready ? null : tg.data ? graphFromApi(tg.data.nodes, tg.data.edges) : buildTagGraph(items, tagsOf(items))), [ready, tg.loading, items]);
   useEffect(() => { if (fc.data) setFacets(fc.data); }, [fc.data]);
@@ -134,7 +134,7 @@ export function Home({ route }: { route: Route }) {
           {sections && !sections.length && (
             <div class="empty-full"><p>Nothing is public yet.</p><p class="muted">Videos appear here as they arrive.</p></div>
           )}
-          {!sections ? <div class="skeleton-cloud" aria-hidden="true" /> : sections.length > 0 && <VideoSections sections={sections} hrefFor={hrefFor} />}
+          {!sections ? <div class="home-loading" role="status" aria-label="Loading videos"><img src="/icon/earth-800.webp" alt="" width="800" height="800" /></div> : sections.length > 0 && <VideoSections sections={sections} hrefFor={hrefFor} />}
         </section>
         <section class="mode" id="mode-time" aria-label="Timeline mode">
           {all.data && <TimelineView items={items} hrefFor={(it) => itemHref(it.id)} />}

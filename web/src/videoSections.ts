@@ -135,7 +135,7 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
   for (const t of tiles) t.rank = rankOf_(t);
 
   // Sections by subject: each video in the biggest category of the facet that splits them best; the
-  // ones left go through the next facet; categories under three videos give theirs back.
+  // ones left go through the next facet.
   const groups: { id: string; title: string; about?: string; tiles: VTile[] }[] = [];
   let rest = tiles;
   for (let round = 0; round < 2 && rest.length >= MIN_THEME; round++) {
@@ -148,8 +148,8 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
       (home ? home.tiles : left).push(t);
     }
     for (const x of cats) {
-      if (x.tiles.length >= MIN_THEME) groups.push({ id: `${facet.id}:${x.c.id}`, title: x.c.name, about: x.c.description, tiles: x.tiles });
-      else left.push(...x.tiles);
+      // every category with a video is a section, however small (every video is categorized)
+      if (x.tiles.length) groups.push({ id: `${facet.id}:${x.c.id}`, title: x.c.name, about: x.c.description, tiles: x.tiles });
     }
     rest = left;
     facets = (facets || []).filter((f) => f !== facet);

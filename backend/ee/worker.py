@@ -121,6 +121,35 @@ def analyze_once(c) -> bool:
     return True
 
 
+def deepen_once(c) -> bool:
+    """The last layer: once every item has its light analysis (one frame, transcript, caption), look
+    again with more frames, newest first, while budget is left. Off with analysis.deepen=0."""
+    if setting(c, "analysis.enabled") != "1" or setting(c, "analysis.deepen") == "0" or in_reserve(c):
+        return False
+    if analysis.light_pending(c):
+        return False
+    if analysis.analyses_today(c) >= int(setting(c, "analysis.daily_cap") or 0):
+        return False
+    row = c.execute("""SELECT id FROM items WHERE published_at IS NOT NULL
+                       AND json_extract(analysis, '$.depth') = 'light' ORDER BY taken_at DESC LIMIT 1""").fetchone()
+    if not row:
+        return False
+    store.job_start(c, "deepen", "analyzer", "looking again, more closely", row["id"], "starting")
+    try:
+        analysis.analyze(c, row["id"], job="deepen", depth="deep")
+        ai_ok("deepen")
+    except aicoin.OutOfCoins as e:
+        stop.wait(ai_wait(e, "deepen"))
+        return False
+    except Exception as e:
+        event("deepen.failed", logging.WARNING, item=row["id"], error=repr(e)[:300])
+        stop.wait(300)
+        return False
+    finally:
+        store.job_end(c, "deepen")
+    return True
+
+
 # ------------------------------------------------------------------ Home layout and importance backfill
 _home_last = {"t": 0.0}
 
@@ -526,6 +555,7 @@ def main():
     threads += [lane("thumbs", thumbs_once, idle=20),
                lane("home", home_once, idle=20), lane("importance", importance_once, idle=60),
                lane("heard", heard_once, idle=60), lane("expand", expand_once, idle=120),
+               lane("deepen", deepen_once, idle=120),
                lane("facets", facets_once, idle=60), lane("rubric", rubric_once, idle=600), lane("x", x_once, idle=60),
                lane("facebook", facebook_once, idle=120), lane("house", house_once, idle=15)]
     while not stop.is_set():

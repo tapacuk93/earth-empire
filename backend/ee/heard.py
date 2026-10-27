@@ -279,7 +279,7 @@ def run_batch(c, ids: list[str]) -> dict:
     phrases = _phrases_cached()
     if phrases:
         blocks.insert(0, "Phrases the monitor listens for:\n" + "\n".join(f"- {p}" for p in phrases))
-    body = {"max_tokens": 400 + 200 * len(ins), "system": SYSTEM,
+    body = {"model": aicoin.model_for(c, "heard"), "max_tokens": 400 + 200 * len(ins), "system": SYSTEM,
             "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
             "messages": [{"role": "user", "content": "\n\n".join(blocks)}]}
     model_pref = setting(c, "heard.model")

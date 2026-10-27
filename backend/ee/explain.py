@@ -110,7 +110,7 @@ def explain(c, row, lang: str) -> dict:
     language = language_name(lang)
     task = (TASK_CAPTION if mode == "caption" else TASK_ANALYSIS).replace("{language}", language)
     prompt = PROMPT.replace("{language}", language).replace("{task}", task).replace("{material}", text)
-    body = {"max_tokens": 700, "messages": [{"role": "user", "content": prompt}]}
+    body = {"model": aicoin.model_for(c, "explain"), "max_tokens": 700, "messages": [{"role": "user", "content": prompt}]}
     resp, coins = aicoin.claude(body, timeout=90)
     usage = resp.get("usage") or {}
     model = resp.get("model") or ""

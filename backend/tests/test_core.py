@@ -607,3 +607,31 @@ class ExpandTest(unittest.TestCase):
             aicoin.claude = real
             c.close()
             tmp.cleanup()
+
+
+class LayersTest(unittest.TestCase):
+    """Cheapest first: routine work on the small model; categorizing waits for the light layer."""
+
+    def test_models_and_the_light_layer_gate(self):
+        from ee import aicoin, facets
+        tmp = tempfile.TemporaryDirectory()
+        c = db.connect(Path(tmp.name) / "t.sqlite3")
+        self.assertEqual(aicoin.model_for(c, "analyze"), aicoin.CHEAP_MODEL)
+        real, aicoin.settings = aicoin.settings, lambda: {"model": "claude-sonnet-5-5"}
+        try:
+            self.assertEqual(aicoin.model_for(c, "facets"), "claude-sonnet-5-5")
+        finally:
+            aicoin.settings = real
+        db.set_setting(c, "ai.model.analyze", "claude-sonnet-5-5")
+        self.assertEqual(aicoin.model_for(c, "analyze"), "claude-sonnet-5-5")
+        db.set_setting(c, "analysis.enabled", "1")
+        c.execute("INSERT INTO items(id, kind, taken_at, data, content_hash, published_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+                  ("ig_l", "reel", "2026-10-24T10:00:00Z", "{}", "h", db.now(), db.now()))
+        store.set_step(c, "ig_l", "analyze", "pending")
+        from datetime import datetime, timedelta, timezone
+        db.set_setting(c, "facets.last_run", (datetime.now(timezone.utc) - timedelta(hours=3)).strftime("%Y-%m-%dT%H:%M:%SZ"))
+        ok, why = facets.due(c)
+        self.assertFalse(ok)
+        self.assertIn("first analysis", why)
+        c.close()
+        tmp.cleanup()

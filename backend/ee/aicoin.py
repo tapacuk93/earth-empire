@@ -21,6 +21,16 @@ from .logs import event
 
 DEFAULT_PROXY = "https://proxy.aicoin.oeaio.com"
 DEFAULT_MODEL = "claude-sonnet-5-5"
+# Routine per-item work (describing, scoring, labels) on the small model; Sonnet only where it reasons
+# over everything at once (facets, the rubric). Each purpose can be set: setting ai.model.<purpose>.
+CHEAP_MODEL = "claude-haiku-5-5"
+SMART_PURPOSES = ("facets", "rubric")
+
+
+def model_for(c, purpose: str) -> str:
+    from .db import setting
+    return (setting(c, f"ai.model.{purpose}") or "").strip() or (
+        settings()["model"] if purpose in SMART_PURPOSES else CHEAP_MODEL)
 TOKEN_LIFETIME = 3600
 
 _lock = threading.Lock()

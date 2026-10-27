@@ -24,11 +24,11 @@ from . import aicoin, config, store
 from .db import j, now, setting, tx
 from .logs import event, metric
 
-MAX_FRAMES = 16
-MIN_FRAMES = 4
-FRAME_EVERY_S = 3.0
-IMAGE_EDGE = 1568
-FRAME_EDGE = 768
+MAX_FRAMES = 6       # the deep layer; the light layer takes one frame per video
+MIN_FRAMES = 3
+FRAME_EVERY_S = 8.0
+IMAGE_EDGE = 1024
+FRAME_EDGE = 512
 CONTEXT_ITEMS = 30
 MAX_NEW_CATEGORIES = 2
 
@@ -242,7 +242,10 @@ def _progress(c, job, text):
         store.job_progress(c, job, text)
 
 
-def build_request(c, item_id: str, work: Path, job: str | None = None) -> tuple[dict, dict]:
+def build_request(c, item_id: str, work: Path, job: str | None = None, depth: str = "light") -> tuple[dict, dict]:
+    """depth "light": one frame from the middle of each video, the transcript and the caption - enough
+    to describe and categorize it, cheaply. "deep": up to MAX_FRAMES frames, later, when every item
+    has its light layer and budget is left."""
     row = c.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
     if not row:
         raise LookupError(item_id)
@@ -253,7 +256,10 @@ def build_request(c, item_id: str, work: Path, job: str | None = None) -> tuple[
     meta = _meta(d)
     content.append({"type": "text", "text": "Item metadata (JSON):\n" + j(meta)})
     groups = [("", "", d.get("media") or [])]
-    if d.get("repost_of"):
+    own_urls = {m.get("url") for m in d.get("media") or []}
+    rep_media = (d.get("repost_of") or {}).get("media") or []
+    # a repost's own media is usually a copy of the original's: look at it once
+    if d.get("repost_of") and not {m.get("url") for m in rep_media} <= own_urls:
         groups.append(("original (repost of @%s) " % d["repost_of"].get("author", "?"), "r",
                        d["repost_of"].get("media") or []))
     n = 0
@@ -269,7 +275,7 @@ def build_request(c, item_id: str, work: Path, job: str | None = None) -> tuple[
                 pr = probe(src)
                 dur = pr["duration"] or (m.get("duration") or 0)
                 content.append({"type": "text", "text": f"Media {n} - {label}video, {dur:.1f} s. Frames follow:"})
-                times = frame_times(dur)
+                times = frame_times(dur) if depth == "deep" else [round(dur / 2, 2) if dur > 0 else 0.0]
                 _progress(c, job, f"sampling {len(times)} frames from media {n + 1} ({dur:.0f} s)")
                 info["videos"].append({"n": n, "key": f"{prefix}{local_n}", "src": src, "times": times})
                 for k, t in enumerate(times):
@@ -324,7 +330,8 @@ def build_request(c, item_id: str, work: Path, job: str | None = None) -> tuple[
     from . import rubric
     rub = rubric.current(c)
     info["rubric_version"] = rub["version"]
-    body = {"max_tokens": 16000, "system": SYSTEM + "\n\nImportance rubric (version %d):\n%s" % (rub["version"], rub["text"]),
+    info["depth"] = depth
+    body = {"model": aicoin.model_for(c, "analyze"), "max_tokens": 16000, "system": SYSTEM + "\n\nImportance rubric (version %d):\n%s" % (rub["version"], rub["text"]),
             "output_config": {"effort": "medium",
                               "format": {"type": "json_schema", "schema": strict_schema(TOOL["input_schema"])}},
             "messages": [{"role": "user", "content": content}]}
@@ -367,7 +374,7 @@ def slugify(s: str) -> str:
     return s[:40]
 
 
-def apply_result(c, item_id: str, out: dict, model: str, provider: str = "anthropic") -> list[str]:
+def apply_result(c, item_id: str, out: dict, model: str, provider: str = "anthropic", depth: str = "deep") -> list[str]:
     ts = now()
     with tx(c):
         existing = {r["slug"] for r in c.execute("SELECT slug FROM categories")}
@@ -393,7 +400,7 @@ def apply_result(c, item_id: str, out: dict, model: str, provider: str = "anthro
         analysis = {k: out.get(k) for k in ("people", "what", "events", "when", "where", "objects", "animals", "brands",
                                             "on_screen_text", "speech", "music", "mood", "language", "context",
                                             "keywords")}
-        analysis.update({"model": model, "provider": provider, "analyzed_at": ts})
+        analysis.update({"model": model, "provider": provider, "analyzed_at": ts, "depth": depth})
         imp = out.get("importance")
         imp = min(1.0, max(0.0, float(imp))) if isinstance(imp, (int, float)) else None
         data = json.loads(c.execute("SELECT data FROM items WHERE id=?", (item_id,)).fetchone()["data"])
@@ -484,13 +491,13 @@ def put_media(key: str, path: Path, ctype: str) -> None:
         ExtraArgs={"ContentType": ctype, "CacheControl": "public, max-age=86400"})
 
 
-def analyze(c, item_id: str, *, dry_run: bool = False, job: str | None = None) -> dict:
+def analyze(c, item_id: str, *, dry_run: bool = False, job: str | None = None, depth: str = "light") -> dict:
     """Analyze one item end to end. Raises on failure; the worker records it."""
     t0 = time.time()
     work = Path(tempfile.mkdtemp(prefix="ee-analyze-"))
     try:
-        body, info = build_request(c, item_id, work, job)
-        model = aicoin.settings()["model"]
+        body, info = build_request(c, item_id, work, job, depth)
+        model = body["model"]
         if dry_run:
             imgs = sum(1 for b in body["messages"][0]["content"] if b["type"] == "image")
             return {"item": item_id, "dry_run": True, "images": imgs, **info}
@@ -512,7 +519,7 @@ def analyze(c, item_id: str, *, dry_run: bool = False, job: str | None = None) -
             raise RuntimeError(f"the answer is not JSON (stop_reason {resp.get('stop_reason')}): {text[:300]}")
         _progress(c, job, "saving the analysis and covers")
         covers = save_covers(c, item_id, out.get("covers"), info["videos"])
-        cats = apply_result(c, item_id, out, resp.get("model") or model, resp.get("provider") or "anthropic")
+        cats = apply_result(c, item_id, out, resp.get("model") or model, resp.get("provider") or "anthropic", depth)
         c.execute("UPDATE items SET importance_version=?, importance_method=2 WHERE id=?",
                   (info.get("rubric_version"), item_id))
         result = {"item": item_id, "provider": resp.get("provider"), "model": resp.get("model"),
@@ -526,6 +533,11 @@ def analyze(c, item_id: str, *, dry_run: bool = False, job: str | None = None) -
         return result
     finally:
         shutil.rmtree(work, ignore_errors=True)
+
+
+def light_pending(c) -> int:
+    """Items still waiting for their first (light) analysis: the layer every item gets first."""
+    return c.execute("SELECT COUNT(*) n FROM steps WHERE step='analyze' AND state IN ('pending','running')").fetchone()["n"]
 
 
 def analyses_today(c) -> int:

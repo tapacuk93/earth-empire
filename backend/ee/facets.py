@@ -108,6 +108,10 @@ def due(c) -> tuple[bool, str]:
     age = (datetime.now(timezone.utc) - datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
            ).total_seconds() if last else 1e9
     gap = gap_seconds(c)
+    from .analysis import light_pending
+    waiting = light_pending(c)
+    if waiting and age < 12 * 3600:   # layer by layer: categorize once the items are described
+        return False, f"{waiting} items still waiting for their first analysis"
     if age < gap:
         return False, f"ran in the last {gap / 60:.0f} minutes"
     if new or public["n"] != seen:

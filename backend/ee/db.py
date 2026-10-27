@@ -130,7 +130,7 @@ DEFAULT_SETTINGS = {
     "site.auto_build": "1",     # rebuild and publish the site when items go public
     "site.built_at": "",
     "site.force": "",
-    "facets.daily_cap": "12",
+    "facets.daily_cap": "4",
     "ai.daily_budget_usd": "30",     # our own second limit; the proxy's per-app cap is the first
     "analysis.lanes": "3",           # items analyzed at the same time (each lane claims its own); read at start
     "importance.batch": "3",         # items scored per turn of the importance lane

@@ -76,7 +76,7 @@ def backfill_one(c, item_id: str, job: str | None = None) -> dict:
         content.append({"type": "text", "text": "Score its importance now."})
         if job:
             store.job_progress(c, job, f"asking Claude ({info['images']} images, {info['frames']} frames)")
-        req = {"max_tokens": 3000, "system": SCORE_SYSTEM.format(rv=rub["version"], rubric=rub["text"]),
+        req = {"model": aicoin.model_for(c, "importance"), "max_tokens": 3000, "system": SCORE_SYSTEM.format(rv=rub["version"], rubric=rub["text"]),
                "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCORE_SCHEMA}},
                "messages": [{"role": "user", "content": content}]}
         resp, coins = aicoin.claude(req, timeout=300)

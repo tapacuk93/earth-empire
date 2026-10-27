@@ -40,7 +40,7 @@ def run(c) -> int:
     if not rows:
         return 0
     prompt = PROMPT.replace("{names}", "\n".join(f"{n} | {r['title']}" for n, r in enumerate(rows)))
-    body = {"max_tokens": 4000, "output_config": {"format": {"type": "json_schema", "schema": SCHEMA}},
+    body = {"model": aicoin.model_for(c, "expand"), "max_tokens": 4000, "output_config": {"format": {"type": "json_schema", "schema": SCHEMA}},
             "messages": [{"role": "user", "content": prompt}]}
     resp, coins = aicoin.claude(body, timeout=120)
     usage = resp.get("usage") or {}

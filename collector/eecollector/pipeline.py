@@ -302,7 +302,9 @@ class Collector:
 
     def list_reposts(self, full: bool, first_page: bool = False) -> None:
         """The profile's Reposts tab as the web app loads it (user_reposts_timeline grid items).
-        The grid gives no repost time; an item is placed by its pk's creation time."""
+        The grid gives no repost time. An item new on the first page was just reposted: it is new
+        (ingested first) and dated by when it was first seen there (at most one quick check after the
+        repost). Older ones, found deeper in the backfill, are placed by the original's creation time."""
         if not first_page and (not full or self.state.get("backfill.reposts.done") or self.out_of_time()):
             return
         self.beat("listing reposts", force=True)
@@ -320,7 +322,11 @@ class Collector:
                     if not pk or pk in seen:
                         continue
                     seen.add(pk)
-                    new += self.enqueue(f"ig_repost_{pk}", "repost", m)
+                    if first_page and self.state.get("backfill.reposts.done") and not self.state.item(f"ig_repost_{pk}"):
+                        m = {**m, "_reposted_at": m.get("_reposted_at") or self.first_seen(f"ig_repost_{pk}")}
+                        new += self.enqueue(f"ig_repost_{pk}", "repost", m, force_new=True)
+                    else:
+                        new += self.enqueue(f"ig_repost_{pk}", "repost", m)
         more = bool(flags) and all(flags)
         if not first_page:
             if more:
@@ -548,11 +554,23 @@ class Collector:
         found = parse.find_media(self.ig.media_info(pk))
         if not found:
             raise IGError(f"original {pk} not found")
-        self.take_repost_post(found[0])
+        self.take_repost_post(found[0], grid_media.get("_reposted_at"))
 
-    def take_repost_post(self, original: dict) -> None:
+    def first_seen(self, item_id: str) -> str:
+        """When an item was first listed (kept across runs, so a retry keeps its date)."""
+        key = f"first_seen.{item_id}"
+        at = self.state.get(key)
+        if not at:
+            at = parse.now_iso()
+            self.state.set(key, at)
+        return at
+
+    def take_repost_post(self, original: dict, reposted_at: str | None = None) -> None:
         it = parse.item(original)
         it["id"] = f"ig_repost_{parse.media_pk(original)}"
+        if reposted_at:   # when the owner reposted it; the original's own time stays in repost_of
+            it["taken_at"] = reposted_at
+            it["extra"]["reposted_at"] = reposted_at
         it["extra"]["repost"] = True
         it["extra"]["repost_source"] = "reposts tab"
         it["repost_of"] = parse.repost_of(original)

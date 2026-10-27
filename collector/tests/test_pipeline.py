@@ -313,6 +313,31 @@ def test_timeline_own_items_then_reposts_newest_first(env):
     assert state.timeline_len() == 0
 
 
+def test_a_repost_new_on_the_first_page_is_dated_when_first_seen(env):
+    """The Reposts tab has no repost time: after the backfill, one that appears on its first page was
+    just reposted - a quick run ingests it and dates it by when it was first seen there."""
+    store, backend, state = env
+    ig = FakeIG()
+    orig = ig.browse
+    Collector(ig, backend, state, FakeDL(), "example.owner").run("full")
+    assert state.get("backfill.reposts.done")
+    original = fx("media_info_original.json")["items"][0]
+    grid = {"pk": original["pk"], "code": original["code"], "media_type": 2, "product_type": "clips",
+            "user": original["user"], "image_versions2": original["image_versions2"]}
+
+    def with_reposts(url, scrolls=1, click=()):
+        if url.endswith("/reposts/"):
+            return [{"data": {"fetch__XDTUserDict": {"user_reposts_timeline": {
+                "repost_grid_items": [{"media": grid}], "repost_more_available": True}}}}]
+        return orig(url, scrolls)
+    ig.browse = with_reposts
+    before = parse.now_iso()
+    Collector(ig, backend, state, FakeDL(), "example.owner").run("quick")
+    rep = store.items["ig_repost_3400000000000000009"]
+    assert rep["taken_at"] >= before and rep["extra"]["reposted_at"] == rep["taken_at"]
+    assert rep["repost_of"]["taken_at"] == "2024-04-23T19:20:00Z"   # the original keeps its own time
+
+
 def test_new_items_first(env):
     """After the first run, anything newer than what was seen jumps the queue and is marked new."""
     store, backend, state = env

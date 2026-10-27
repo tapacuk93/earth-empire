@@ -16,6 +16,7 @@ import { useOwner } from './live';
 import { ItemPage } from './pages/Item';
 import { NotFound } from './pages/NotFound';
 import { useRoute } from './router';
+import { liveFavicon } from './earth';
 
 function decode(s: string) { try { return decodeURIComponent(s); } catch { return s; } }
 
@@ -82,3 +83,4 @@ function App() {
 const root = document.getElementById('app')!;
 root.textContent = '';
 render(<App />, root);
+liveFavicon();

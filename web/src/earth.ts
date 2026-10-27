@@ -99,3 +99,19 @@ export async function drawEarth(canvas: HTMLCanvasElement, size: number, now = n
   }
   ctx.putImageData(out, 0, 0);
 }
+
+/** The tab's icon as the Earth now (the same globe, small), redrawn every 10 minutes. The static
+ * icons in public/icon stay for crawlers, bookmarks and the home screen. */
+export function liveFavicon(): void {
+  const draw = async () => {
+    const c = document.createElement('canvas');
+    try { await drawEarth(c, 32); } catch (e) { console.warn('live favicon:', e); return; }
+    const href = c.toDataURL('image/png');
+    document.querySelectorAll<HTMLLinkElement>('link[rel="icon"]').forEach((l) => l.remove());
+    const l = document.createElement('link');
+    l.rel = 'icon'; l.type = 'image/png'; l.href = href;
+    document.head.appendChild(l);
+  };
+  const later = (window as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => void }).requestIdleCallback?.bind(window) || ((f: () => void) => setTimeout(f, 1500));
+  later(() => { draw(); setInterval(draw, 10 * 60 * 1000); }, { timeout: 2000 });
+}

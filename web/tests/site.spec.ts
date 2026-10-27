@@ -551,8 +551,11 @@ test('wheel: why it is here - the first hit as a chip, the video starting just b
 });
 
 test('the mark is the Earth: favicon, touch icon, manifest and share image', async ({ page, request }) => {
+  expect(await (await request.get('/')).text()).toContain('<link rel="icon" href="/icon/earth.svg" type="image/svg+xml">');
   await page.goto('/');
-  await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveAttribute('href', '/icon/earth.svg');
+  // then the tab shows the Earth as it is now, drawn like the loading globe
+  await expect.poll(() => page.locator('link[rel="icon"]').evaluateAll((ls) => ls.map((l) => l.getAttribute('href')?.slice(0, 22))), { timeout: 15000 })
+    .toEqual(['data:image/png;base64,']);
   await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/icon/apple-touch-icon.png');
   for (const path of ['/icon/earth.svg', '/icon/earth-16.png', '/icon/earth-32.png', '/icon/apple-touch-icon.png', '/icon/og.png', '/manifest.webmanifest']) {
     expect((await request.get(path)).status(), path).toBe(200);

@@ -105,7 +105,8 @@ KINDS = {"post", "carousel", "reel", "story"}
 
 @app.get("/v1/items")
 def items(kind: str | None = None, category: str | None = None, highlight: str | None = None,
-          tag: str | None = None, facet: str | None = None, q: str | None = None, before: str | None = None, limit: int = Query(30, ge=1, le=100)):
+          tag: str | None = None, facet: str | None = None, q: str | None = None, before: str | None = None, limit: int = Query(30, ge=1, le=100),
+          lang: str | None = None):
     c = conn()
     where, args = ["i.published_at IS NOT NULL"], []
     if kind:
@@ -145,17 +146,20 @@ def items(kind: str | None = None, category: str | None = None, highlight: str |
                      (*args, limit + 1)).fetchall()
     more = len(rows) > limit
     rows = rows[:limit]
-    return {"items": [store.render_item(c, r) for r in rows],
+    from . import i18n
+    lang = i18n.wanted(c, lang)
+    return {"items": i18n.items(c, [store.render_item(c, r) for r in rows], lang),
             "next": store.encode_cursor(rows[-1]["taken_at"], rows[-1]["id"]) if more and rows else None}
 
 
 @app.get("/v1/items/{item_id}")
-def item(item_id: str):
+def item(item_id: str, lang: str | None = None):
+    from . import i18n
     c = conn()
     row = c.execute("SELECT * FROM items WHERE id=? AND published_at IS NOT NULL", (item_id,)).fetchone()
     if not row:
         raise HTTPException(404, "no such item")
-    return store.render_item(c, row)
+    return i18n.items(c, [store.render_item(c, row)], i18n.wanted(c, lang))[0]
 
 
 @app.get("/v1/items/{item_id}/explain")
@@ -183,7 +187,7 @@ def item_explain(item_id: str, lang: str = Query("en", max_length=35)):
 
 
 @app.get("/v1/items/{item_id}/related")
-def item_related(item_id: str, limit: int = Query(20, ge=1, le=100)):
+def item_related(item_id: str, limit: int = Query(20, ge=1, le=100), lang: str | None = None):
     """Related published items and hits: the same half of Home first, then the other half."""
     from . import home
     c = conn()
@@ -197,7 +201,8 @@ def item_related(item_id: str, limit: int = Query(20, ge=1, le=100)):
     out = []
     for r in rel:
         if r["kind"] == "item" and r["id"] in rows:
-            out.append({**r, "item": store.render_item(c, rows[r["id"]])})
+            from . import i18n
+            out.append({**r, "item": i18n.items(c, [store.render_item(c, rows[r["id"]])], i18n.norm(lang))[0]})
         elif r["kind"] == "hit":
             out.append(r)   # the hit itself: GET /v1/published
     return {"related": out}
@@ -210,9 +215,10 @@ def home_layout():
 
 
 @app.get("/v1/facets")
-def facets_view():
-    from . import facets as fc
-    return fc.public_view(conn())
+def facets_view(lang: str | None = None):
+    from . import facets as fc, i18n
+    c = conn()
+    return i18n.facets(c, fc.public_view(c), i18n.wanted(c, lang))
 
 
 @app.get("/v1/tags/graph")
@@ -222,9 +228,19 @@ def tags_graph(max_nodes: int = Query(300, ge=10, le=1000)):
 
 
 @app.get("/v1/highlights")
-def highlights():
-    rows = conn().execute("SELECT * FROM highlights ORDER BY position, id").fetchall()
-    return {"highlights": [store.render_highlight(r) for r in rows]}
+def highlights(lang: str | None = None):
+    from . import i18n
+    c = conn()
+    rows = c.execute("SELECT * FROM highlights ORDER BY position, id").fetchall()
+    return {"highlights": i18n.highlights(c, [store.render_highlight(r) for r in rows], i18n.norm(lang))}
+
+
+@app.get("/v1/i18n")
+def ui_strings(lang: str | None = None):
+    """The site's own words in the visitor's language: {"lang", "strings": {english: translated}}."""
+    from . import i18n
+    c = conn()
+    return i18n.ui(c, i18n.wanted(c, lang))
 
 
 @app.get("/v1/categories")

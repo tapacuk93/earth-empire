@@ -1,4 +1,5 @@
 import { API_BASE, MOCK } from './config';
+import { withLang } from './i18n';
 import { computeTags, hasTag } from './tags';
 import type { Category, Highlight, Item, ItemPage, ItemQuery, Profile, Tag } from './types';
 
@@ -14,7 +15,7 @@ export function knownItem(id: string): Item | undefined { return itemsById.get(i
 function remember(items: Item[]) { for (const it of items) itemsById.set(it.id, it); }
 
 async function getJSON<T>(path: string): Promise<T> {
-  const url = API_BASE + path;
+  const url = API_BASE + withLang(path);
   let p = cache.get(url) as Promise<T> | undefined;
   if (!p) {
     p = fetch(url, { headers: { Accept: 'application/json' } }).then(async (r) => {

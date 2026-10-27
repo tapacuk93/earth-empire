@@ -23,6 +23,7 @@ import { navigate, settleScroll, type Route } from '../router';
 import { hitSection, SECTION_TITLE, sectionHighlights, sectionItems, type SectionId } from '../sections';
 import { months, people, places, tagsOf } from '../stats';
 import { fmtShort, prefersReducedMotion, setMeta } from '../util';
+import { t } from '../i18n';
 
 // Left to right: the videos, then the timeline, then the tags.
 const MODES: [string, string][] = [['mode-videos', 'Videos mode'], ['mode-time', 'Timeline mode'], ['mode-tags', 'Tag graph mode']];
@@ -41,9 +42,9 @@ export function SearchBox({ route }: { route: Route }) {
   const commit = (val: string) => navigate(withParam(route, 'q', val.trim() || undefined), { replace: true, keepScroll: true });
   return (
     <form class="search" role="search" onSubmit={(e) => { e.preventDefault(); clearTimeout(timer.current); commit(v); }}>
-      <label class="sr-only" for="q">Search Earth Empire</label>
+      <label class="sr-only" for="q">{t('Search Earth Empire')}</label>
       <Icon name="search" size={18} />
-      <input id="q" type="search" placeholder="Search" value={v} onInput={(e) => { const val = (e.target as HTMLInputElement).value; setV(val); clearTimeout(timer.current); timer.current = window.setTimeout(() => commit(val), 350); }} />
+      <input id="q" type="search" placeholder={t('Search')} value={v} onInput={(e) => { const val = (e.target as HTMLInputElement).value; setV(val); clearTimeout(timer.current); timer.current = window.setTimeout(() => commit(val), 350); }} />
     </form>
   );
 }
@@ -154,9 +155,9 @@ export function Home({ route }: { route: Route }) {
             if (el.scrollTop + el.clientHeight > el.scrollHeight - 2 * el.clientHeight) morePagedItems();   // the next page before the end
           }}>
           {sections && !sections.length && (
-            <div class="empty-full"><p>Nothing is public yet.</p><p class="muted">Videos appear here as they arrive.</p></div>
+            <div class="empty-full"><p>{t('Nothing is public yet.')}</p><p class="muted">{t('Videos appear here as they arrive.')}</p></div>
           )}
-          {!sections ? <div class="home-loading" role="status" aria-label="Loading videos"><LiveEarth /></div> : sections.length > 0 && <VideoSections sections={sections} hrefFor={hrefFor} />}
+          {!sections ? <div class="home-loading" role="status" aria-label={t('Loading videos')}><LiveEarth /></div> : sections.length > 0 && <VideoSections sections={sections} hrefFor={hrefFor} />}
         </section>
         <section class="mode" id="mode-time" aria-label="Timeline mode">
           {all.data && <TimelineView items={items} hrefFor={(it) => itemHref(it.id)} />}
@@ -172,13 +173,13 @@ export function Home({ route }: { route: Route }) {
         <h1><EarthButton label={SITE_NAME} />{SITE_NAME}</h1>
         {all.error ? <p class="error" role="alert">Could not load Earth Empire: {all.error.message}</p> : all.data && (
           <p class="stats-line">
-            <b>{items.length}</b> videos{first && last && <> · <b>{spanOf(first.taken_at, last.taken_at)}</b></>} · <b>{places(items).length}</b> places · <b>{people(items).length}</b> people
+            <b>{items.length}</b> {t('videos')}{first && last && <> · <b>{spanOf(first.taken_at, last.taken_at)}</b></>} · <b>{places(items).length}</b> {t('places')} · <b>{people(items).length}</b> {t('people')}
           </p>
         )}
       </header>
       <nav class="mode-dots fui" aria-label="Modes">
         {MODES.map(([mid, label], i) => (
-          <button key={mid} aria-label={label} aria-current={mode === i ? 'true' : undefined} title={label}
+          <button key={mid} aria-label={t(label)} aria-current={mode === i ? 'true' : undefined} title={t(label)}
             onClick={() => showMode(i)}>
             <span aria-hidden="true" /></button>
         ))}

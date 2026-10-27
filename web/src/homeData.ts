@@ -3,6 +3,7 @@
 // caller falls back to computing the same thing in the browser (src/layout.ts).
 import { getAllItems, getItems } from './api';
 import { API_BASE, MOCK } from './config';
+import { withLang } from './i18n';
 import type { Item } from './types';
 
 export interface LayoutTile { id: string; kind: 'item' | 'hit'; x: number; y: number; size: number; level?: number; importance?: number | null; label?: string; taken_at?: string; attached_to?: string | null }
@@ -14,7 +15,7 @@ export interface GraphEdge { a: string; b: string; count: number; weight?: numbe
 async function get<T>(path: string): Promise<T | null> {
   if (MOCK) return null;
   try {
-    const r = await fetch(API_BASE + path, { headers: { Accept: 'application/json' } });
+    const r = await fetch(API_BASE + withLang(path), { headers: { Accept: 'application/json' } });
     return r.ok ? ((await r.json()) as T) : null;
   } catch { return null; }
 }

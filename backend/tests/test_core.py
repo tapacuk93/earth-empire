@@ -635,3 +635,37 @@ class LayersTest(unittest.TestCase):
         self.assertIn("first analysis", why)
         c.close()
         tmp.cleanup()
+
+
+class TranslationsTest(unittest.TestCase):
+    """Everything public in the visitor's language, once translated; the original until then."""
+
+    def test_translate_and_serve(self):
+        from ee import aicoin, analysis, i18n
+        tmp = tempfile.TemporaryDirectory()
+        c = db.connect(Path(tmp.name) / "t.sqlite3")
+        self.assertEqual(i18n.norm("uk-UA"), "uk")
+        self.assertIsNone(i18n.norm("<x>"))
+        c.execute("INSERT INTO items(id, kind, taken_at, data, content_hash, summary, published_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+                  ("ig_t", "reel", "2026-10-24T10:00:00Z", db.j({"caption": "Привіт", "media": []}), "h", "A state visit", db.now(), db.now()))
+        d = store.render_item(c, c.execute("SELECT * FROM items WHERE id='ig_t'").fetchone())
+        self.assertEqual(i18n.items(c, [dict(d)], "uk")[0]["summary"], "A state visit")   # not yet: the original
+
+        def fake(body, timeout=300):
+            text = body["messages"][0]["content"]
+            lines = [b.split(" | ", 1) for b in text.split("\n\n") if " | " in b and b.split(" | ", 1)[0].isdigit()]
+            out = [{"n": int(n), "text": "UK:" + s} for n, s in lines]
+            return {"model": "claude-test", "usage": {}, "content": [{"type": "text", "text": json.dumps({"texts": out})}]}, 0.01
+        real, aicoin.claude = aicoin.claude, fake
+        real_m, aicoin.model_for = aicoin.model_for, lambda c, p: "claude-haiku-5-5"
+        try:
+            i18n.wanted(c, "uk")
+            while i18n.run(c) and not i18n.lookup(c, ["A state visit"], "uk"):
+                pass
+        finally:
+            aicoin.claude, aicoin.model_for = real, real_m
+        out = i18n.items(c, [dict(d)], "uk")[0]
+        self.assertEqual((out["summary"], out["original"]["summary"]), ("UK:A state visit", "A state visit"))
+        self.assertEqual(i18n.ui(c, "uk")["strings"].get("Show all"), "UK:Show all")
+        c.close()
+        tmp.cleanup()

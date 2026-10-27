@@ -150,6 +150,26 @@ def deepen_once(c) -> bool:
     return True
 
 
+def translate_once(c) -> bool:
+    """Lowest priority: everything public in visitors' languages (ee.i18n), once every item has its
+    first analysis. Off with translate.enabled=0."""
+    from . import i18n
+    if setting(c, "analysis.enabled") != "1" or setting(c, "translate.enabled") == "0" or in_reserve(c):
+        return False
+    if analysis.light_pending(c):
+        return False
+    try:
+        n = i18n.run(c)
+        ai_ok("translate")
+        return bool(n)
+    except aicoin.OutOfCoins as e:
+        stop.wait(ai_wait(e, "translate"))
+    except Exception as e:
+        event("i18n.failed", logging.WARNING, error=repr(e)[:500])
+        stop.wait(600)
+    return False
+
+
 # ------------------------------------------------------------------ Home layout and importance backfill
 _home_last = {"t": 0.0}
 
@@ -555,7 +575,7 @@ def main():
     threads += [lane("thumbs", thumbs_once, idle=20),
                lane("home", home_once, idle=20), lane("importance", importance_once, idle=60),
                lane("heard", heard_once, idle=60), lane("expand", expand_once, idle=120),
-               lane("deepen", deepen_once, idle=120),
+               lane("deepen", deepen_once, idle=120), lane("translate", translate_once, idle=300),
                lane("facets", facets_once, idle=60), lane("rubric", rubric_once, idle=600), lane("x", x_once, idle=60),
                lane("facebook", facebook_once, idle=120), lane("house", house_once, idle=15)]
     while not stop.is_set():

@@ -4,6 +4,7 @@ import { sizeOf, type Size, type VSection, type VTile } from '../videoSections';
 import { claimPlayback } from './zoom';
 import { EditableLabel } from './EditableLabel';
 import { watchTiles } from '../preload';
+import { t } from '../i18n';
 
 const GAP = 6;
 const CELLS: Record<Size, number> = { xl: 4, wide: 2, m: 1 };
@@ -79,7 +80,7 @@ export function VideoSections({ sections, hrefFor }: { sections: VSection[]; hre
         let used = 0;
         const shown = sized.filter(([, z]) => (used += CELLS[z]) <= budget);
         return (
-          <section key={s.id} class={`vsection vs-l${s.level}`} {...(s.title ? { 'aria-labelledby': `vs-${s.id}` } : { 'aria-label': 'Uncategorized videos' })}>
+          <section key={s.id} class={`vsection vs-l${s.level}`} {...(s.title ? { 'aria-labelledby': `vs-${s.id}` } : { 'aria-label': t('Uncategorized videos') })}>
             {s.title && (
               <header class="vs-head">
                 <h2 id={`vs-${s.id}`}>{s.title}</h2>
@@ -90,7 +91,7 @@ export function VideoSections({ sections, hrefFor }: { sections: VSection[]; hre
               {shown.map(([t, z]) => <Tile key={t.id} t={t} size={z} href={hrefFor(t)} playing={playing === t.id} onPlay={onPlay} />)}
             </ul>
             {shown.length < s.tiles.length && (
-              <button class="btn ghost vs-more" onClick={() => setOpen(new Set([...open, s.id]))}>Show all {s.tiles.length}</button>
+              <button class="btn ghost vs-more" onClick={() => setOpen(new Set([...open, s.id]))}>{t('Show all')} {s.tiles.length}</button>
             )}
           </section>
         );

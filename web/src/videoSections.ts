@@ -13,6 +13,7 @@ import { heardOf, LANG, titleOf } from './monitor';
 import { highlightSection } from './sections';
 import type { Highlight, Item } from './types';
 import { cover } from './util';
+import { t } from './i18n';
 
 export interface VTile {
   id: string;
@@ -69,7 +70,7 @@ export function rankOf(t: VTile, halfLife = RECENCY_HALF_LIFE, today = dayOf(new
   const age = d ? Math.max(0, (Date.parse(today) - Date.parse(d)) / 864e5) : 3650;
   return LW[t.level - 1] * 0.5 ** (age / (halfLife > 0 ? halfLife : RECENCY_HALF_LIFE));
 }
-const plural = (n: number) => `${n} video${n === 1 ? '' : 's'}`;
+const plural = (n: number) => `${n} ${t(n === 1 ? 'video' : 'videos')}`;
 const MIN_THEME = 3;
 
 /** The facet that groups these videos best: the most of them in categories of at least three, none holding over 60%. */
@@ -101,7 +102,7 @@ export function describe(it: Item): string {
  */
 export function audioOf(it: Item, _labels?: Map<string, string>): Audio {
   if (it.heard?.by === 'owner' && it.heard.text) return { kind: 'heard', text: it.heard.text };
-  const title = (it.highlights || []).map((h) => (h.title_full || h.title).trim()).find(Boolean);
+  const title = (it.highlights || []).map((h) => (h.title_translated || h.title_full || h.title).trim()).find(Boolean);
   if (title) return { kind: 'heard', text: title };
   const said = describe(it);
   return said ? { kind: 'heard', text: said } : { kind: 'none', text: '' };
@@ -155,7 +156,7 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
     facets = (facets || []).filter((f) => f !== facet);
   }
   // The rest, until the backend has placed them (every video ends up in a category).
-  if (rest.length) groups.push({ id: 'more', title: 'Categorization in progress', tiles: rest });
+  if (rest.length) groups.push({ id: 'more', title: t('Categorization in progress'), tiles: rest });
 
   // The section whose best video ranks highest (freshness × level) first.
   const top = (l: VTile[]) => Math.max(...l.map(rankOf_));

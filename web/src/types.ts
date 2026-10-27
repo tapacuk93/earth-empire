@@ -68,7 +68,7 @@ export interface Item {
   counts?: { likes?: number; comments?: number; views?: number; plays?: number };
   media: Media[];
   /** title_full: the name written out when the owner shortened it ("плнт" -> "планета") */
-  highlights?: { id: string; title: string; title_full?: string | null }[];
+  highlights?: { id: string; title: string; title_full?: string | null; title_translated?: string | null }[];
   repost_of?: Repost | null;
   categories?: string[];
   summary?: string | null;

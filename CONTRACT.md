@@ -679,3 +679,20 @@ The monitor reports itself with `POST /v1/ingest/heartbeat` (`component: "monito
   key and serves URLs under the current media host, so they move to `media.empire.earth` once its
   certificate is issued.
 - Log what happens - every run, every request that failed, and why - and diagnose from the logs.
+
+## Translations
+
+Everything public can be read in the visitor's language. The site sends the browser's language as
+`?lang=<ISO 639 code>` to `GET /v1/items`, `/v1/items/{id}`, `/v1/items/{id}/related`, `/v1/facets`
+and `/v1/highlights` (never for the signed-in owner, who sees the originals).
+- **Items:** `summary`, `description` and `caption` come back translated where a translation exists;
+  the originals are under `original`, and `lang` says which language was asked. Each highlight on an
+  item gains `title_translated`.
+- **Facets:** facet and category `name` and `description` are translated in place.
+- **The site's own words:** `GET /v1/i18n?lang=` → `{"lang", "strings": {english: translated}}` for the
+  list in `web/src/i18n/strings.json`.
+- **The job** (lowest priority, `translate.enabled`, default on) runs only once every item has its first
+  analysis, on the small model in batches of 60 texts: the site's words and the category and
+  highlight names first, then items newest first. It works for the languages visitors asked for
+  (most asked first), then a base set (en uk ru es fr de pt it pl tr ar zh ja ko hi). Until a text is
+  translated, the original is served.

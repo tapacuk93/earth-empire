@@ -17,6 +17,7 @@ import { ItemPage } from './pages/Item';
 import { NotFound } from './pages/NotFound';
 import { useRoute } from './router';
 import { liveFavicon } from './earth';
+import { loadStrings } from './i18n';
 
 function decode(s: string) { try { return decodeURIComponent(s); } catch { return s; } }
 
@@ -82,5 +83,5 @@ function App() {
 
 const root = document.getElementById('app')!;
 root.textContent = '';
-render(<App />, root);
+loadStrings().then(() => render(<App />, root));
 liveFavicon();

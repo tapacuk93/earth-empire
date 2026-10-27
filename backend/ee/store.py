@@ -86,8 +86,8 @@ def publishable(d: dict) -> tuple[bool, str | None]:
 
 def gate(c, item_id: str) -> tuple[bool, str]:
     """Is this item from the owner's profile public? Mirroring the account is never missed: the account's
-    own posts and stories are public as soon as they arrive (analysis enriches them later); a repost is
-    once analyzed, unless it is an image-only repost. A monitor detection is context (shown and used as a start point), never
+    own posts and stories, and its reposts of videos, are public as soon as they arrive (analysis enriches
+    them later); an image-only repost never is. A monitor detection is context (shown and used as a start point), never
     a condition. Apply the answer: publish (site step posted, the posters may post) or unpublish
     (site skipped; X/Facebook skipped unless they already posted)."""
     row = c.execute("SELECT data, analysis, detection, published_at FROM items WHERE id=?", (item_id,)).fetchone()
@@ -102,7 +102,7 @@ def gate(c, item_id: str) -> tuple[bool, str]:
     elif not d.get("repost_of"):
         public, why = True, "the account's own: mirrored as it arrived, analysis follows"
     else:
-        public, why = False, "not analyzed yet"
+        public, why = True, "a repost of a video: mirrored as it arrived, analysis follows"
     ts = now()
     if public and not row["published_at"]:
         c.execute("UPDATE items SET published_at=? WHERE id=?", (ts, item_id))

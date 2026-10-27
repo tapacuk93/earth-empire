@@ -93,10 +93,12 @@ class Collector:
         """List everything cheaply (metadata only), then ingest one merged timeline, newest first:
         posts, reels, reposts, stories and highlight stories alike. The timeline is kept in the
         state, so the next run continues down it."""
-        assert mode in ("full", "incremental", "sample")
+        assert mode in ("full", "incremental", "sample", "quick")
         self.mode = mode
         if mode == "sample":
             return self.run_sample()
+        if mode == "quick":
+            return self.run_quick()
         full = mode == "full"
         log.info("run %s: state has %d items, %d queued", mode, self.state.count_items(), self.state.timeline_len())
         self.do_profile()
@@ -154,6 +156,18 @@ class Collector:
                 self.flush()
             except Exception as e2:  # noqa: BLE001
                 log.warning("flush after %s failed: %s", name, e2)
+
+    def run_quick(self) -> dict:
+        """Every ~10 minutes: only the cheap check for new items (the profile page, the stories, the
+        Reposts tab's first page, changed highlights) and their ingest, so a new post or repost is on
+        the site within minutes. Nothing deeper: the incremental run does that."""
+        log.info("run quick: state has %d items", self.state.count_items())
+        self.do_profile()
+        self.check_new(profile_done=True)
+        self.step("ingest new", self.ingest_timeline, True)
+        self.flush()
+        self.step("highlights", self.send_highlights)
+        return self.counts
 
     def run_sample(self) -> dict:
         """The gentlest useful run: one view of the profile page, then the newest video on it."""

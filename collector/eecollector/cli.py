@@ -63,7 +63,7 @@ def lock(s: Settings):
 
 
 def cmd_run(args, s: Settings, secrets: Secrets) -> int:
-    mode = {"backfill": "full", "sample": "sample"}.get(args.cmd, "incremental")
+    mode = {"backfill": "full", "sample": "sample", "quick": "quick"}.get(args.cmd, "incremental")
     budget = float(args.budget) * 60 if args.budget else None
     if mode == "incremental" and not State(s.state_db).get("backfill.done_at"):
         # until the whole account is in, every timer run continues the backfill for a while
@@ -280,7 +280,7 @@ def cmd_status(args, s: Settings, secrets: Secrets) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="ee-collector")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    for name in ("backfill", "incremental", "sample"):
+    for name in ("backfill", "incremental", "sample", "quick"):
         p = sub.add_parser(name)
         p.add_argument("--target", help="override earth-empire/target (testing)")
         p.add_argument("--limit", type=int, help="stop paging after about this many items (testing)")
@@ -296,7 +296,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     s = Settings()
     secrets = Secrets(s)
-    return {"backfill": cmd_run, "incremental": cmd_run, "sample": cmd_run, "login": cmd_login, "auto-login": cmd_auto_login,
+    return {"backfill": cmd_run, "incremental": cmd_run, "sample": cmd_run, "quick": cmd_run, "login": cmd_login, "auto-login": cmd_auto_login,
             "import-session": cmd_import, "status": cmd_status, "heartbeat": cmd_heartbeat}[args.cmd](args, s, secrets)
 
 

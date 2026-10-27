@@ -31,14 +31,14 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(store.to_key("items/a/0.jpg"), "key:items/a/0.jpg")
         self.assertEqual(store.to_url("key:items/a/0.jpg"), f"{store.config.MEDIA_BASE_URL}/items/a/0.jpg")
 
-    def test_ingest_mirrors_the_accounts_own_at_once_and_reposts_after_analysis(self):
+    def test_ingest_mirrors_the_accounts_own_and_video_reposts_at_once(self):
         counts = store.upsert_items(self.c, FIXTURES["items"])
         self.assertEqual(counts["inserted"], len(FIXTURES["items"]))
         st = store.pipeline_status(self.c)
         self.assertEqual(st["steps"]["analyze"]["pending"], len(FIXTURES["items"]))
         public = {r["id"] for r in self.c.execute("SELECT id FROM items WHERE published_at IS NOT NULL")}
-        own = {i["id"] for i in FIXTURES["items"] if not i.get("repost_of")}
-        self.assertEqual(public, own)   # mirroring is never missed: the account's own before any analysis
+        own = {i["id"] for i in FIXTURES["items"] if not i.get("repost_of") or store.has_video(i)}
+        self.assertEqual(public, own)   # mirroring is never missed: own posts and video reposts before any analysis
         # the account's own first, oldest first; reposts after
         first = store.claim_next(self.c, "analyze")
         oldest = min((i for i in FIXTURES["items"] if not i.get("repost_of")), key=lambda i: i["taken_at"])["id"]

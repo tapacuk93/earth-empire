@@ -469,8 +469,8 @@ backoff without blocking other items. Every transition is logged.
    **Mirroring the account is never missed:** the account's own posts and stories (no `repost_of`)
    are public in the API, the site and the apps as soon as they are downloaded, with their own caption;
    analysis fills in the rest when the budget allows (the day's last `ai.own_reserve_usd` is only for
-   it, every other job stops there). A repost is public only from this point on (a monitor detection
-   is not required, see "Detection"), and never an **image-only repost**: an item
+   it, every other job stops there). A repost of a video is public as soon as it is downloaded too (a
+   monitor detection is not required, see "Detection"), and never an **image-only repost**: an item
    with `repost_of` and no video, in its own media or the original's (someone else's photo, shared
    in a post or a story). Such an item is kept and analyzed, but its `site`, `x` and `facebook`
    steps are `skipped`. The X and Facebook posters take only analyzed items. It never appears in `/v1/items`, `/v1/layout`, related lists, the tag graph

@@ -223,7 +223,7 @@ def main(argv=None):
         for r in c.execute("SELECT id, title, heard_label, heard_reason FROM highlights ORDER BY position"):
             print(f"{r['id']}  {r['title']!r} -> {r['heard_label']!r}  ({r['heard_reason'] or ''})")
     elif a.cmd == "unpublish-rule":
-        # The publish rule on every item: the account's own public at once, reposts once analyzed.
+        # The publish rule on every item: the account's own and video reposts public at once.
         n = p = 0
         for r in c.execute("SELECT id, published_at FROM items").fetchall():
             with db.tx(c):

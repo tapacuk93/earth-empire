@@ -1,0 +1,19 @@
+[Unit]
+Description=Earth Empire collector, quick check: new posts, stories and reposts only
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=earth
+Group=earth
+EnvironmentFile=-/etc/earth-empire/env
+Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/earth-empire/ms-playwright
+Environment=PYTHONPATH=/opt/earth-empire/repo/collector
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/earth-empire/collector-venv/bin/python -m eecollector quick
+# 6 = a backfill holds the browser profile (it reads stories itself meanwhile)
+SuccessExitStatus=6
+TimeoutStartSec=15min
+Nice=5
+MemoryMax=2500M

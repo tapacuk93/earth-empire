@@ -1,0 +1,10 @@
+[Unit]
+Description=Earth Empire collector quick check, about every 10 minutes (a new post or repost shows within minutes)
+
+[Timer]
+OnBootSec=3min
+OnUnitInactiveSec=7min
+RandomizedDelaySec=6min
+
+[Install]
+WantedBy=timers.target

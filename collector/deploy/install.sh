@@ -36,13 +36,17 @@ install -d -o earth -g earth -m 700 /var/lib/earth-empire/browser/instagram
 install -d -o earth -g earth -m 750 /var/log/earth-empire /var/log/earth-empire/collector
 
 install -m 755 $C/deploy/ee-collector /usr/local/bin/ee-collector
-for u in ee-collector-incremental.service ee-collector-incremental.timer ee-collector-backfill.service \
+for u in ee-collector-incremental.service ee-collector-incremental.timer ee-collector-quick.service ee-collector-quick.timer ee-collector-backfill.service \
          ee-collector-heartbeat.service ee-collector-heartbeat.timer; do
   install -m 644 $C/deploy/$u /etc/systemd/system/$u
 done
 systemctl daemon-reload
 # the heartbeat only reports the last run's state to the API; always on
 systemctl enable --now ee-collector-heartbeat.timer >/dev/null 2>&1 || true
+# the quick check for new posts and reposts follows the incremental timer: on when it is on
+if systemctl is-enabled -q ee-collector-incremental.timer 2>/dev/null; then
+  systemctl enable --now ee-collector-quick.timer >/dev/null 2>&1 || true
+fi
 
 # old run logs: keep 60 days
 cat > /etc/cron.daily/ee-collector-logs <<'EOT'

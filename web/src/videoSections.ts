@@ -96,7 +96,8 @@ export function describe(it: Item): string {
 /**
  * One label per card, and only one the owner gave: his own label, the highlight's name (written out
  * when he shortened it), or the post's own caption. Nothing generated, and not a phrase the monitor
- * happened to hear in it (a lecture saying "три" is not a "3" video). Else no label.
+ * happened to hear in it (a lecture saying "три" is not a "3" video). Else no label. A recommendation
+ * card (a monitor hit, on Home only once the owner adds it with "+") is labelled with its matched phrase.
  */
 export function audioOf(it: Item, _labels?: Map<string, string>): Audio {
   if (it.heard?.by === 'owner' && it.heard.text) return { kind: 'heard', text: it.heard.text };

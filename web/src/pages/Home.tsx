@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { getAllItems } from '../api';
+import { morePagedItems, pagedNow, watchPagedItems, type PagedItems } from '../api';
 import { Icon } from '../components/icons';
 import { hitSlide } from '../components/MonitorCard';
 import { useCategories, useData, useHighlights, useProfile } from '../components/Profile';
@@ -53,11 +53,24 @@ function spanOf(a: string, b: string): string {
   return days >= 730 ? `${Math.round(days / 365)} years` : days >= 60 ? `${Math.round(days / 30.4)} months` : `${Math.max(1, Math.round(days))} days`;
 }
 
+/** Home's items, page by page: the first page at once, the next as the viewer nears the end. */
+function usePagedItems(): PagedItems {
+  const [p, setP] = useState(pagedNow());
+  useEffect(() => {
+    const off = watchPagedItems(setP);
+    if (!pagedNow().items.length) morePagedItems();
+    return off;
+  }, []);
+  return p;
+}
+
 export function Home({ route }: { route: Route }) {
   const profile = useProfile();
   const highlights = useHighlights();
   const categories = useCategories();
-  const all = useData(getAllItems);
+  const paged = usePagedItems();
+  const loaded = paged.items.length > 0 || paged.done;
+  const all = { data: loaded ? paged.items : undefined, error: paged.items.length ? undefined : paged.error };
   const published = useData(getPublished);
   const watch = route.query.get('watch') || undefined;
 
@@ -66,6 +79,10 @@ export function Home({ route }: { route: Route }) {
     setMeta(SITE_NAME, 'Earth Empire: every video, described and mapped by what it is about.', '/icon/og.png');
   }, [profile.data]);
   useEffect(() => { if (all.data) settleScroll(); }, [!!all.data]);
+  useEffect(() => {   // a screen not yet full: the next page now
+    const v = videos.current;
+    if (sections && v && !paged.done && v.scrollHeight <= v.clientHeight * 2) morePagedItems();
+  });
 
   const items = all.data || [];
   const hl = highlights.data || [];
@@ -131,7 +148,11 @@ export function Home({ route }: { route: Route }) {
     <>
       <div class="modes" ref={modes} onScroll={onModesScroll}>
         <section class="mode mode-videos" id="mode-videos" aria-label="Videos mode" ref={videos}
-          onScroll={(e) => { if (restored.current) saveHomeY((e.currentTarget as HTMLElement).scrollTop); }}>
+          onScroll={(e) => {
+            const el = e.currentTarget as HTMLElement;
+            if (restored.current) saveHomeY(el.scrollTop);
+            if (el.scrollTop + el.clientHeight > el.scrollHeight - 2 * el.clientHeight) morePagedItems();   // the next page before the end
+          }}>
           {sections && !sections.length && (
             <div class="empty-full"><p>Nothing is public yet.</p><p class="muted">Videos appear here as they arrive.</p></div>
           )}

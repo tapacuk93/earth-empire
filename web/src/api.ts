@@ -157,3 +157,43 @@ export async function getHighlightItems(h: Highlight): Promise<Item[]> {
   const ordered = h.item_ids.map((id) => got.get(id)).filter((x): x is Item => !!x);
   return ordered.length ? ordered : [...got.values()];
 }
+
+
+// ---- Home's items page by page (scroll pagination): newest first, the next page when the viewer nears
+// the end. One shared list, so returning to Home keeps what was loaded.
+export interface PagedItems { items: Item[]; done: boolean; error?: Error }
+const PAGE = 100;
+let paged: PagedItems & { next?: string; busy?: Promise<void> } = { items: [], done: false };
+const listeners = new Set<(p: PagedItems) => void>();
+const emit = () => { const v = { items: paged.items, done: paged.done, error: paged.error }; listeners.forEach((f) => f(v)); };
+
+export function morePagedItems(): Promise<void> {
+  if (paged.done || paged.busy) return paged.busy || Promise.resolve();
+  paged.busy = (async () => {
+    try {
+      if (MOCK) {
+        paged.items = await getAllItems();
+        paged.done = true;
+      } else {
+        const page = await getJSON<ItemPage>('/v1/items' + qs({ limit: PAGE, before: paged.next }));
+        remember(page.items);
+        paged.items = [...paged.items, ...page.items];
+        paged.next = page.next || undefined;
+        paged.done = !page.next;
+      }
+      paged.error = undefined;
+    } catch (e) {
+      paged.error = e as Error;
+    } finally {
+      paged.busy = undefined;
+      emit();
+    }
+  })();
+  return paged.busy;
+}
+
+export function watchPagedItems(f: (p: PagedItems) => void): () => void {
+  listeners.add(f);
+  return () => listeners.delete(f);
+}
+export const pagedNow = (): PagedItems => ({ items: paged.items, done: paged.done, error: paged.error });

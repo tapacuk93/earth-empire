@@ -338,7 +338,9 @@ Claude defines them from the public content and redefines them as it changes:
 - **When:** whenever something changed, spaced so that `facets.daily_cap` runs (12 by default, the
   cost guard) cover the whole day - at most one every 2 hours - paid from the server's aicoin wallet.
   Between runs every newly published video and found clip joins, per facet, the category whose
-  members it is most like (embeddings, no AI), so it shows in its category at once.
+  members it is most like (embeddings, no AI), so it shows in its category at once. Every video ends
+  up in a category of the primary facet (the one grouping the most videos), the nearest one when
+  nothing is close; until then Home shows it under "Categorization in progress".
 - **Improving:** each run Claude writes notes to itself (what it changed and why, what to watch, ideas
   to try); the next run reads them with how the categories fared since (sizes, how many joined by
   similarity, how many fit nowhere). Notes are kept in `facet_notes`; `ee facets show` prints them.

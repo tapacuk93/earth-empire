@@ -549,13 +549,13 @@ class FacetsTest(unittest.TestCase):
         v = {"ig_0": [1, 0], "ig_1": [0.9, 0.1], "ig_2": [0, 1], "ig_new": [0.95, 0.05]}
         real, home.vectors = home.vectors, lambda c, ids=None: {k: np.array(x, dtype=np.float32) / np.linalg.norm(x) for k, x in v.items()}
         try:
-            self.assertEqual(self.facets.place_new(self.c), 1)
+            self.assertEqual(self.facets.place_new(self.c), 2)   # the new one, and ig_0 Claude left out: every video in a category
             self.assertEqual(self.facets.place_new(self.c), 0)
         finally:
             home.vectors = real
         cat = self.facets.public_view(self.c)["facets"][0]["categories"][0]
         self.assertIn("ig_new", cat["item_ids"])
-        self.assertEqual(self.facets.fared(self.c, self.facets.current(self.c))["categories"][0]["joined_by_similarity_since"], 1)
+        self.assertEqual(self.facets.fared(self.c, self.facets.current(self.c))["categories"][0]["joined_by_similarity_since"], 2)
 
 
 class HighlightRenameTest(unittest.TestCase):

@@ -209,6 +209,22 @@ def _assign_by_similarity(c, facets, ids, threshold: float = 0.45, vec=None) -> 
     return joined
 
 
+def primary(facets: list) -> dict | None:
+    """The facet that groups the most videos (the one Home sorts by): every video ends up in it."""
+    return max(facets, key=lambda f: sum(len(k["item_ids"]) for k in f["categories"]), default=None)
+
+
+def fill_primary(c, facets, ids, vec=None) -> list[str]:
+    """Every video in a category at last: one in none of the primary facet's categories joins the one
+    whose members it is most like, however loosely (Claude's next run may move it)."""
+    f = primary(facets)
+    if not f:
+        return []
+    inside = {i for k in f["categories"] for i in k["item_ids"]}
+    left = [i for i in ids if _key(i) not in inside]
+    return _assign_by_similarity(c, [f], left, threshold=-1.0, vec=vec)
+
+
 def published_hit_ids() -> list[str]:
     from .home import published_hits
     return [h["id"] for h in published_hits()]
@@ -229,15 +245,17 @@ def place_new(c) -> int:
     ids = [r["id"] for r in c.execute("SELECT id FROM items WHERE published_at IS NOT NULL ORDER BY taken_at DESC")]
     ids += ["hit:" + h for h in published_hit_ids()]
     todo = [i for i in ids if _key(i) not in done and i not in done and i in vec]
-    if not todo:
+    joined = _assign_by_similarity(c, doc["facets"], todo, vec=vec) if todo else []
+    filled = fill_primary(c, doc["facets"], [i for i in ids if i in vec], vec=vec)
+    if not todo and not filled:
         return 0
-    joined = _assign_by_similarity(c, doc["facets"], todo, vec=vec)
+    joined += filled
     doc["considered"] = sorted(set(doc.get("considered") or []) | set(todo))
     doc["joined"] = (doc.get("joined") or []) + joined
     doc["placed_at"] = now()
     set_setting(c, "facets.current", j(doc))
-    event("facets.placed", videos=len(todo), joined=len(joined))
-    return len(todo)
+    event("facets.placed", videos=len(todo), joined=len(joined), filled=len(filled))
+    return len(todo) + len(filled)
 
 
 def fared(c, doc: dict) -> dict:

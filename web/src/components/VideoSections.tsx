@@ -3,6 +3,7 @@ import { fmtShort } from '../util';
 import { sizeOf, type Size, type VSection, type VTile } from '../videoSections';
 import { claimPlayback } from './zoom';
 import { EditableLabel } from './EditableLabel';
+import { watchTiles } from '../preload';
 
 const GAP = 6;
 const CELLS: Record<Size, number> = { xl: 4, wide: 2, m: 1 };
@@ -21,7 +22,7 @@ function grid(w: number, h: number, compact: boolean) {
 
 function Tile({ t, size, href, playing, onPlay }: { t: VTile; size: Size; href: string; playing: boolean; onPlay: (id: string | null, delay?: number) => void }) {
   return (
-    <li class={`vt vt-${size}`} data-id={t.id} data-level={t.level} data-rank={t.rank}>
+    <li class={`vt vt-${size}`} data-id={t.id} data-level={t.level} data-rank={t.rank} data-video={t.video}>
       <a href={href} aria-label={[t.audio?.text, t.date && fmtShort(t.date), t.text].filter(Boolean).join(', ')} onFocus={() => onPlay(t.id)} onBlur={() => onPlay(null)}
         onPointerEnter={(e) => e.pointerType === 'mouse' && onPlay(t.id, 150)} onPointerLeave={() => onPlay(null)}>
         {t.cover ? <img src={t.cover} alt="" loading="lazy" decoding="async" /> : <span class="vt-blank" />}
@@ -66,6 +67,7 @@ export function VideoSections({ sections, hrefFor }: { sections: VSection[]; hre
     return () => ro.disconnect();
   }, []);
   useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => watchTiles(root.current!), []);   // videos on screen start loading (preload.ts)
 
   return (
     <div class="vsections" ref={root}>

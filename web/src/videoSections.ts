@@ -30,7 +30,7 @@ export interface VTile {
 }
 /**
  * What sounds in a video. `heard`: the phrase spoken - its highlight's name (highlights are named
- * after what is said in them), a phrase the monitor matched, or for a found clip the words around
+ * after what is said in them), or for a found clip the words around
  * the match. Else the post's own description (see describe), or none.
  */
 export interface Audio { kind: 'heard' | 'speech' | 'music' | 'none'; text: string }
@@ -94,15 +94,14 @@ export function describe(it: Item): string {
 }
 
 /**
- * One label per card, and only one the owner gave or listens for: his own label, the highlight's name (written out when he shortened it),
- * a phrase from Settings the monitor matched in it, or the post's own caption. Nothing generated.
+ * One label per card, and only one the owner gave: his own label, the highlight's name (written out
+ * when he shortened it), or the post's own caption. Nothing generated, and not a phrase the monitor
+ * happened to hear in it (a lecture saying "три" is not a "3" video). Else no label.
  */
 export function audioOf(it: Item, _labels?: Map<string, string>): Audio {
   if (it.heard?.by === 'owner' && it.heard.text) return { kind: 'heard', text: it.heard.text };
   const title = (it.highlights || []).map((h) => (h.title_full || h.title).trim()).find(Boolean);
   if (title) return { kind: 'heard', text: title };
-  const phrase = (it.detection?.hits || []).find((h) => h.kind === 'name' && h.phrase)?.phrase;
-  if (phrase) return { kind: 'heard', text: phrase };
   const said = describe(it);
   return said ? { kind: 'heard', text: said } : { kind: 'none', text: '' };
 }

@@ -554,7 +554,10 @@ class FacetsTest(unittest.TestCase):
         finally:
             home.vectors = real
         cat = self.facets.public_view(self.c)["facets"][0]["categories"][0]
-        self.assertIn("ig_new", cat["item_ids"])
+        self.assertNotIn("ig_new", cat["item_ids"])   # placed, but not analyzed yet: in progress on Home
+        self.c.execute("UPDATE items SET analysis='{}' WHERE id='ig_new'")
+        cat = self.facets.public_view(self.c)["facets"][0]["categories"][0]
+        self.assertIn("ig_new", cat["item_ids"])      # analyzed and clearly alike: placed
         self.assertEqual(self.facets.fared(self.c, self.facets.current(self.c))["categories"][0]["joined_by_similarity_since"], 2)
 
 

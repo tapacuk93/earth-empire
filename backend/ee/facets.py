@@ -161,11 +161,12 @@ def run(c) -> dict:
                            "categories": cats})
 
     rest = [r["id"] for r in rows[MAX_ITEMS_IN_PROMPT:]] + ["hit:" + h for h in published_hit_ids()]
-    _assign_by_similarity(c, facets, rest)
+    sims: dict = {}
+    _assign_by_similarity(c, facets, rest, sims=sims)
 
     notes = (out.get("notes") or "").strip()[:4000]
     doc = {"facets": facets, "generated_at": now(), "model": model, "items": len(rows), "notes": notes,
-           "considered": [r["id"] for r in in_prompt] + rest, "joined": []}
+           "considered": [r["id"] for r in in_prompt] + rest, "joined": [], "by_similarity": sims}
     with tx(c):
         set_setting(c, "facets.current", j(doc))
         set_setting(c, "facets.last_run", now())
@@ -182,7 +183,10 @@ def _key(i: str) -> str:
     return i[4:] if i.startswith("hit:") else i
 
 
-def _assign_by_similarity(c, facets, ids, threshold: float = 0.45, vec=None) -> list[str]:
+SURE = 0.45   # a similarity this close counts as placed; below it (or not analyzed yet) it is provisional
+
+
+def _assign_by_similarity(c, facets, ids, threshold: float = SURE, vec=None, sims: dict | None = None) -> list[str]:
     """Videos Claude has not seen (beyond one call, or new since): each joins, per facet, the category
     whose members it is most like. `ids` are embedding ids ("hit:<id>" for found clips). Returns the
     "<facet>:<category>" each joined."""
@@ -206,6 +210,8 @@ def _assign_by_similarity(c, facets, ids, threshold: float = 0.45, vec=None) -> 
             if sim >= threshold and _key(i) not in k["item_ids"]:
                 k["item_ids"].append(_key(i))
                 joined.append(f"{f['id']}:{k['id']}")
+                if sims is not None:
+                    sims[_key(i)] = round(max(sim, sims.get(_key(i), -1.0)), 4)
     return joined
 
 
@@ -214,7 +220,7 @@ def primary(facets: list) -> dict | None:
     return max(facets, key=lambda f: sum(len(k["item_ids"]) for k in f["categories"]), default=None)
 
 
-def fill_primary(c, facets, ids, vec=None) -> list[str]:
+def fill_primary(c, facets, ids, vec=None, sims: dict | None = None) -> list[str]:
     """Every video in a category at last: one in none of the primary facet's categories joins the one
     whose members it is most like, however loosely (Claude's next run may move it)."""
     f = primary(facets)
@@ -222,7 +228,29 @@ def fill_primary(c, facets, ids, vec=None) -> list[str]:
         return []
     inside = {i for k in f["categories"] for i in k["item_ids"]}
     left = [i for i in ids if _key(i) not in inside]
-    return _assign_by_similarity(c, [f], left, threshold=-1.0, vec=vec)
+    return _assign_by_similarity(c, [f], left, threshold=-1.0, vec=vec, sims=sims)
+
+
+def _best_sim(facets, vec, i) -> float:
+    import numpy as np
+    f = primary(facets)
+    best = -1.0
+    for k in (f or {}).get("categories") or []:
+        vs = [vec[x] for x in k["item_ids"] if x in vec and x != i]
+        if vs:
+            m = np.mean(vs, axis=0)
+            best = max(best, float((m / (np.linalg.norm(m) + 1e-9)) @ vec[i]))
+    return best
+
+
+def provisional(c, doc: dict) -> set[str]:
+    """Placed by similarity but not surely: too loosely, or the item has no analysis yet (its text says
+    too little). Home shows these under "Categorization in progress"."""
+    sims = doc.get("by_similarity") or {}
+    if not sims:
+        return set()
+    unanalyzed = {r["id"] for r in c.execute("SELECT id FROM items WHERE analysis IS NULL")}
+    return {i for i, s in sims.items() if s < SURE or i in unanalyzed}
 
 
 def published_hit_ids() -> list[str]:
@@ -245,8 +273,13 @@ def place_new(c) -> int:
     ids = [r["id"] for r in c.execute("SELECT id FROM items WHERE published_at IS NOT NULL ORDER BY taken_at DESC")]
     ids += ["hit:" + h for h in published_hit_ids()]
     todo = [i for i in ids if _key(i) not in done and i not in done and i in vec]
-    joined = _assign_by_similarity(c, doc["facets"], todo, vec=vec) if todo else []
-    filled = fill_primary(c, doc["facets"], [i for i in ids if i in vec], vec=vec)
+    sims = doc.setdefault("by_similarity", {})
+    joined = _assign_by_similarity(c, doc["facets"], todo, vec=vec, sims=sims) if todo else []
+    filled = fill_primary(c, doc["facets"], [i for i in ids if i in vec], vec=vec, sims=sims)
+    for i in ids:   # re-check the loose ones: an analysis since may have made them clear
+        k = _key(i)
+        if k in sims and sims[k] < SURE and i in vec:
+            sims[k] = round(_best_sim(doc["facets"], vec, i), 4)
     if not todo and not filled:
         return 0
     joined += filled
@@ -279,6 +312,7 @@ def public_view(c) -> dict:
     """The facets with only the items that are public right now, and their counts."""
     doc = current(c)
     public = {r["id"] for r in c.execute("SELECT id FROM items WHERE published_at IS NOT NULL")} | set(published_hit_ids())
+    public -= provisional(c, doc)   # not surely placed yet: Home shows them as in progress
     facets = []
     for f in doc.get("facets") or []:
         cats = []

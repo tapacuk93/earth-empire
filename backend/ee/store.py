@@ -321,8 +321,8 @@ def render_item(c: sqlite3.Connection, row: sqlite3.Row) -> dict:
     for r in extra:
         if r["id"] not in hl_ids:
             d.setdefault("highlights", []).append({"id": r["id"], "title": r["title"]})
-    for h in d.get("highlights") or []:
-        if isinstance(h, dict) and not h.get("title"):
+    for h in d.get("highlights") or []:   # the highlight's current name: highlights get renamed
+        if isinstance(h, dict):
             t = next((r["title"] for r in extra if r["id"] == h.get("id")), None)
             if t:
                 h["title"] = t

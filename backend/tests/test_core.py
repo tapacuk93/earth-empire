@@ -556,3 +556,19 @@ class FacetsTest(unittest.TestCase):
         cat = self.facets.public_view(self.c)["facets"][0]["categories"][0]
         self.assertIn("ig_new", cat["item_ids"])
         self.assertEqual(self.facets.fared(self.c, self.facets.current(self.c))["categories"][0]["joined_by_similarity_since"], 1)
+
+
+class HighlightRenameTest(unittest.TestCase):
+    """A renamed highlight: every item shows its new name, whatever name the item was collected with."""
+
+    def test_items_show_the_current_name(self):
+        tmp = tempfile.TemporaryDirectory()
+        c = db.connect(Path(tmp.name) / "t.sqlite3")
+        data = {"caption": "", "media": [], "highlights": [{"id": "hl_1", "title": "Old name"}]}
+        c.execute("INSERT INTO items(id, kind, taken_at, data, content_hash, published_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+                  ("ig_h", "story", "2026-10-24T10:00:00Z", db.j(data), "h", db.now(), db.now()))
+        store.upsert_highlights(c, [{"id": "hl_1", "title": "New name", "item_ids": ["ig_h"]}])
+        d = store.render_item(c, c.execute("SELECT * FROM items WHERE id='ig_h'").fetchone())
+        self.assertEqual([h["title"] for h in d["highlights"]], ["New name"])
+        c.close()
+        tmp.cleanup()

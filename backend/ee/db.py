@@ -196,6 +196,9 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
         conn.execute("ALTER TABLE items ADD COLUMN heard TEXT")
         conn.execute("ALTER TABLE items ADD COLUMN heard_sig TEXT")
     hcols = {r["name"] for r in conn.execute("PRAGMA table_info(highlights)")}
+    if "title_full" not in hcols:   # added 2026-10-27: the name written out when shortened (ee.expand)
+        conn.execute("ALTER TABLE highlights ADD COLUMN title_full TEXT")
+        conn.execute("ALTER TABLE highlights ADD COLUMN title_full_of TEXT")
     if "heard_label" not in hcols:  # added 2026-10-26: the fuller phrase the title stands for (ee.heard)
         conn.execute("ALTER TABLE highlights ADD COLUMN heard_label TEXT")
         conn.execute("ALTER TABLE highlights ADD COLUMN heard_reason TEXT")

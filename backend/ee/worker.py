@@ -167,6 +167,23 @@ def facets_once(c) -> bool:
     return True
 
 
+def expand_once(c) -> bool:
+    """Shortened highlight names written out (ee.expand): new and renamed ones, a cheap call."""
+    from . import expand
+    if setting(c, "analysis.enabled") != "1" or in_reserve(c) or not expand.pending(c):
+        return False
+    try:
+        n = expand.run(c)
+        ai_ok("expand")
+        return bool(n)
+    except aicoin.OutOfCoins as e:
+        stop.wait(ai_wait(e, "expand"))
+    except Exception as e:
+        event("expand.failed", logging.WARNING, error=repr(e)[:500])
+        stop.wait(600)
+    return False
+
+
 def rubric_once(c) -> bool:
     """Once a day: Claude reviews the importance rubric and may refine it (a new version re-scores)."""
     if setting(c, "importance.rubric_review") != "1" or setting(c, "analysis.enabled") != "1" or in_reserve(c):
@@ -508,7 +525,7 @@ def main():
     threads = [lane(f"analyze-{k + 1}" if n_analyze > 1 else "analyze", analyze_once) for k in range(n_analyze)]
     threads += [lane("thumbs", thumbs_once, idle=20),
                lane("home", home_once, idle=20), lane("importance", importance_once, idle=60),
-               lane("heard", heard_once, idle=60),
+               lane("heard", heard_once, idle=60), lane("expand", expand_once, idle=120),
                lane("facets", facets_once, idle=60), lane("rubric", rubric_once, idle=600), lane("x", x_once, idle=60),
                lane("facebook", facebook_once, idle=120), lane("house", house_once, idle=15)]
     while not stop.is_set():

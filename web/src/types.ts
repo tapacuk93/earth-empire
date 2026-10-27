@@ -67,7 +67,8 @@ export interface Item {
   stickers?: Sticker[];
   counts?: { likes?: number; comments?: number; views?: number; plays?: number };
   media: Media[];
-  highlights?: { id: string; title: string }[];
+  /** title_full: the name written out when the owner shortened it ("плнт" -> "планета") */
+  highlights?: { id: string; title: string; title_full?: string | null }[];
   repost_of?: Repost | null;
   categories?: string[];
   summary?: string | null;
@@ -84,7 +85,7 @@ export interface Item {
 
 export interface DetectionHit { kind: 'name' | 'language'; phrase?: string | null; lang?: string | null; media?: number; at?: number; confidence?: number; excerpt?: string; translation?: string | null }
 
-export interface Highlight { id: string; title: string; cover?: string | null; item_ids: string[]; updated_at?: string; /** A fuller label from what its videos say ("3" -> "у тебе 3"). */ heard_label?: string | null }
+export interface Highlight { id: string; title: string; cover?: string | null; item_ids: string[]; updated_at?: string; /** A fuller label from what its videos say ("3" -> "у тебе 3"). */ heard_label?: string | null; title_full?: string | null }
 export interface Category { slug: string; name: string; description?: string | null; count?: number }
 export interface Profile {
   username: string;

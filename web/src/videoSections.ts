@@ -94,12 +94,12 @@ export function describe(it: Item): string {
 }
 
 /**
- * One label per card, and only one the owner gave or listens for: his own label, the highlight's name,
+ * One label per card, and only one the owner gave or listens for: his own label, the highlight's name (written out when he shortened it),
  * a phrase from Settings the monitor matched in it, or the post's own caption. Nothing generated.
  */
 export function audioOf(it: Item, _labels?: Map<string, string>): Audio {
   if (it.heard?.by === 'owner' && it.heard.text) return { kind: 'heard', text: it.heard.text };
-  const title = (it.highlights || []).map((h) => h.title.trim()).find(Boolean);
+  const title = (it.highlights || []).map((h) => (h.title_full || h.title).trim()).find(Boolean);
   if (title) return { kind: 'heard', text: title };
   const phrase = (it.detection?.hits || []).find((h) => h.kind === 'name' && h.phrase)?.phrase;
   if (phrase) return { kind: 'heard', text: phrase };

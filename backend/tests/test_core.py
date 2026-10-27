@@ -572,3 +572,38 @@ class HighlightRenameTest(unittest.TestCase):
         self.assertEqual([h["title"] for h in d["highlights"]], ["New name"])
         c.close()
         tmp.cleanup()
+
+
+class ExpandTest(unittest.TestCase):
+    """A shortened highlight name is written out once; cards get it; renaming asks again."""
+
+    def test_shortened_names_are_written_out(self):
+        from ee import aicoin, expand
+        tmp = tempfile.TemporaryDirectory()
+        c = db.connect(Path(tmp.name) / "t.sqlite3")
+        asked = []
+
+        def fake(body, timeout=120):
+            asked.append(body["messages"][0]["content"])
+            names = [{"n": 0, "full": "планета"}, {"n": 1, "full": "у Тараса 3"}]
+            return {"model": "claude-test", "usage": {}, "content": [{"type": "text", "text": json.dumps({"names": names})}]}, 0.01
+        real, aicoin.claude = aicoin.claude, fake
+        try:
+            c.execute("INSERT INTO items(id, kind, taken_at, data, content_hash, published_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+                      ("ig_p", "story", "2026-10-24T10:00:00Z", db.j({"media": []}), "h", db.now(), db.now()))
+            store.upsert_highlights(c, [{"id": "hl_1", "title": "плнт", "item_ids": ["ig_p"]},
+                                        {"id": "hl_2", "title": "у Тараса 3", "item_ids": []}])
+            self.assertEqual(expand.run(c), 2)
+            self.assertEqual(expand.run(c), 0)          # done once
+            d = store.render_item(c, c.execute("SELECT * FROM items WHERE id='ig_p'").fetchone())
+            self.assertEqual((d["highlights"][0]["title"], d["highlights"][0]["title_full"]), ("плнт", "планета"))
+            hl2 = store.render_highlight(c.execute("SELECT * FROM highlights WHERE id='hl_2'").fetchone())
+            self.assertIsNone(hl2["title_full"])          # not shortened: nothing to write out
+            store.upsert_highlights(c, [{"id": "hl_1", "title": "прзд", "item_ids": ["ig_p"]}])
+            d = store.render_item(c, c.execute("SELECT * FROM items WHERE id='ig_p'").fetchone())
+            self.assertIsNone(d["highlights"][0]["title_full"])   # renamed: the old full name is not shown
+            self.assertEqual(len(expand.pending(c)), 1)
+        finally:
+            aicoin.claude = real
+            c.close()
+            tmp.cleanup()

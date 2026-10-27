@@ -316,16 +316,17 @@ def render_item(c: sqlite3.Connection, row: sqlite3.Row) -> dict:
     d["updated_at"] = row["updated_at"]
     d.setdefault("collected_at", row["collected_at"])
     hl_ids = {h.get("id") for h in d.get("highlights") or [] if isinstance(h, dict)}
-    extra = c.execute("SELECT h.id, h.title FROM item_highlights ih JOIN highlights h ON h.id=ih.highlight_id "
+    extra = c.execute("SELECT h.id, h.title, CASE WHEN h.title_full_of = h.title THEN h.title_full END written "
+                      "FROM item_highlights ih JOIN highlights h ON h.id=ih.highlight_id "
                       "WHERE ih.item_id=? ORDER BY h.position", (row["id"],)).fetchall()
     for r in extra:
         if r["id"] not in hl_ids:
-            d.setdefault("highlights", []).append({"id": r["id"], "title": r["title"]})
+            d.setdefault("highlights", []).append({"id": r["id"], "title": r["title"], "title_full": r["written"]})
     for h in d.get("highlights") or []:   # the highlight's current name: highlights get renamed
         if isinstance(h, dict):
-            t = next((r["title"] for r in extra if r["id"] == h.get("id")), None)
-            if t:
-                h["title"] = t
+            t = next((r for r in extra if r["id"] == h.get("id")), None)
+            if t and t["title"]:
+                h["title"], h["title_full"] = t["title"], t["written"]
     return d
 
 
@@ -335,6 +336,8 @@ def render_highlight(row: sqlite3.Row) -> dict:
               "item_ids": json.loads(row["item_ids"]), "updated_at": row["updated_at"]})
     keys = row.keys()
     d["heard_label"] = row["heard_label"] if "heard_label" in keys else None   # the title is never changed
+    # the name written out when the owner shortened it ("плнт" -> "планета"), for the current title only
+    d["title_full"] = row["title_full"] if "title_full" in keys and row["title_full_of"] == row["title"] else None
     d["heard_reason"] = row["heard_reason"] if "heard_reason" in keys else None
     return d
 

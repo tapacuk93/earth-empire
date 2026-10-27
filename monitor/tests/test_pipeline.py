@@ -417,11 +417,12 @@ def test_highlight_titles_are_listened_for_current_and_archived():
     texts = [p["text"] for p in worker.list_phrases(c())]
     assert "тараса три" in texts and "має цих трьох" in texts and texts.index("тарас") < texts.index("тараса три")
     # a title that left the profile stays (archived) and is still listened for
-    highlights.sync_titles(c(), [{"title": "ці дєвки", "item_ids": ["d"]}])
+    highlights.sync_titles(c(), [{"title": "ці дєвки", "item_ids": ["d"]}, {"title": "плнт", "title_full": "планета", "item_ids": ["e"]}])
     highlights.apply(c())
+    assert "планета" in [p["text"] for p in worker.list_phrases(c())]   # a shortened name: its full form
     ph = cl.get("/v1/monitor/phrases", headers=auth).json()
     arch = {t["title"]: t["current"] for t in ph["highlight_titles"]}
-    assert arch == {"ці дєвки": True, "в Тараса 3": False, "має цих трьох": False}
+    assert arch == {"ці дєвки": True, "плнт": True, "в Тараса 3": False, "має цих трьох": False}
     assert {"тараса три", "дєвки"} <= {p["text"] for p in ph["phrases"] if p["origin"] == "highlight"}
     assert ph["from_highlights"] is True and "тарас" in ph["owner_phrases"]
     # the owner's own list is kept apart; switching highlights off leaves only it

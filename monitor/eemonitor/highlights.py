@@ -81,17 +81,19 @@ def sync_titles(c, hls: list[dict] | None = None) -> int:
         r = httpx.get(API + "/v1/highlights", timeout=20)
         r.raise_for_status()
         hls = r.json().get("highlights", [])
-    now, seen = db.now(), {}
+    now, seen, full = db.now(), {}, {}
     for h in hls:
         t = (h.get("title") or "").strip()
         if t:
             seen[t] = seen.get(t, 0) + len(h.get("item_ids") or [])
+            if h.get("title_full"):   # a shortened name written out ("плнт" -> "планета"): listen for that
+                full[t] = h["title_full"]
     if not seen:
         return 0   # an empty answer is a failure, not every highlight archived
     for t, n in seen.items():
         c.execute("""INSERT INTO highlight_titles(title, phrase, items, current, first_seen, last_seen) VALUES (?,?,?,1,?,?)
                      ON CONFLICT(title) DO UPDATE SET items=excluded.items, current=1, last_seen=excluded.last_seen,
-                     phrase=excluded.phrase""", (t, phrase_of(t), n, now, now))
+                     phrase=excluded.phrase""", (t, phrase_of(full.get(t) or t), n, now, now))
     c.execute(f"UPDATE highlight_titles SET current=0 WHERE title NOT IN ({','.join('?' * len(seen))})", list(seen))
     return len(seen)
 

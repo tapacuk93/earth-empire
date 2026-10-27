@@ -345,7 +345,7 @@ Claude defines them from the public content and redefines them as it changes:
   to try); the next run reads them with how the categories fared since (sizes, how many joined by
   similarity, how many fit nowhere). Notes are kept in `facet_notes`; `ee facets show` prints them.
 - **Order on Home:** a video's rank is freshness × level - its level's weight (L1 1, L2 ½, L3 ¼, L4 ⅛)
-  halved every day since it arrived (a found clip: since it was published). Inside a category
+  halved every 24 hours since it arrived, counted by the hour (a found clip: since it was published). Inside a category
   the highest rank leads; categories go by their best video's rank, so today's videos and their
   categories rise to the top.
 - **From what:** a compact summary of the public items only (date, summary, keywords, place,
@@ -696,3 +696,13 @@ and `/v1/highlights` (never for the signed-in owner, who sees the originals).
   highlight names first, then items newest first. It works for the languages visitors asked for
   (most asked first), then a base set (en uk ru es fr de pt it pl tr ar zh ja ko hi). Until a text is
   translated, the original is served.
+
+## Deleted on Instagram
+
+What the owner deletes (or un-reposts) leaves the site too. The collector's cheap check (every run,
+no extra request) compares what it sees with what it mirrored: a post missing from the profile page
+within the dates the page shows (pinned posts aside), a story under 23 hours old missing from the
+story viewer, a repost missing from the Reposts tab's first page while one listed after it is still
+there. Missing on two checks in a row, it is reported: `POST /v1/ingest/deleted {"deleted": [ids],
+"restored": [ids]}`. The backend unpublishes it at once (`deleted_at`), keeps its files 7 days, then
+deletes it for good; seen again within that time, it is restored.

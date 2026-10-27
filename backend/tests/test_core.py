@@ -672,3 +672,28 @@ class TranslationsTest(unittest.TestCase):
         self.assertEqual(i18n.ui(c, "uk")["strings"].get("Show all"), "UK:Show all")
         c.close()
         tmp.cleanup()
+
+
+class DeletedTest(unittest.TestCase):
+    """Deleted on Instagram: off the site at once, back when restored, gone for good after a week."""
+
+    def test_mark_restore_purge(self):
+        tmp = tempfile.TemporaryDirectory()
+        c = db.connect(Path(tmp.name) / "t.sqlite3")
+        store.upsert_items(c, [{"id": "ig_d", "kind": "reel", "taken_at": "2026-10-24T10:00:00Z", "media": [], "caption": "x"}])
+        self.assertIsNotNone(c.execute("SELECT published_at FROM items WHERE id='ig_d'").fetchone()[0])
+        self.assertEqual(store.mark_deleted(c, ["ig_d"])["deleted"], 1)
+        self.assertIsNone(c.execute("SELECT published_at FROM items WHERE id='ig_d'").fetchone()[0])
+        self.assertEqual(store.mark_deleted(c, [], ["ig_d"])["restored"], 1)
+        self.assertIsNotNone(c.execute("SELECT published_at FROM items WHERE id='ig_d'").fetchone()[0])
+        store.mark_deleted(c, ["ig_d"])
+        c.execute("UPDATE items SET deleted_at='2026-01-01T00:00:00Z' WHERE id='ig_d'")
+        import ee.store as st
+        real, st.delete_item = st.delete_item, lambda c, i, media=True: c.execute("DELETE FROM items WHERE id=?", (i,))
+        try:
+            self.assertEqual(store.purge_deleted(c), 1)
+        finally:
+            st.delete_item = real
+        self.assertIsNone(c.execute("SELECT 1 FROM items WHERE id='ig_d'").fetchone())
+        c.close()
+        tmp.cleanup()

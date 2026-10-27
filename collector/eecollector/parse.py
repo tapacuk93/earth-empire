@@ -68,6 +68,16 @@ def iso(ts: Any) -> str | None:
         return None
 
 
+def ts(value: Any) -> float | None:
+    """An ISO time ("2026-10-27T18:54:19Z") or a unix time as seconds; None when unreadable."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return datetime.strptime(str(value)[:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
+    except ValueError:
+        return None
+
+
 def now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 

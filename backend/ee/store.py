@@ -90,12 +90,14 @@ def gate(c, item_id: str) -> tuple[bool, str]:
     them later); an image-only repost never is. A monitor detection is context (shown and used as a start point), never
     a condition. Apply the answer: publish (site step posted, the posters may post) or unpublish
     (site skipped; X/Facebook skipped unless they already posted)."""
-    row = c.execute("SELECT data, analysis, detection, published_at FROM items WHERE id=?", (item_id,)).fetchone()
+    row = c.execute("SELECT data, analysis, detection, published_at, deleted_at FROM items WHERE id=?", (item_id,)).fetchone()
     if not row:
         return False, "no such item"
     d = json.loads(row["data"])
     ok, why = publishable(d)
-    if not ok:
+    if row["deleted_at"]:
+        public, why = False, "deleted on Instagram"
+    elif not ok:
         public = False
     elif row["analysis"]:
         public, why = True, "analyzed"
@@ -158,6 +160,39 @@ def delete_item(c, item_id: str, *, media: bool = True) -> dict:
 
 
 # ------------------------------------------------------------------ ingest
+DELETED_KEEP_DAYS = 7
+
+
+def mark_deleted(c, deleted: list[str], restored: list[str] | None = None) -> dict:
+    """The collector saw these gone from Instagram (deleted, un-reposted): off the site at once, files
+    kept DELETED_KEEP_DAYS days (purge_deleted), so a misread can be undone with `restored`."""
+    out = {"deleted": 0, "restored": 0}
+    ts = now()
+    for item_id in deleted or []:
+        r = c.execute("UPDATE items SET deleted_at=? WHERE id=? AND deleted_at IS NULL", (ts, item_id))
+        if r.rowcount:
+            gate(c, item_id)
+            out["deleted"] += 1
+    for item_id in restored or []:
+        r = c.execute("UPDATE items SET deleted_at=NULL WHERE id=? AND deleted_at IS NOT NULL", (item_id,))
+        if r.rowcount:
+            gate(c, item_id)
+            out["restored"] += 1
+    if out["deleted"] or out["restored"]:
+        event("ingest.deleted", **out)
+    return out
+
+
+def purge_deleted(c, days: int = DELETED_KEEP_DAYS) -> int:
+    """Items deleted on Instagram over `days` ago go for good, files too."""
+    from datetime import datetime, timedelta, timezone
+    cut = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ids = [r["id"] for r in c.execute("SELECT id FROM items WHERE deleted_at IS NOT NULL AND deleted_at < ?", (cut,))]
+    for item_id in ids:
+        delete_item(c, item_id)
+    return len(ids)
+
+
 def upsert_items(c: sqlite3.Connection, items: list[dict]) -> dict:
     counts = {"inserted": 0, "updated": 0, "changed": 0, "unchanged": 0}
     for raw in items:

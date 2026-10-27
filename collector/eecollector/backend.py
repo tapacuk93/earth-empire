@@ -58,6 +58,9 @@ class Backend:
     def put_items(self, items: list[dict]) -> dict:
         return self._call("PUT", "/v1/ingest/items", json={"items": items})
 
+    def post_deleted(self, deleted: list[str], restored: list[str]) -> dict:
+        return self._call("POST", "/v1/ingest/deleted", json={"deleted": deleted, "restored": restored})
+
     def put_highlights(self, highlights: list[dict]) -> dict:
         return self._call("PUT", "/v1/ingest/highlights", json={"highlights": highlights})
 

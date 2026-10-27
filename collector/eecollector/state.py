@@ -49,6 +49,9 @@ class State:
         row = self.db.execute("select json from items where id=?", (item_id,)).fetchone()
         return json.loads(row[0]) if row else None
 
+    def all_items(self) -> list[dict]:
+        return [json.loads(r[0]) for r in self.db.execute("select json from items")]
+
     def has_item(self, item_id: str) -> bool:
         return self.db.execute("select 1 from items where id=?", (item_id,)).fetchone() is not None
 

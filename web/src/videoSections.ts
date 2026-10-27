@@ -61,13 +61,15 @@ export function dayOf(s?: string | null): string {
   const d = new Date(t);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
-// days. One: a video from today outranks yesterday's of the next level up, so today's lead.
+// days. One: the weight halves every 24 hours, so the newest lead and a level up is worth a day.
 export const RECENCY_HALF_LIFE = 1;
 const LW = [1, 0.5, 0.25, 0.125];
-/** freshness × level: the level's weight, halved every `halfLife` days since it arrived (by day). */
-export function rankOf(t: VTile, halfLife = RECENCY_HALF_LIFE, today = dayOf(new Date().toISOString())): number {
-  const d = dayOf(t.added);
-  const age = d ? Math.max(0, (Date.parse(today) - Date.parse(d)) / 864e5) : 3650;
+/** freshness × level: the level's weight, halved every `halfLife` days since it arrived (continuously). */
+export function rankOf(t: VTile, halfLife = RECENCY_HALF_LIFE, now = Date.now()): number {
+  // by the hour, not the calendar day: a level-1 video outranks level-2 ones up to a day newer, and
+  // anything an hour newer wins over its equal
+  const at = t.added ? Date.parse(t.added) : NaN;
+  const age = isNaN(at) ? 3650 : Math.max(0, (now - at) / 864e5);
   return LW[t.level - 1] * 0.5 ** (age / (halfLife > 0 ? halfLife : RECENCY_HALF_LIFE));
 }
 const plural = (n: number) => `${n} ${t(n === 1 ? 'video' : 'videos')}`;

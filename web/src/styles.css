@@ -737,7 +737,7 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .home-main .mode-videos { display: block; overflow-y: auto; overflow-x: hidden; overscroll-behavior-y: contain;
   padding: calc(max(10px, env(safe-area-inset-top)) + 64px) max(12px, env(safe-area-inset-right)) calc(max(8px, env(safe-area-inset-bottom)) + 56px) max(12px, env(safe-area-inset-left)); }
 .vsections { max-width: 2200px; margin: 0 auto; }
-.vsection { margin: 0 0 28px; }
+.vsection { margin: 0 0 28px; content-visibility: auto; contain-intrinsic-size: auto 900px; }   /* off-screen sections are not rendered */
 .vs-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin: 0 2px 10px; }
 .vs-head h2 { margin: 0; font-size: clamp(1.15rem, 1rem + .8vw, 1.6rem); letter-spacing: -.01em; }
 .vs-l1 .vs-head h2 { font-size: clamp(1.35rem, 1.1rem + 1.2vw, 2rem); }
@@ -759,7 +759,8 @@ body:has(.vfeed) .float-tools, body:has(.vfeed) .corner-dot, body:has(.ifeed) .f
 .vs-l3 .vt-cap, .vs-l4 .vt-cap { padding: 20px 7px 6px; font-size: .74rem; }
 
 .vs-more { display: block; margin: 10px auto 0; }
-.vt-audio { position: absolute; top: 6px; left: 6px; max-width: calc(100% - 12px); padding: 2px 8px; border-radius: 999px; background: rgb(0 0 0 / .55); color: #fff; font-size: .72rem; font-weight: 600; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.vt-audio { position: absolute; top: 6px; left: 6px; max-width: calc(100% - 12px); padding: 2px 8px; border-radius: 999px; background: rgb(0 0 0 / .62); color: #fff; font-size: .72rem; font-weight: 600; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+/* no backdrop blur on cards: hundreds of them re-blurred on every scrolled frame is what made scrolling lag */
 .vt-audio-heard { background: #e9a35a; color: #111; font-weight: 700; }
 .label-empty { opacity: .7; font-style: italic; }
 .vt-xl .vt-audio { top: 10px; left: 10px; font-size: .82rem; padding: 3px 10px; }

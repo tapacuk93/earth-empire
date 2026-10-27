@@ -179,6 +179,8 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(items)")}
     if "thumbs" not in cols:   # added 2026-10-25
         conn.execute("ALTER TABLE items ADD COLUMN thumbs TEXT")
+    if "deleted_at" not in cols:   # added 2026-10-27: gone from Instagram (the collector saw it removed)
+        conn.execute("ALTER TABLE items ADD COLUMN deleted_at TEXT")
     if "importance" not in cols:   # added 2026-10-25: 0-1, judged by Claude
         conn.execute("ALTER TABLE items ADD COLUMN importance REAL")
     if "detection" not in cols:    # added 2026-10-25: the monitor's scan of the item (the public gate)

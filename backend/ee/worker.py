@@ -534,6 +534,11 @@ def house_once(c) -> bool:
         event("worker.heartbeat", steps={f"{r['step']}.{r['state']}": r["n"] for r in st})
     from .db import set_setting
     set_setting(c, "worker.heartbeat_at", utcnow())
+    if t - _last.get("purge", 0) >= 3600:   # deleted on Instagram a week ago: gone for good
+        _last["purge"] = t
+        n = store.purge_deleted(c)
+        if n:
+            event("worker.purged_deleted", n=n)
     if config.CLOUDWATCH and t - _last["backup"] >= 3600:   # hourly; the first each day also kept dated
         _last["backup"] = t
         day = datetime.now(timezone.utc).strftime("%Y-%m-%d")

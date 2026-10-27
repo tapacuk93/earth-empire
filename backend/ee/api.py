@@ -315,6 +315,13 @@ async def ingest_items(request: Request):
     return {"ok": True, **counts}
 
 
+@app.post("/v1/ingest/deleted", dependencies=[Depends(require_token)])
+async def ingest_deleted(request: Request):
+    """{"deleted": [item ids gone from Instagram], "restored": [ids seen again]}: off the site at once."""
+    body = await request.json()
+    return {"ok": True, **store.mark_deleted(conn(), body.get("deleted") or [], body.get("restored") or [])}
+
+
 @app.put("/v1/ingest/detections", dependencies=[Depends(require_token)])
 async def ingest_detections(request: Request):
     """The monitor's scan of the owner's items (CONTRACT.md "Detection"): stored as context on each item."""

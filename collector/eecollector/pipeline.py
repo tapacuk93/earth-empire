@@ -289,10 +289,61 @@ class Collector:
         self.step("list reposts", self.list_reposts, False, True)
         self.step("list highlights", self.list_highlights, False, True)
         self.state.set("new.watermark", self.seen_max or None)
+        self.step("check gone", self.check_gone)
         found = self.state.timeline_priority_len() - before
         if found > 0:
             log.info("new items: %d", found)
             self.bump("new_found", found)
+
+    def check_gone(self) -> None:
+        """Items deleted on Instagram, from what the cheap check just saw (no extra request):
+        - a post missing from the profile page within the span of dates it shows (pinned ones aside);
+        - a story under 23 hours old missing from the story viewer;
+        - a repost missing from the Reposts tab's first page while one listed after it last time is
+          still there (one only pushed down by newer reposts is not gone).
+        Missing twice in a row is reported; seen again is reported back as restored."""
+        now = time.time()
+        known = self.state.all_items()
+        missing: set[str] = set()
+        seen_now: set[str] = set()
+        grid = [m for m in self.harvested if not (m.get("timeline_pinned_user_ids") or m.get("clips_tab_pinned_user_ids"))]
+        if len(grid) >= 12:
+            pks = {f"ig_{parse.media_pk(m)}" for m in self.harvested}
+            seen_now |= pks
+            times = [float(m.get("taken_at") or 0) for m in grid if m.get("taken_at")]
+            lo, hi = (min(times), max(times)) if times else (0, 0)
+            for it in known:
+                if it.get("kind") == "story" or str(it.get("id", "")).startswith("ig_repost_") or (it.get("extra") or {}).get("repost_source"):
+                    continue
+                t = parse.ts(it.get("taken_at"))
+                if t and lo <= t <= hi and it["id"] not in pks:
+                    missing.add(it["id"])
+        cur = getattr(self, "current_stories", None)
+        if cur:
+            seen_now |= cur
+            for it in known:
+                t = parse.ts(it.get("taken_at"))
+                if it.get("kind") == "story" and t and now - t < 23 * 3600 and it["id"] not in cur:
+                    missing.add(it["id"])
+        page = getattr(self, "repost_page", None)
+        if page and len(page) >= 6:
+            seen_now |= set(page)
+            prev = self.state.get("gone.repost_page") or []
+            for k, rid in enumerate(prev):
+                if rid not in page and any(x in page for x in prev[k + 1:]):
+                    missing.add(rid)
+            self.state.set("gone.repost_page", page)
+        pending = self.state.get("gone.pending") or {}
+        reported = set(self.state.get("gone.reported") or [])
+        pending = {i: pending.get(i, 0) + 1 for i in missing if i not in reported}
+        deleted = [i for i, n in pending.items() if n >= 2]
+        restored = sorted(reported & seen_now)
+        if deleted or restored:
+            self.backend.post_deleted(deleted, restored)
+            reported = (reported | set(deleted)) - set(restored)
+            log.info("gone from Instagram: %d deleted, %d restored", len(deleted), len(restored))
+        self.state.set("gone.pending", {i: n for i, n in pending.items() if n < 2})
+        self.state.set("gone.reported", sorted(reported))
 
     def list_recent(self) -> None:
         """The posts and reels the profile page itself loaded; no extra request."""
@@ -328,6 +379,8 @@ class Collector:
                     else:
                         new += self.enqueue(f"ig_repost_{pk}", "repost", m)
         more = bool(flags) and all(flags)
+        if first_page:
+            self.repost_page = [f"ig_repost_{pk}" for pk in seen]   # in the tab's order (newest first)
         if not first_page:
             if more:
                 self.state.set("backfill.reposts.scrolls", min(scrolls + 8, 80))
@@ -350,6 +403,7 @@ class Collector:
                     items += [m for m in r["items"] if parse.media_pk(m) not in known]
                     known |= {parse.media_pk(m) for m in r["items"]}
         new = sum(self.enqueue(f"ig_{parse.media_pk(m)}", "story", m) for m in items)
+        self.current_stories = {f"ig_{parse.media_pk(m)}" for m in items}
         log.info("list stories: %d current, %d to ingest", len(items), new)
         self.bump("stories_seen", len(items))
 

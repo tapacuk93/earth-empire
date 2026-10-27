@@ -338,6 +338,36 @@ def test_a_repost_new_on_the_first_page_is_dated_when_first_seen(env):
     assert rep["repost_of"]["taken_at"] == "2024-04-23T19:20:00Z"   # the original keeps its own time
 
 
+def test_a_post_deleted_on_instagram_is_reported_after_two_checks(env):
+    """A post missing from the profile page within the dates it shows: gone (after two checks in a
+    row, so one odd page never deletes anything); seen again: restored."""
+    store, backend, state = env
+    ig = FakeIG()
+    Collector(ig, backend, state, FakeDL(), "example.owner").run("full")
+    p1, p2, p3 = "3300000000000000001", "3300000000000000002", "3300000000000000003"
+    assert state.item(f"ig_{p2}")
+    filler = [{"pk": str(9000 + k), "taken_at": 1714450000 + k} for k in range(10)]   # a full page
+    import eecollector.pipeline as pl
+    real = pl.Collector.check_gone
+    page = {"with": None}
+
+    def check(self):
+        keep = [p1, p3] + ([p2] if page["with"] else [])
+        self.harvested = [{"pk": pk, "taken_at": t} for pk, t in ((p1, 1714564800), (p2, 1714478400), (p3, 1714392000)) if pk in keep] + filler
+        return real(self)
+    pl.Collector.check_gone = check
+    try:
+        Collector(ig, backend, state, FakeDL(), "example.owner").run("quick")
+        assert f"ig_{p2}" not in store.deleted        # once: not yet
+        Collector(ig, backend, state, FakeDL(), "example.owner").run("quick")
+        assert f"ig_{p2}" in store.deleted            # twice in a row: gone
+        page["with"] = True
+        Collector(ig, backend, state, FakeDL(), "example.owner").run("quick")
+        assert f"ig_{p2}" not in store.deleted        # seen again: restored
+    finally:
+        pl.Collector.check_gone = real
+
+
 def test_new_items_first(env):
     """After the first run, anything newer than what was seen jumps the queue and is marked new."""
     store, backend, state = env

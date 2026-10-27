@@ -244,13 +244,11 @@ def _best_sim(facets, vec, i) -> float:
 
 
 def provisional(c, doc: dict) -> set[str]:
-    """Placed by similarity but not surely: too loosely, or the item has no analysis yet (its text says
-    too little). Home shows these under "Categorization in progress"."""
+    """Not surely placed: an item with no analysis yet (its text says too little, however it was placed),
+    or one placed by similarity too loosely. Home shows these under "Categorization in progress"."""
     sims = doc.get("by_similarity") or {}
-    if not sims:
-        return set()
     unanalyzed = {r["id"] for r in c.execute("SELECT id FROM items WHERE analysis IS NULL")}
-    return {i for i, s in sims.items() if s < SURE or i in unanalyzed}
+    return unanalyzed | {i for i, s in sims.items() if s < SURE}
 
 
 def published_hit_ids() -> list[str]:

@@ -77,12 +77,14 @@ export function VideoSections({ sections, hrefFor }: { sections: VSection[]; hre
         let used = 0;
         const shown = sized.filter(([, z]) => (used += CELLS[z]) <= budget);
         return (
-          <section key={s.id} class={`vsection vs-l${s.level}`} aria-labelledby={`vs-${s.id}`}>
-            <header class="vs-head">
-              <h2 id={`vs-${s.id}`}>{s.title}</h2>
-              <p class="vs-sub">{s.subtitle}</p>
-            </header>
-            <ul class="vs-grid" style={{ '--cols': cols, '--row': `${row}px`, '--gap': `${GAP}px` }} aria-label={`${s.title}: ${s.tiles.length} videos`}>
+          <section key={s.id} class={`vsection vs-l${s.level}`} {...(s.title ? { 'aria-labelledby': `vs-${s.id}` } : { 'aria-label': 'Uncategorized videos' })}>
+            {s.title && (
+              <header class="vs-head">
+                <h2 id={`vs-${s.id}`}>{s.title}</h2>
+                <p class="vs-sub">{s.subtitle}</p>
+              </header>
+            )}
+            <ul class="vs-grid" style={{ '--cols': cols, '--row': `${row}px`, '--gap': `${GAP}px` }} aria-label={`${s.title || 'Uncategorized'}: ${s.tiles.length} videos`}>
               {shown.map(([t, z]) => <Tile key={t.id} t={t} size={z} href={hrefFor(t)} playing={playing === t.id} onPlay={onPlay} />)}
             </ul>
             {shown.length < s.tiles.length && (

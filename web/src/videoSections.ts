@@ -154,7 +154,8 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
     rest = left;
     facets = (facets || []).filter((f) => f !== facet);
   }
-  if (rest.length) groups.push({ id: 'more', title: groups.length ? 'More videos' : 'Videos', tiles: rest });
+  // The rest: one section with no name (no heading on Home).
+  if (rest.length) groups.push({ id: 'more', title: '', tiles: rest });
 
   // The section whose best video ranks highest (freshness × level) first.
   const top = (l: VTile[]) => Math.max(...l.map(rankOf_));

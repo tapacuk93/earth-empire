@@ -301,8 +301,9 @@ a.tag:hover { background: var(--line); }
 .cloud-empty { padding: 8px 0 16px; }
 /* Home while the videos load: the Earth, large, on the page's own background (no grey bars) */
 .home-loading { display: grid; place-items: center; min-height: 100%; padding: 96px 16px 48px; box-sizing: border-box; }
-.live-earth { position: relative; display: block; width: min(78vmin, 640px); aspect-ratio: 1; filter: drop-shadow(0 0 40px rgba(80, 150, 255, .25)); }
-.live-earth canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; opacity: 0; }
+.live-earth { position: relative; display: block; width: min(78vmin, 640px); aspect-ratio: 1; }
+/* a round glow (box-shadow follows the radius; a drop-shadow filter on a canvas clips to a rectangle) */
+.live-earth canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; opacity: 0; box-shadow: 0 0 28px 4px rgba(80, 150, 255, .22); }
 .live-earth canvas.drawn { opacity: 1; }
 .tl-month { margin-bottom: 24px; }
 .tl-h { position: sticky; top: calc(57px + env(safe-area-inset-top)); z-index: 5; margin: 0; padding: 8px 0; background: var(--bg); font-size: 1rem; color: var(--muted); }

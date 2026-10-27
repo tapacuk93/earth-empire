@@ -62,9 +62,10 @@ test('videos: only videos, in sections by subject, by freshness × level', async
   const v = videos(page);
   await expect(v.locator('.vt').first()).toBeVisible();
   const titles = await v.getByRole('heading', { level: 2 }).allInnerTexts();
-  expect(titles.length).toBeGreaterThan(0);
-  // Subjects, never the technical groupings (levels, sources, kinds).
-  for (const t of titles) expect(t).not.toMatch(/^(Featured|Found by AI|Reposts|Stories|Highlights|More from the highlights)$/);
+  expect(await v.locator('.vsection').count()).toBeGreaterThan(0);
+  // Subjects, never the technical groupings (levels, sources, kinds); the rest has no name at all.
+  for (const t of titles) expect(t).not.toMatch(/^(Featured|Found by AI|Reposts|Stories|Highlights|More from the highlights|More videos|Videos)$/);
+  for (const sec of await v.locator('.vsection:not(:has(h2))').all()) await expect(sec).toHaveAttribute('aria-label', 'Uncategorized videos');
   for (const sub of await v.locator('.vs-sub').allInnerTexts()) expect(sub.length).toBeGreaterThan(10);
   // Every tile is a video: an item with a video, or a found clip.
   const ids = await v.locator('.vt').evaluateAll((els) => els.map((e) => e.getAttribute('data-id')!));
@@ -770,7 +771,7 @@ test('owner: a label is editable in place - a click edits, a click outside saves
   await expect(page).toHaveURL(/\/$/); // editing, not opening the video
   const field = card.getByRole('textbox', { name: 'Label (what is heard)' });
   await field.fill('у тебе 3');
-  await videos(page).locator('.vs-head h2').first().click(); // a click outside saves
+  await page.mouse.click(2, 2); // a click outside saves
   await expect(card.locator('.label-btn')).toHaveText('у тебе 3');
   // The fullscreen gold label is the same label, editable there too.
   await card.locator('a').click();

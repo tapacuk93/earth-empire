@@ -344,10 +344,10 @@ Claude defines them from the public content and redefines them as it changes:
 - **Improving:** each run Claude writes notes to itself (what it changed and why, what to watch, ideas
   to try); the next run reads them with how the categories fared since (sizes, how many joined by
   similarity, how many fit nowhere). Notes are kept in `facet_notes`; `ee facets show` prints them.
-- **Order on Home:** a video's rank is freshness × level - its level's weight (L1 1, L2 ½, L3 ¼, L4 ⅛)
-  halved every 24 hours since it arrived, counted by the hour (a found clip: since it was published). Inside a category
-  the highest rank leads; categories go by their best video's rank, so today's videos and their
-  categories rise to the top.
+- **Order on Home:** newest first, by the hour. A video's rank halves every 24 hours since it
+  arrived (a found clip: since it was published), and each level down counts as one hour older, so
+  the level only decides between videos that arrived about the same time. Inside a category the
+  highest rank leads; categories go by their best video's rank.
 - **From what:** a compact summary of the public items only (date, summary, keywords, place,
   categories) and the current facets. Nothing about visitors is collected or used.
 - **Stability:** existing facet and category ids and names are kept unless they no longer fit, so the

@@ -1,7 +1,7 @@
 // Home's main screen: every video (items with video and the approved monitor hits), grouped into
-// sections by subject (the AI's facet categories). Ordered by freshness × level: a video's rank is its
-// level's weight (L1 1, L2 ½, L3 ¼, L4 ⅛) halved every day since it arrived, so
-// today's videos lead their category and a category with a fresh, important video rises to the top.
+// sections by subject (the AI's facet categories). Newest first, by the hour: each level down counts
+// as an hour older (LEVEL_HOURS), so the level only decides between videos that arrived about the
+// same time; a category with the newest video rises to the top.
 // L1: posts and dedicated highlights -> Featured. L2: shared highlights -> one section per theme (the
 // AI facet that splits them best), the rest under More highlights.
 // L3: reposts. L4: stories in no highlight. Hits -> Found by AI, at their own levels.
@@ -63,14 +63,15 @@ export function dayOf(s?: string | null): string {
 }
 // days. One: the weight halves every 24 hours, so the newest lead and a level up is worth a day.
 export const RECENCY_HALF_LIFE = 1;
-const LW = [1, 0.5, 0.25, 0.125];
+/** How much older one level down counts as: L2 an hour newer than an L1 comes first. */
+export const LEVEL_HOURS = 1;
 /** freshness × level: the level's weight, halved every `halfLife` days since it arrived (continuously). */
 export function rankOf(t: VTile, halfLife = RECENCY_HALF_LIFE, now = Date.now()): number {
-  // by the hour, not the calendar day: a level-1 video outranks level-2 ones up to a day newer, and
-  // anything an hour newer wins over its equal
+  // newest first, by the hour; each level down counts as LEVEL_HOURS older, so the level decides
+  // only between videos that arrived about the same time
   const at = t.added ? Date.parse(t.added) : NaN;
-  const age = isNaN(at) ? 3650 : Math.max(0, (now - at) / 864e5);
-  return LW[t.level - 1] * 0.5 ** (age / (halfLife > 0 ? halfLife : RECENCY_HALF_LIFE));
+  const age = isNaN(at) ? 3650 : Math.max(0, (now - at) / 864e5) + (t.level - 1) * LEVEL_HOURS / 24;
+  return 0.5 ** (age / (halfLife > 0 ? halfLife : RECENCY_HALF_LIFE));
 }
 const plural = (n: number) => `${n} ${t(n === 1 ? 'video' : 'videos')}`;
 const MIN_THEME = 3;

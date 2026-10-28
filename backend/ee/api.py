@@ -364,7 +364,7 @@ async def ingest_highlights(request: Request):
     try:
         c = conn()
         n = store.upsert_highlights(c, body.get("highlights") or [])
-        gone = store.drop_highlights_not_in(c, body.get("tray") or [])
+        gone = 0   # the tray can list fewer than exist (it stops at 100): removal waits for a per-highlight check
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"ok": True, "highlights": n, "removed": gone}

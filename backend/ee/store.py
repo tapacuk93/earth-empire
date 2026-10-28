@@ -241,12 +241,12 @@ def upsert_items(c: sqlite3.Connection, items: list[dict]) -> dict:
     return counts
 
 
-def drop_highlights_not_in(c, tray: list[str]) -> int:
-    """Highlights the owner removed from the profile: no longer in the tray the collector just read.
-    Their items stay (as stories); only the highlight and its memberships go."""
-    if not tray:
+def drop_highlights(c, ids: list[str]) -> int:
+    """Highlights the owner removed (the collector opened each and Instagram said it no longer exists;
+    the tray alone is not enough, it lists at most about 100). Their items stay, as stories."""
+    if not ids:
         return 0
-    gone = [r["id"] for r in c.execute(f"SELECT id FROM highlights WHERE id NOT IN ({','.join('?' * len(tray))})", tray)]
+    gone = [r["id"] for r in c.execute(f"SELECT id FROM highlights WHERE id IN ({','.join('?' * len(ids))})", ids)]
     with tx(c):
         for hid in gone:
             c.execute("DELETE FROM highlights WHERE id=?", (hid,))

@@ -706,3 +706,8 @@ story viewer, a repost missing from the Reposts tab's first page while one liste
 there. Missing on two checks in a row, it is reported: `POST /v1/ingest/deleted {"deleted": [ids],
 "restored": [ids]}`. The backend unpublishes it at once (`deleted_at`), keeps its files 7 days, then
 deletes it for good; seen again within that time, it is restored.
+
+Highlights: the profile's tray lists at most about 100, so a highlight missing from it is not taken
+as removed. The incremental run opens such a highlight (at most 2 a run, each again after 3 days when
+it opened); Instagram saying it does not exist on two checks an hour or more apart removes it:
+`PUT /v1/ingest/highlights {"highlights": [...], "removed": [ids]}`. Its items stay, as stories.

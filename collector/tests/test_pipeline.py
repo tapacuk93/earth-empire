@@ -368,6 +368,31 @@ def test_a_post_deleted_on_instagram_is_reported_after_two_checks(env):
         pl.Collector.check_gone = real
 
 
+def test_a_highlight_is_removed_only_when_opening_it_says_so(env):
+    """The tray lists at most ~100: a highlight missing from it is opened; only "isn't available" on two
+    checks an hour apart removes it, and one that opens stays."""
+    store, backend, state = env
+    ig = FakeIG()
+    c = Collector(ig, backend, state, FakeDL(), "example.owner")
+    c.mode = "incremental"
+    state.db.execute("insert or replace into highlights values (?,?,?)", ("hl_111", json.dumps({"id": "hl_111", "title": "a"}), "s"))
+    state.db.execute("insert or replace into highlights values (?,?,?)", ("hl_222", json.dumps({"id": "hl_222", "title": "b"}), "s"))
+    state.db.commit()
+    ig.browse = lambda url, scrolls=1, click=(): []
+    ig.page_text = lambda: "Sorry, this page isn't available."
+    assert c.check_missing_highlights([]) == []          # first check of each: not yet
+    checks = state.get("highlights.checks")
+    for k in checks:
+        checks[k]["at"] -= 7200                          # two hours later
+    state.set("highlights.checks", checks)
+    assert sorted(c.check_missing_highlights([])) == ["hl_111", "hl_222"]
+    state.db.execute("insert or replace into highlights values (?,?,?)", ("hl_333", json.dumps({"id": "hl_333", "title": "c"}), "s"))
+    state.db.commit()
+    ig.page_text = lambda: ""                            # opens fine (or unclear): stays
+    assert c.check_missing_highlights([]) == []
+    assert state.get("highlights.checks")["hl_333"]["exists"]
+
+
 def test_new_items_first(env):
     """After the first run, anything newer than what was seen jumps the queue and is marked new."""
     store, backend, state = env

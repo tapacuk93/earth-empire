@@ -700,7 +700,7 @@ class DeletedTest(unittest.TestCase):
 
 
 class HighlightRemovedTest(unittest.TestCase):
-    """A highlight gone from the profile's tray leaves the site; its items stay."""
+    """A highlight the collector found removed leaves the site; its items stay."""
 
     def test_removed_highlight(self):
         tmp = tempfile.TemporaryDirectory()
@@ -708,9 +708,9 @@ class HighlightRemovedTest(unittest.TestCase):
         store.upsert_items(c, [{"id": "ig_r", "kind": "story", "taken_at": "2026-10-24T10:00:00Z", "media": [],
                                 "highlights": [{"id": "hl_34", "title": "34"}, {"id": "hl_3", "title": "3"}]}])
         store.upsert_highlights(c, [{"id": "hl_34", "title": "34", "item_ids": ["ig_r"]}, {"id": "hl_3", "title": "3", "item_ids": ["ig_r"]}])
-        self.assertEqual(store.drop_highlights_not_in(c, ["hl_3"]), 1)
+        self.assertEqual(store.drop_highlights(c, ["hl_34"]), 1)
         d = store.render_item(c, c.execute("SELECT * FROM items WHERE id='ig_r'").fetchone())
         self.assertEqual([h["title"] for h in d["highlights"]], ["3"])
-        self.assertEqual(store.drop_highlights_not_in(c, []), 0)   # no tray read: nothing removed
+        self.assertEqual(store.drop_highlights(c, []), 0)
         c.close()
         tmp.cleanup()

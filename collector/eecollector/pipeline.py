@@ -454,6 +454,50 @@ class Collector:
             self.record_highlight(h, r["items"], additions_are_new=changes_only)
             self.state.set(f"backfill.hl.{h['id']}", True)
 
+    HL_CHECKS_PER_RUN = 2
+    HL_RECHECK_S = 3 * 86400
+
+    def check_missing_highlights(self, tray: list[dict]) -> list[str]:
+        """Highlights the tray no longer lists. The tray stops at about 100, so absence there says
+        nothing: open each such highlight (at most HL_CHECKS_PER_RUN a run, each again after 3 days).
+        Instagram saying it does not exist on two separate checks makes it removed; one that opens stays."""
+        if self.mode == "quick":
+            return []   # the quick check stays light: the incremental run does this
+        in_tray = {h["id"] for h in tray}
+        dropped = set(self.state.get("highlights.removed") or [])
+        known = [r[0] for r in self.state.db.execute("select id from highlights") if r[0] not in in_tray and r[0] not in dropped]
+        checks = self.state.get("highlights.checks") or {}
+        now = time.time()
+        removed, done = [], 0
+        for hid in sorted(known, key=lambda i: checks.get(i, {}).get("at", 0)):
+            ck = checks.get(hid, {})
+            if done >= self.HL_CHECKS_PER_RUN or self.out_of_time():
+                break
+            if ck.get("exists") and now - ck.get("at", 0) < self.HL_RECHECK_S:
+                continue
+            if ck.get("gone") and now - ck.get("at", 0) < 3600:
+                continue   # the second check an hour later at the earliest
+            done += 1
+            pk = hid.split("_", 1)[-1]
+            bodies = self.ig.browse(f"https://www.instagram.com/stories/highlights/{pk}/", scrolls=0,
+                                    click=("View story", "View Story"))
+            shown = any(rid.endswith(pk) and rr["items"] for b in bodies for rid, rr in parse.reels(b).items())
+            text = self.ig.page_text() if hasattr(self.ig, "page_text") else ""
+            missing = not shown and ("isn't available" in text or "Sorry, this page" in text or "not available" in text)
+            if shown or not missing:
+                checks[hid] = {"at": now, "exists": True}
+            else:
+                n = ck.get("gone", 0) + 1
+                checks[hid] = {"at": now, "gone": n}
+                if n >= 2:
+                    removed.append(hid)
+                    checks.pop(hid, None)
+        self.state.set("highlights.checks", checks)
+        if removed:
+            self.state.set("highlights.removed", sorted(dropped | set(removed)))
+            log.info("highlights removed on Instagram: %s", ", ".join(removed))
+        return removed
+
     def record_highlight(self, h: dict, items: list[dict], additions_are_new: bool = False) -> None:
         """A highlight's title, cover, order and membership; its stories go on the timeline."""
         hid = h["id"]
@@ -496,9 +540,9 @@ class Collector:
             h.setdefault("extra", {})["position"] = pos
             if names.get(h["id"]):   # the tray's current name: a renamed highlight shows its new name at once
                 h["title"] = names[h["id"]]
-        if ordered:
-            # with the tray read this run, its ids tell the backend which highlights still exist
-            self.backend.put_highlights(ordered, [h["id"] for h in tray] if tray else None)
+        removed = self.check_missing_highlights(tray) if tray else []
+        if ordered or removed:
+            self.backend.put_highlights(ordered, removed=removed)
         self.state.set("highlights.order", order)
         self.bump("highlights", len(ordered))
 

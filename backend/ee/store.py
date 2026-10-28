@@ -241,6 +241,21 @@ def upsert_items(c: sqlite3.Connection, items: list[dict]) -> dict:
     return counts
 
 
+def drop_highlights_not_in(c, tray: list[str]) -> int:
+    """Highlights the owner removed from the profile: no longer in the tray the collector just read.
+    Their items stay (as stories); only the highlight and its memberships go."""
+    if not tray:
+        return 0
+    gone = [r["id"] for r in c.execute(f"SELECT id FROM highlights WHERE id NOT IN ({','.join('?' * len(tray))})", tray)]
+    with tx(c):
+        for hid in gone:
+            c.execute("DELETE FROM highlights WHERE id=?", (hid,))
+            c.execute("DELETE FROM item_highlights WHERE highlight_id=?", (hid,))
+    if gone:
+        event("ingest.highlights_removed", ids=gone)
+    return len(gone)
+
+
 def upsert_highlights(c: sqlite3.Connection, highlights: list[dict]) -> int:
     ts = now()
     with tx(c):
@@ -357,6 +372,9 @@ def render_item(c: sqlite3.Connection, row: sqlite3.Row) -> dict:
     for r in extra:
         if r["id"] not in hl_ids:
             d.setdefault("highlights", []).append({"id": r["id"], "title": r["title"], "title_full": r["written"]})
+    known = {r["id"] for r in c.execute("SELECT id FROM highlights")}
+    if known:   # a highlight removed from the profile is not shown on its items any more
+        d["highlights"] = [h for h in d.get("highlights") or [] if not isinstance(h, dict) or h.get("id") in known]
     for h in d.get("highlights") or []:   # the highlight's current name: highlights get renamed
         if isinstance(h, dict):
             t = next((r for r in extra if r["id"] == h.get("id")), None)

@@ -169,7 +169,8 @@ function ItemFeed({ items, start, ctx, label }: { items: Item[]; start: string; 
   // The gold label: what is heard - the phrase spoken, or the highlight's fuller label, or its name.
   const hls = useHighlights();
   const labels = new Map((hls.data || []).map((h) => [h.id, h.heard_label || h.title]));
-  const goldOf = (it: Item) => { const a = audioOf(it, labels); return a.kind === 'heard' ? a.text : ''; };
+  const sizes = new Map((hls.data || []).map((h) => [h.id, h.item_ids.length]));
+  const goldOf = (it: Item) => { const a = audioOf(it, labels, sizes); return a.kind === 'heard' ? a.text : ''; };
   // Stills advance by themselves in autoplay mode.
   useEffect(() => {
     if (pb !== 'next' || info || !item) return;

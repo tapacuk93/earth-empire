@@ -103,11 +103,17 @@ export function describe(it: Item): string {
  * happened to hear in it (a lecture saying "три" is not a "3" video). Else no label. A recommendation
  * card (a monitor hit, on Home only once the owner adds it with "+") is labelled with its matched phrase.
  */
-export function audioOf(it: Item, _labels?: Map<string, string>): Audio {
+export function audioOf(it: Item, _labels?: Map<string, string>, sizes?: Map<string, number>): Audio {
   if (it.heard?.by === 'owner' && it.heard.text) return { kind: 'heard', text: it.heard.text };
-  const title = (it.highlights || []).map((h) => (h.title_translated || h.title_full || h.title).trim()).find(Boolean);
+  // a repost made with Instagram's Repost button (rated below highlights): no label of its own
+  if (it.id.startsWith('ig_repost_')) return { kind: 'none', text: '' };
+  // in several highlights: the most specific one's name (the fewest videos), not a catch-all like "3"
+  const hs = (it.highlights || []).filter((h) => (h.title || '').trim())
+    .sort((a, b) => (sizes?.get(a.id) ?? 1e9) - (sizes?.get(b.id) ?? 1e9));
+  const title = hs.map((h) => (h.title_translated || h.title_full || h.title).trim()).find(Boolean);
   if (title) return { kind: 'heard', text: title };
-  const said = describe(it);
+  // the caption only of the owner's own post: a repost's caption is the original poster's description
+  const said = it.repost_of ? '' : describe(it);
   return said ? { kind: 'heard', text: said } : { kind: 'none', text: '' };
 }
 
@@ -118,13 +124,14 @@ export function buildSections(items: Item[], highlights: Highlight[], hits: Hit[
 
   // A highlight's fuller label (from what its videos say) where the backend has one, else its name.
   const labels = new Map(highlights.map((h) => [h.id, h.heard_label || h.title]));
+  const sizes = new Map(highlights.map((h) => [h.id, h.item_ids.length]));
   const tiles: VTile[] = items.filter(isVideo).map((it) => {
     const g = given.get(it.id);
     const level = g?.level && g.level >= 1 && g.level <= 4 ? g.level : itemLevel(it, highlights);
     return {
       id: it.id, item: it, level, score: it.importance ?? g?.importance ?? importance(it),
       cover: cover(it), video: videoOf(it), date: it.taken_at, added: it.taken_at, text: it.summary || it.description || it.caption || '',
-      audio: audioOf(it, labels),
+      audio: audioOf(it, labels, sizes),
     };
   });
   for (const h of hits.filter((h) => h.clip || h.frame || h.video?.thumbnail)) {

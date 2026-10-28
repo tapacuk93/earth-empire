@@ -494,7 +494,8 @@ class Collector:
         for pos, h in enumerate(ordered):
             h.setdefault("extra", {})["position"] = pos
         if ordered:
-            self.backend.put_highlights(ordered)
+            # with the tray read this run, its ids tell the backend which highlights still exist
+            self.backend.put_highlights(ordered, [h["id"] for h in tray] if tray else None)
         self.state.set("highlights.order", order)
         self.bump("highlights", len(ordered))
 

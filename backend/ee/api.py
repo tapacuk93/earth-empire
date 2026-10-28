@@ -362,10 +362,12 @@ async def ingest_detections(request: Request):
 async def ingest_highlights(request: Request):
     body = await request.json()
     try:
-        n = store.upsert_highlights(conn(), body.get("highlights") or [])
+        c = conn()
+        n = store.upsert_highlights(c, body.get("highlights") or [])
+        gone = store.drop_highlights_not_in(c, body.get("tray") or [])
     except ValueError as e:
         raise HTTPException(400, str(e))
-    return {"ok": True, "highlights": n}
+    return {"ok": True, "highlights": n, "removed": gone}
 
 
 @app.put("/v1/ingest/profile", dependencies=[Depends(require_token)])

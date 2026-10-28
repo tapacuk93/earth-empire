@@ -61,8 +61,11 @@ class Backend:
     def post_deleted(self, deleted: list[str], restored: list[str]) -> dict:
         return self._call("POST", "/v1/ingest/deleted", json={"deleted": deleted, "restored": restored})
 
-    def put_highlights(self, highlights: list[dict]) -> dict:
-        return self._call("PUT", "/v1/ingest/highlights", json={"highlights": highlights})
+    def put_highlights(self, highlights: list[dict], tray: list[str] | None = None) -> dict:
+        body: dict = {"highlights": highlights}
+        if tray:
+            body["tray"] = tray
+        return self._call("PUT", "/v1/ingest/highlights", json=body)
 
     def put_profile(self, profile: dict) -> dict:
         return self._call("PUT", "/v1/ingest/profile", json=profile)

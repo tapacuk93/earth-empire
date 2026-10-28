@@ -491,8 +491,11 @@ class Collector:
         tray = getattr(self, "tray", None)
         order = [h["id"] for h in tray] if tray else (self.state.get("highlights.order") or [])
         ordered = [self.state.highlight(hid)[0] for hid in order if self.state.highlight(hid)]
+        names = {h["id"]: h.get("title") for h in tray or []}
         for pos, h in enumerate(ordered):
             h.setdefault("extra", {})["position"] = pos
+            if names.get(h["id"]):   # the tray's current name: a renamed highlight shows its new name at once
+                h["title"] = names[h["id"]]
         if ordered:
             # with the tray read this run, its ids tell the backend which highlights still exist
             self.backend.put_highlights(ordered, [h["id"] for h in tray] if tray else None)

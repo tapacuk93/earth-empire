@@ -131,7 +131,7 @@ def run(c) -> dict:
         "{items}", "\n".join(_line(n, r) for n, r in enumerate(in_prompt)))
     body = {"max_tokens": 16000, "output_config": {"effort": "medium", "format": {"type": "json_schema", "schema": SCHEMA}},
             "messages": [{"role": "user", "content": prompt}]}
-    resp, coins = aicoin.claude(body, timeout=600)
+    resp, coins = aicoin.claude(body, timeout=600, purpose="facets")
     usage = resp.get("usage") or {}
     model = resp.get("model") or ""
     c.execute("INSERT INTO costs(at, purpose, model, input_tokens, output_tokens, coins, usd, ok) VALUES (?,?,?,?,?,?,?,1)",

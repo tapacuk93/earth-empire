@@ -79,7 +79,7 @@ def backfill_one(c, item_id: str, job: str | None = None) -> dict:
         req = {"model": aicoin.model_for(c, "importance"), "max_tokens": 3000, "system": SCORE_SYSTEM.format(rv=rub["version"], rubric=rub["text"]),
                "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCORE_SCHEMA}},
                "messages": [{"role": "user", "content": content}]}
-        resp, coins = aicoin.claude(req, timeout=300)
+        resp, coins = aicoin.claude(req, timeout=300, purpose="importance")
     finally:
         shutil.rmtree(work, ignore_errors=True)
     usage = resp.get("usage") or {}

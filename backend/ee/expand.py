@@ -42,7 +42,7 @@ def run(c) -> int:
     prompt = PROMPT.replace("{names}", "\n".join(f"{n} | {r['title']}" for n, r in enumerate(rows)))
     body = {"model": aicoin.model_for(c, "expand"), "max_tokens": 4000, "output_config": {"format": {"type": "json_schema", "schema": SCHEMA}},
             "messages": [{"role": "user", "content": prompt}]}
-    resp, coins = aicoin.claude(body, timeout=120)
+    resp, coins = aicoin.claude(body, timeout=120, purpose="expand")
     usage = resp.get("usage") or {}
     model = resp.get("model") or ""
     c.execute("INSERT INTO costs(at, purpose, model, input_tokens, output_tokens, coins, usd, ok) VALUES (?,?,?,?,?,?,?,1)",

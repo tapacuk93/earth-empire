@@ -206,7 +206,7 @@ def run(c) -> int:
     body = {"model": aicoin.model_for(c, "translate"), "max_tokens": 16000,
             "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
             "messages": [{"role": "user", "content": prompt}]}
-    resp, coins = aicoin.claude(body, timeout=300)
+    resp, coins = aicoin.claude(body, timeout=300, purpose="translate")
     usage = resp.get("usage") or {}
     model = resp.get("model") or body["model"]
     c.execute("INSERT INTO costs(at, purpose, model, input_tokens, output_tokens, coins, usd, ok, note) VALUES (?,?,?,?,?,?,?,1,?)",

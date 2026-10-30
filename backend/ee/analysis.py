@@ -502,7 +502,7 @@ def analyze(c, item_id: str, *, dry_run: bool = False, job: str | None = None, d
             imgs = sum(1 for b in body["messages"][0]["content"] if b["type"] == "image")
             return {"item": item_id, "dry_run": True, "images": imgs, **info}
         _progress(c, job, f"asking Claude ({info['images']} images, {info['frames']} frames)")
-        resp, coins = aicoin.claude(body)
+        resp, coins = aicoin.claude(body, purpose="analyze")
         usage = resp.get("usage") or {}
         usd = usd_for(resp.get("model") or model, usage)
         c.execute("INSERT INTO costs(at, item_id, purpose, model, input_tokens, output_tokens, coins, usd, ok) "

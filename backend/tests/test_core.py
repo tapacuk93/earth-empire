@@ -268,7 +268,7 @@ class HeardTest(unittest.TestCase):
         self.calls = []
         self.answer = None
 
-        def claude(body, timeout=0):
+        def claude(body, timeout=0, **kw):
             self.calls.append(body)
             prompt = body["messages"][0]["content"]
             items = self.answer(prompt) if self.answer else []
@@ -391,7 +391,7 @@ class ExplainTest(unittest.TestCase):
         self.c = db.connect(Path(self.tmp.name) / "t.sqlite3")
         self.explain, self.prompts = explain, []
 
-        def fake(body, timeout=300):
+        def fake(body, timeout=300, **kw):
             self.prompts.append(body["messages"][0]["content"])
             return {"model": "claude-test", "usage": {"input_tokens": 10, "output_tokens": 5},
                     "content": [{"type": "text", "text": "Що відбувається."}]}, 0.01
@@ -500,7 +500,7 @@ class FacetsTest(unittest.TestCase):
         self.facets, self.prompts = facets, []
         self.notes = "Royals keep growing; split by country next time."
 
-        def fake(body, timeout=300):
+        def fake(body, timeout=300, **kw):
             self.prompts.append(body["messages"][0]["content"])
             out = {"notes": self.notes, "facets": [{"id": "themes", "name": "Themes", "description": "",
                    "categories": [{"id": "royals", "name": "Royals", "description": "", "items": [0, 1]}]}]}
@@ -586,7 +586,7 @@ class ExpandTest(unittest.TestCase):
         c = db.connect(Path(tmp.name) / "t.sqlite3")
         asked = []
 
-        def fake(body, timeout=120):
+        def fake(body, timeout=120, **kw):
             asked.append(body["messages"][0]["content"])
             names = [{"n": 0, "full": "планета"}, {"n": 1, "full": "у Тараса 3"}]
             return {"model": "claude-test", "usage": {}, "content": [{"type": "text", "text": json.dumps({"names": names})}]}, 0.01
@@ -654,7 +654,7 @@ class TranslationsTest(unittest.TestCase):
         d = store.render_item(c, c.execute("SELECT * FROM items WHERE id='ig_t'").fetchone())
         self.assertEqual(i18n.items(c, [dict(d)], "uk")[0]["summary"], "A state visit")   # not yet: the original
 
-        def fake(body, timeout=300):
+        def fake(body, timeout=300, **kw):
             text = body["messages"][0]["content"]
             lines = [b.split(" | ", 1) for b in text.split("\n\n") if " | " in b and b.split(" | ", 1)[0].isdigit()]
             out = [{"n": int(n), "text": "UK:" + s} for n, s in lines]

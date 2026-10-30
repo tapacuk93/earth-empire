@@ -73,7 +73,7 @@ def review(c) -> dict | None:
     items = "\n".join(f"{r['importance']:.2f} | {r['taken_at'][:10]} | {(r['summary'] or '')[:150]}" for r in rows)
     body = {"max_tokens": 4000, "output_config": {"effort": "medium", "format": {"type": "json_schema", "schema": REVIEW_SCHEMA}},
             "messages": [{"role": "user", "content": REVIEW.format(version=cur["version"], text=cur["text"], items=items)}]}
-    resp, coins = aicoin.claude(body, timeout=300)
+    resp, coins = aicoin.claude(body, timeout=300, purpose="rubric")
     usage = resp.get("usage") or {}
     c.execute("INSERT INTO costs(at, purpose, model, input_tokens, output_tokens, coins, usd, ok) VALUES (?,?,?,?,?,?,?,1)",
               (now(), "rubric", resp.get("model"), usage.get("input_tokens"), usage.get("output_tokens"), coins,

@@ -10,6 +10,7 @@ For local tests, EE_AICOIN_TOKEN (e.g. from `aicoin token -days 1`) is used inst
 from __future__ import annotations
 
 import base64
+import contextvars
 import json
 import logging
 import os
@@ -212,8 +213,13 @@ FALLBACKS = [("google", "gemini-3.5-flash"), ("openai", "gpt-5")]
 _skip_until: dict[str, float] = {}
 
 
+# What a call is for (analyze, facets, translate, ...): sent as X-AICoin-Purpose so the proxy's
+# transactions say why each paid call was made. A proxy that does not know the header ignores it.
+_purpose: contextvars.ContextVar[str] = contextvars.ContextVar("aicoin_purpose", default="unspecified")
+
+
 def _headers(provider: str) -> dict:
-    h = {"X-AI": provider, "X-Api-Key": token(), "X-AICoin-App": APP_ID}
+    h = {"X-AI": provider, "X-Api-Key": token(), "X-AICoin-App": APP_ID, "X-AICoin-Purpose": _purpose.get()}
     if provider == "anthropic":
         h["anthropic-version"] = "2023-06-01"
     return h
@@ -311,13 +317,16 @@ def _provider_failure(e: Exception) -> bool:
     return "timeout" in type(e).__name__.lower()
 
 
-def claude(body: dict, timeout: float = 300) -> tuple[dict, float]:
+def claude(body: dict, timeout: float = 300, purpose: str = "unspecified") -> tuple[dict, float]:
+    tok = _purpose.set(purpose)
     try:
         return _claude(body, timeout)
     except CapReached as e:
         _pause(e) if not getattr(e, "own", False) else None
         _state("waiting", str(e), resets_at=e.reset_at)
         raise
+    finally:
+        _purpose.reset(tok)
 
 
 def _claude(body: dict, timeout: float = 300) -> tuple[dict, float]:
@@ -372,7 +381,7 @@ def transcribe(audio_path: str, timeout: float = 300) -> tuple[dict, float]:
     s = settings()
     with open(audio_path, "rb") as f:
         r = httpx.post(f"{s['proxy_url']}/v1/audio/transcriptions", timeout=timeout,
-                       headers=_headers("openai"),
+                       headers={**_headers("openai"), "X-AICoin-Purpose": "transcribe"},
                        data={"model": s["transcribe_model"], "response_format": "verbose_json",
                              "timestamp_granularities[]": "segment"},
                        files={"file": (os.path.basename(audio_path), f, "audio/mpeg")})

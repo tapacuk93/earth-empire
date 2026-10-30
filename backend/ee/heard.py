@@ -285,7 +285,7 @@ def run_batch(c, ids: list[str]) -> dict:
     model_pref = setting(c, "heard.model")
     if model_pref:
         body["model"] = model_pref
-    resp, coins = aicoin.claude(body, timeout=180)
+    resp, coins = aicoin.claude(body, timeout=180, purpose="heard")
     usage = resp.get("usage") or {}
     model = resp.get("model") or model_pref or ""
     c.execute("INSERT INTO costs(at, item_id, purpose, model, input_tokens, output_tokens, coins, usd, ok, note) "

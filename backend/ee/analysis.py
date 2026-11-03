@@ -312,7 +312,7 @@ def build_request(c, item_id: str, work: Path, job: str | None = None, depth: st
                                                                 f"{tr.get('language')}):\n{text or '(no speech)'}"})
                         if not cached:
                             c.execute("INSERT INTO costs(at, item_id, purpose, model, coins, usd, ok, note) "
-                                      "VALUES (?,?,?,?,?,?,1,?)", (now(), item_id, "transcribe", "whisper-1", coins,
+                                      "VALUES (?,?,?,?,?,?,1,?)", (now(), item_id, "transcribe", tr.get("model") or "whisper-1", coins,
                                                                   round(dur / 60 * 0.006, 5), f"{dur:.1f}s"))
             else:
                 data = jpeg(src, work / f"i{n}.jpg", IMAGE_EDGE)

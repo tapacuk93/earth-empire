@@ -1,3 +1,4 @@
+import AICoinKit
 import AVFoundation
 import SwiftUI
 
@@ -8,6 +9,7 @@ struct EarthEmpireApp: App {
     init() {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         URLCache.shared = URLCache(memoryCapacity: 16 << 20, diskCapacity: 256 << 20)
+        AICoinStorefront.start()
     }
 
     var body: some Scene {

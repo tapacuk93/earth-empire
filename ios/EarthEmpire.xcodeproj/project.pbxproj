@@ -15,7 +15,9 @@
 		44D1AC5AFB1B0FA1C60F512B /* TagCloudViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = D15FB182569ED87CB2F5F2FD /* TagCloudViews.swift */; };
 		4982A6C2285DE4D5C881A404 /* MediaCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9EAE27E5A95D89972B55E1F /* MediaCache.swift */; };
 		52F4AA4869C9D9D2415DCB9C /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29B8B5979B4044094AE44731 /* Config.swift */; };
+		560ABCC910EC8F3ABA0693B6 /* StorefrontTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E1B719BB799BCD668413D74 /* StorefrontTests.swift */; };
 		7AD19C6DC4326F14296450F4 /* AnalysisView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842E0D479792BE82F10F7001 /* AnalysisView.swift */; };
+		84EACB2CB485E238E18A4F0A /* AICoinKit in Frameworks */ = {isa = PBXBuildFile; productRef = F8CBF46B2F0AA7BBD6ABA5BE /* AICoinKit */; };
 		8897711542937B38CB0ED147 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51BA1FF3A41311C8BCB05351 /* ProfileView.swift */; };
 		89A6978CD50C6D1631D1786A /* MainFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14C857445BC4945DE465350B /* MainFlowUITests.swift */; };
 		8EF8715A739D3A879B3619AD /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F93E7FD863363E45B648534 /* App.swift */; };
@@ -25,6 +27,7 @@
 		B9921642F47C419F1591DD3B /* HomeData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73E19CC3AD27F178DDFFF7A7 /* HomeData.swift */; };
 		BD754880BC9FFE2A03900EA5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E2F7ED21E54C3B4BC8E4411F /* Assets.xcassets */; };
 		E13840891F84C60FDC4AABA6 /* ItemDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74CEDD5C2F1C8B4D6CEFFF34 /* ItemDetailView.swift */; };
+		E3F3F23AB8494A9AE0F49D93 /* Storefront.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C372D256B8785D9C4F15D48 /* Storefront.swift */; };
 		E6B9BF479517FDF94E5A7270 /* DeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 071B953E5F5584208DC57671 /* DeepLink.swift */; };
 		F6B8F2C33A483F3BDD7C16E0 /* TagIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C1CDFB0C5180F0B2CFC0287 /* TagIndex.swift */; };
 		F6C0DAA935D37221EE155747 /* ContractDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF616F3C49172A3C68CAEA3E /* ContractDecodingTests.swift */; };
@@ -50,12 +53,15 @@
 
 /* Begin PBXFileReference section */
 		071B953E5F5584208DC57671 /* DeepLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeepLink.swift; sourceTree = "<group>"; };
+		0E1B719BB799BCD668413D74 /* StorefrontTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorefrontTests.swift; sourceTree = "<group>"; };
 		0E38F69360C4800163B97DD3 /* Model.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Model.swift; sourceTree = "<group>"; };
 		0F93E7FD863363E45B648534 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
+		1035B59A0CDDB5B082279852 /* ios */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ios; path = "../../aicoin/mobile-purchase/ios"; sourceTree = SOURCE_ROOT; };
 		13F53B07E8240F8020388C22 /* EarthEmpireTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = EarthEmpireTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		14C857445BC4945DE465350B /* MainFlowUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainFlowUITests.swift; sourceTree = "<group>"; };
 		1DFC998C2913B39A37B9BB8C /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		29B8B5979B4044094AE44731 /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		2C372D256B8785D9C4F15D48 /* Storefront.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Storefront.swift; sourceTree = "<group>"; };
 		30BC7EA3F99B32558B035B60 /* PagingAndLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PagingAndLinkTests.swift; sourceTree = "<group>"; };
 		478845545024E3757F39A26A /* API.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = API.swift; sourceTree = "<group>"; };
 		51BA1FF3A41311C8BCB05351 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
@@ -76,6 +82,17 @@
 		F9EAE27E5A95D89972B55E1F /* MediaCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCache.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		F8F722D6CC027EF8FDB84DAA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				84EACB2CB485E238E18A4F0A /* AICoinKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
 		20C1E1CE16428396639AAD27 /* Sources */ = {
 			isa = PBXGroup;
@@ -94,6 +111,7 @@
 				0E38F69360C4800163B97DD3 /* Model.swift */,
 				92A6F122D559E8EB258138C1 /* Pager.swift */,
 				51BA1FF3A41311C8BCB05351 /* ProfileView.swift */,
+				2C372D256B8785D9C4F15D48 /* Storefront.swift */,
 				C505D9BF87C98B829AE07BC0 /* StoryViewer.swift */,
 				D15FB182569ED87CB2F5F2FD /* TagCloudViews.swift */,
 				5C1CDFB0C5180F0B2CFC0287 /* TagIndex.swift */,
@@ -114,6 +132,7 @@
 			children = (
 				EDF06D3E4982A518386C6517 /* Fixture */,
 				AA4E35470CBF314562CD85CC /* EarthEmpire */,
+				A61C518085B272486FD69AE2 /* Packages */,
 				A771D5CC97CACC16C85D6BEE /* Tests */,
 				9567C47FCAE43586EF286DCE /* UITests */,
 				C3579EC9DCC2BD291D442474 /* Products */,
@@ -128,11 +147,20 @@
 			path = UITests;
 			sourceTree = "<group>";
 		};
+		A61C518085B272486FD69AE2 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				1035B59A0CDDB5B082279852 /* ios */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
 		A771D5CC97CACC16C85D6BEE /* Tests */ = {
 			isa = PBXGroup;
 			children = (
 				BF616F3C49172A3C68CAEA3E /* ContractDecodingTests.swift */,
 				30BC7EA3F99B32558B035B60 /* PagingAndLinkTests.swift */,
+				0E1B719BB799BCD668413D74 /* StorefrontTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -201,6 +229,7 @@
 			buildPhases = (
 				81F70FAAE60EC415375463C7 /* Sources */,
 				392130FA536EFA22CBC3F2DE /* Resources */,
+				F8F722D6CC027EF8FDB84DAA /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -208,6 +237,7 @@
 			);
 			name = EarthEmpire;
 			packageProductDependencies = (
+				F8CBF46B2F0AA7BBD6ABA5BE /* AICoinKit */,
 			);
 			productName = EarthEmpire;
 			productReference = F3E9115E2889E4FD9B038326 /* EarthEmpire.app */;
@@ -246,6 +276,9 @@
 			);
 			mainGroup = 70E38B08122A80D313690925;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A829ADE0BD4B92CE700FCA19 /* XCLocalSwiftPackageReference "../../aicoin/mobile-purchase/ios" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C3579EC9DCC2BD291D442474 /* Products */;
 			projectDirPath = "";
@@ -289,6 +322,7 @@
 				1B8EC9783435515D1CB9319E /* Model.swift in Sources */,
 				AA86805E40DD0C9BF2E44297 /* Pager.swift in Sources */,
 				8897711542937B38CB0ED147 /* ProfileView.swift in Sources */,
+				E3F3F23AB8494A9AE0F49D93 /* Storefront.swift in Sources */,
 				3ADAE626F43F7910304226FA /* StoryViewer.swift in Sources */,
 				44D1AC5AFB1B0FA1C60F512B /* TagCloudViews.swift in Sources */,
 				F6B8F2C33A483F3BDD7C16E0 /* TagIndex.swift in Sources */,
@@ -301,6 +335,7 @@
 			files = (
 				F6C0DAA935D37221EE155747 /* ContractDecodingTests.swift in Sources */,
 				A44280FB88AC8BFF7203A52B /* PagingAndLinkTests.swift in Sources */,
+				560ABCC910EC8F3ABA0693B6 /* StorefrontTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -613,6 +648,20 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A829ADE0BD4B92CE700FCA19 /* XCLocalSwiftPackageReference "../../aicoin/mobile-purchase/ios" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../../aicoin/mobile-purchase/ios";
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F8CBF46B2F0AA7BBD6ABA5BE /* AICoinKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AICoinKit;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 823152D74B946866796A5707 /* Project object */;
 }

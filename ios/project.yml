@@ -6,6 +6,12 @@ options:
   createIntermediateGroups: true
   developmentLanguage: en
 
+packages:
+  # Local path package (this repo and aicoin share ~/src as a common parent), for
+  # AICoinStorefront: the App Store storefront, and what may not be shown on it.
+  AICoinKit:
+    path: ../../aicoin/mobile-purchase/ios
+
 settings:
   base:
     # The team id is public (it is in every apple-app-site-association file); signing
@@ -33,6 +39,8 @@ targets:
       - path: Fixture
         type: folder
         buildPhase: resources
+    dependencies:
+      - package: AICoinKit
     info:
       path: EarthEmpire/Info.plist
       properties:

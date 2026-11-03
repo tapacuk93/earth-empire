@@ -364,6 +364,132 @@ class HeardTest(unittest.TestCase):
         self.assertIsNotNone(comp["last_success"])
 
 
+class StorefrontTest(unittest.TestCase):
+    """X-AICoin-Storefront: on CHN no call names OpenAI (no network: httpx stubbed)."""
+
+    def setUp(self):
+        import types
+        from unittest import mock
+        from ee import aicoin
+        self.aicoin = aicoin
+        self.calls = []
+        test, dumps = self, json.dumps
+
+        class Resp:
+            def __init__(self, body):
+                self.status_code, self.headers, self._body = 200, {"X-Aicoin-Charged": "1"}, body
+                self.text = dumps(body)
+
+            def json(self):
+                return self._body
+
+        def post(url, json=None, headers=None, **kw):
+            test.calls.append({"url": url, "headers": headers or {}, "json": json, "data": kw.get("data")})
+            if "/v1/audio/transcriptions" in url:
+                return Resp({"language": "en", "text": "hi", "segments": [{"start": 0, "end": 1, "text": "hi"}]})
+            if ":generateContent" in url and json["contents"][0]["parts"][0].get("inline_data", {}).get(
+                    "mime_type") == "audio/mpeg":
+                answer = {"language": "uk", "text": "ну що",
+                          "segments": [{"start": 0.0, "end": 1.5, "text": "ну що"}]}
+                return Resp({"candidates": [{"content": {"parts": [{"text": dumps(answer)}]}}],
+                             "modelVersion": "gemini-3.5-flash"})
+            if ":generateContent" in url:
+                return Resp({"candidates": [{"content": {"parts": [{"text": "{}"}]}}], "usageMetadata": {}})
+            if "/v1/chat/completions" in url:
+                return Resp({"choices": [{"message": {"content": "{}"}}], "model": "gpt-5"})
+            return _fail(url)
+
+        def _fail(url):
+            r = Resp({"type": "error", "error": {"type": "overloaded_error"}})
+            r.status_code, r.text = 529, "overloaded"
+            return r
+
+        fake = types.ModuleType("httpx")
+        fake.post = post
+        self.patches = [mock.patch.dict(sys.modules, {"httpx": fake}),
+                        mock.patch.dict(os.environ, {"EE_AICOIN_TOKEN": "t", "EE_SECRET_CLAUDE": "{}"}),
+                        mock.patch.object(aicoin, "_guard", lambda: None),
+                        mock.patch.object(aicoin, "_state", lambda *a, **k: None),
+                        mock.patch.object(aicoin.time, "sleep", lambda s: None)]
+        for p in self.patches:
+            p.start()
+        os.environ.pop("EE_AICOIN_STOREFRONT", None)
+        aicoin._skip_until.clear()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.audio = Path(self.tmp.name) / "a.mp3"
+        self.audio.write_bytes(b"ID3" + b"0" * 3000)
+
+    def tearDown(self):
+        for p in reversed(self.patches):
+            p.stop()
+        self.aicoin._skip_until.clear()
+        self.tmp.cleanup()
+
+    def test_allows(self):
+        self.assertFalse(self.aicoin.allows("openai", "CHN"))
+        self.assertFalse(self.aicoin.allows("OpenAI", "chn"))
+        self.assertTrue(self.aicoin.allows("google", "CHN"))
+        self.assertTrue(self.aicoin.allows("openai", "USA"))
+        self.assertTrue(self.aicoin.allows("openai", None))
+        self.assertTrue(self.aicoin.allows("openai", "bogus"))
+
+    def test_transcribe_without_storefront_is_whisper_as_before(self):
+        tr, coins = self.aicoin.transcribe(str(self.audio))
+        self.assertEqual(len(self.calls), 1)
+        self.assertIn("/v1/audio/transcriptions", self.calls[0]["url"])
+        self.assertEqual(self.calls[0]["headers"]["X-AI"], "openai")
+        self.assertNotIn("X-AICoin-Storefront", self.calls[0]["headers"])
+        self.assertEqual((tr["text"], tr["model"], coins), ("hi", "whisper-1", 1.0))
+
+    def test_transcribe_on_china_goes_to_gemini(self):
+        tr, coins = self.aicoin.transcribe(str(self.audio), storefront="CHN")
+        self.assertEqual(len(self.calls), 1)
+        call = self.calls[0]
+        self.assertIn(":generateContent", call["url"])
+        self.assertEqual(call["headers"]["X-AI"], "google")
+        self.assertEqual(call["headers"]["X-AICoin-Storefront"], "CHN")
+        self.assertEqual(tr["language"], "uk")
+        self.assertEqual(tr["segments"], [{"start": 0.0, "end": 1.5, "text": "ну що"}])
+        self.assertEqual(tr["model"], "gemini-3.5-flash")
+
+    def test_configured_storefront_applies_and_other_storefronts_keep_whisper(self):
+        with self.__class__._env(EE_AICOIN_STOREFRONT="CHN"):
+            self.aicoin.transcribe(str(self.audio))
+        with self.__class__._env(EE_AICOIN_STOREFRONT="USA"):
+            self.aicoin.transcribe(str(self.audio))
+        self.assertEqual([c["headers"]["X-AI"] for c in self.calls], ["google", "openai"])
+        self.assertEqual(self.calls[1]["headers"]["X-AICoin-Storefront"], "USA")
+
+    def test_fallback_chain_skips_openai_on_china(self):
+        # Claude and Gemini both overloaded: elsewhere the chain ends at OpenAI, on CHN it never does.
+        orig = sys.modules["httpx"].post
+
+        def post(url, **kw):
+            if ":generateContent" in url:
+                self.calls.append({"url": url, "headers": kw.get("headers") or {}})
+                r = orig("https://x/unknown", **kw)
+                self.calls.pop()
+                return r
+            return orig(url, **kw)
+        sys.modules["httpx"].post = post
+        body = {"max_tokens": 10, "messages": [{"role": "user", "content": "hi"}]}
+        out, _ = self.aicoin.claude(body, storefront=None)
+        self.assertEqual(out["provider"], "openai")
+        self.calls.clear()
+        self.aicoin._skip_until.clear()
+        with self.assertRaises(self.aicoin.ProviderOutOfCredit):
+            self.aicoin.claude(body, storefront="CHN")
+        self.assertTrue(self.calls)
+        self.assertFalse([c for c in self.calls if c["headers"].get("X-AI") == "openai"
+                          or "/v1/chat/completions" in c["url"]])
+        self.assertTrue(all(c["headers"].get("X-AICoin-Storefront") == "CHN" for c in self.calls))
+
+    @staticmethod
+    def _env(**kw):
+        from unittest import mock
+        return mock.patch.dict(os.environ, kw)
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -130,7 +130,7 @@ ee delete <id>... | --tests   # remove items (--tests: the ig_test_* fixtures)
 Per item, Claude (`claude-sonnet-5-5` through the aicoin proxy, effort `medium`, structured JSON
 output) receives every image (1568 px), frames across every video (one per 3 s, 4-16 frames,
 768 px, each labelled with its time), the speech transcript (OpenAI `whisper-1` through the proxy,
-timed segments), all metadata, the category taxonomy, the nearest 30 analyzed items, people the
+timed segments; Gemini when the configured storefront is `CHN`, see CONTRACT.md "Storefronts"), all metadata, the category taxonomy, the nearest 30 analyzed items, people the
 owner named before (and how), and recurring places. It returns the contract's `analysis` plus
 categories, new categories (at most 2, only when nothing fits), summary, description and the best
 cover frame of each video, which is saved at full size as `items/<id>/<n>.cover.jpg`.

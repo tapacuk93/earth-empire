@@ -215,11 +215,13 @@ struct Analysis: Codable, Hashable, Sendable {
     var context: String?
     var keywords: [String]?
     var model: String?
+    /// The aicoin proxy provider that wrote it ("anthropic", "google", "openai").
+    var provider: String?
     var analyzedAt: String?
 
     enum CodingKeys: String, CodingKey {
         case people, what, events, objects, animals, brands, onScreenText, speech, music, mood,
-             language, context, keywords, model, analyzedAt
+             language, context, keywords, model, provider, analyzedAt
         case time = "when"
         case place = "where"
     }

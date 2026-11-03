@@ -356,7 +356,7 @@ struct MetadataView: View {
                 Link(destination: url) { Label("Open on Instagram", systemImage: "arrow.up.right.square") }
                     .font(.subheadline)
             }
-            if let a = item.analysis, let model = a.model {
+            if let a = item.analysis, let model = StorefrontRules.creditedModel(a) {
                 Text("Analyzed by \(model)" + (a.analyzedAt.flatMap(ISODate.parse).map { " on \($0.formatted(date: .abbreviated, time: .omitted))" } ?? ""))
                     .font(.caption).foregroundStyle(.secondary)
             }

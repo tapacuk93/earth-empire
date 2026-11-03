@@ -1,3 +1,4 @@
+import AICoinKit
 import Foundation
 import OSLog
 
@@ -155,12 +156,18 @@ final class LiveAPI: ArchiveAPI, @unchecked Sendable {
         return c.url!
     }
 
+    /// A GET with the App Store storefront as `X-AICoin-Storefront` (CONTRACT.md), once StoreKit knows it.
+    func request(_ url: URL) -> URLRequest {
+        var request = URLRequest(url: url, timeoutInterval: 20)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        AICoinStorefront.apply(to: &request)
+        return request
+    }
+
     private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
         let url = url(path, query: query)
         do {
-            var request = URLRequest(url: url, timeoutInterval: 20)
-            request.setValue("application/json", forHTTPHeaderField: "Accept")
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: request(url))
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             guard (200..<300).contains(code) else {
                 log.error("GET \(url.absoluteString, privacy: .public) -> \(code)")

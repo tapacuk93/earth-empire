@@ -285,6 +285,16 @@ The proxy holds Earth Empire to a per-app daily cap of $20.
   wallet, with the same images, frames and JSON schema. The proxy's `/text` carries no images, so the
   provider-native routes are used. Each result records its provider (`analysis.provider`,
   `analysis.model`).
+- **Storefronts (`X-AICoin-Storefront`).** Apple allows no OpenAI service in apps on the China
+  mainland App Store, and the proxy refuses (451) a `CHN` call that names OpenAI. A call made for a
+  storefront carries `X-AICoin-Storefront: <ISO alpha-3>`; for `CHN` the chain above skips OpenAI and
+  speech goes to Gemini (`gemini-3.5-flash`, same transcript shape) instead of `whisper-1`. The
+  analysis is not made per player: each item is analysed once and every client reads the same
+  result, so the storefront the pipeline works for is configured (`EE_AICOIN_STOREFRONT`, or
+  `storefront` in `earth-empire/claude`; unset by default, which is exactly the old behaviour), and
+  `ee.aicoin.claude/transcribe(..., storefront=)` take one per call. The iOS app sends its storefront
+  as `X-AICoin-Storefront` on every API request and, on `CHN`, leaves out the "Analyzed by" credit
+  of an analysis OpenAI wrote.
 - **Budgets never fail an item.** The proxy's app cap (429 `app_daily_cap_reached`, `reset_at`), an
   empty wallet (402), a provider's credit ("credit balance too low"), and Earth Empire's own limits
   (`ai.daily_budget_usd` $20, the daily caps on analyses, re-scores and facet runs) keep the item

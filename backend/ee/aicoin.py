@@ -77,6 +77,8 @@ def settings() -> dict:
     return {"proxy_url": (os.environ.get("EE_AICOIN_PROXY") or s.get("proxy_url") or DEFAULT_PROXY).rstrip("/"),
             "model": os.environ.get("EE_CLAUDE_MODEL") or s.get("model") or DEFAULT_MODEL,
             "transcribe_model": s.get("transcribe_model") or "whisper-1",
+            "storefront_transcribe_model": s.get("storefront_transcribe_model") or "gemini-3.5-flash",
+            "storefront": _storefront_code(os.environ.get("EE_AICOIN_STOREFRONT") or s.get("storefront")),
             "address": s.get("wallet_address"), "key": s.get("wallet_private_key")}
 
 
@@ -212,25 +214,51 @@ def _pause(e: "CapReached"):
 FALLBACKS = [("google", "gemini-3.5-flash"), ("openai", "gpt-5")]
 _skip_until: dict[str, float] = {}
 
+# The App Store storefront a call is made for, as X-AICoin-Storefront (the aicoin CONTRACT.md's
+# "Storefront restrictions"): Apple allows no OpenAI service in apps on the China mainland store,
+# and the proxy answers 451 provider_unavailable_in_region to a CHN call that names openai. So for
+# such a storefront the providers below are never asked: the fallback chain skips them and speech
+# goes to Gemini instead of whisper-1. A call is made for `storefront=` when its caller passes one,
+# else for the configured storefront (EE_AICOIN_STOREFRONT, or "storefront" in the secret) - none
+# by default, so everything is exactly as before unless one is set.
+STOREFRONT_HEADER = "X-AICoin-Storefront"
+RESTRICTED = {"CHN": frozenset({"openai"})}
+_UNSET = object()
 
 # What a call is for (analyze, facets, translate, ...): sent as X-AICoin-Purpose so the proxy's
 # transactions say why each paid call was made. A proxy that does not know the header ignores it.
 _purpose: contextvars.ContextVar[str] = contextvars.ContextVar("aicoin_purpose", default="unspecified")
 
 
-def _headers(provider: str) -> dict:
+def _storefront_code(code) -> str | None:
+    code = (code or "").strip().upper() if isinstance(code, str) else ""
+    return code if len(code) == 3 and code.isascii() and code.isalpha() else None
+
+
+def _resolve_storefront(storefront=_UNSET) -> str | None:
+    return settings()["storefront"] if storefront is _UNSET else _storefront_code(storefront)
+
+
+def allows(provider: str, storefront: str | None) -> bool:
+    """Whether `provider` may serve a call made for `storefront` (None: every provider may)."""
+    return provider.strip().lower() not in RESTRICTED.get(_storefront_code(storefront) or "", ())
+
+
+def _headers(provider: str, storefront: str | None = None) -> dict:
     h = {"X-AI": provider, "X-Api-Key": token(), "X-AICoin-App": APP_ID, "X-AICoin-Purpose": _purpose.get()}
+    if storefront:
+        h[STOREFRONT_HEADER] = storefront
     if provider == "anthropic":
         h["anthropic-version"] = "2023-06-01"
     return h
 
 
-def _post(path: str, provider: str, payload: dict, timeout: float):
+def _post(path: str, provider: str, payload: dict, timeout: float, storefront: str | None = None):
     import httpx
     s = settings()
     for attempt in range(3):
         r = httpx.post(f"{s['proxy_url']}{path}", json=payload, timeout=timeout,
-                       headers={**_headers(provider), "content-type": "application/json"})
+                       headers={**_headers(provider, storefront), "content-type": "application/json"})
         text = (r.text or "").lower()
         if r.status_code in (429, 500, 502, 503, 529) and attempt < 2 and "cap" not in text and not any(
                 p in text for p in PROVIDER_BILLING):
@@ -261,7 +289,7 @@ def _system_text(body) -> str:
     return s if isinstance(s, str) else "\n".join(b.get("text", "") for b in s or [])
 
 
-def _via_google(body, model, timeout):
+def _via_google(body, model, timeout, storefront=None):
     parts = []
     for b in _blocks(body):
         if b.get("type") == "text":
@@ -274,7 +302,7 @@ def _via_google(body, model, timeout):
     payload = {"contents": [{"role": "user", "parts": parts}], "generationConfig": cfg}
     if _system_text(body):
         payload["systemInstruction"] = {"parts": [{"text": _system_text(body)}]}
-    out, coins = _post(f"/v1beta/models/{model}:generateContent", "google", payload, timeout)
+    out, coins = _post(f"/v1beta/models/{model}:generateContent", "google", payload, timeout, storefront)
     cand = (out.get("candidates") or [{}])[0]
     text = "".join(p.get("text", "") for p in (cand.get("content") or {}).get("parts") or [] if not p.get("thought"))
     u = out.get("usageMetadata") or {}
@@ -284,7 +312,7 @@ def _via_google(body, model, timeout):
                       "output_tokens": u.get("candidatesTokenCount", 0) + u.get("thoughtsTokenCount", 0)}}, coins
 
 
-def _via_openai(body, model, timeout):
+def _via_openai(body, model, timeout, storefront=None):
     parts = []
     for b in _blocks(body):
         if b.get("type") == "text":
@@ -298,7 +326,7 @@ def _via_openai(body, model, timeout):
     if _schema(body):
         payload["response_format"] = {"type": "json_schema",
                                       "json_schema": {"name": "result", "schema": _schema(body), "strict": False}}
-    out, coins = _post("/v1/chat/completions", "openai", payload, timeout)
+    out, coins = _post("/v1/chat/completions", "openai", payload, timeout, storefront)
     ch = (out.get("choices") or [{}])[0]
     u = out.get("usage") or {}
     return {"content": [{"type": "text", "text": (ch.get("message") or {}).get("content") or ""}],
@@ -317,10 +345,10 @@ def _provider_failure(e: Exception) -> bool:
     return "timeout" in type(e).__name__.lower()
 
 
-def claude(body: dict, timeout: float = 300, purpose: str = "unspecified") -> tuple[dict, float]:
+def claude(body: dict, timeout: float = 300, purpose: str = "unspecified", storefront=_UNSET) -> tuple[dict, float]:
     tok = _purpose.set(purpose)
     try:
-        return _claude(body, timeout)
+        return _claude(body, timeout, _resolve_storefront(storefront))
     except CapReached as e:
         _pause(e) if not getattr(e, "own", False) else None
         _state("waiting", str(e), resets_at=e.reset_at)
@@ -329,27 +357,28 @@ def claude(body: dict, timeout: float = 300, purpose: str = "unspecified") -> tu
         _purpose.reset(tok)
 
 
-def _claude(body: dict, timeout: float = 300) -> tuple[dict, float]:
+def _claude(body: dict, timeout: float = 300, storefront: str | None = None) -> tuple[dict, float]:
     """A structured generation through the aicoin proxy, paid by the server wallet, identified as
     earth-empire: Claude first; when Claude's side fails (out of credit, overloaded, 5xx) Gemini, then
     OpenAI, with the same images and JSON schema. Returns an Anthropic-shaped response with
-    "provider"; raises OutOfCoins/CapReached for the lanes to wait on."""
+    "provider"; raises OutOfCoins/CapReached for the lanes to wait on. Providers `storefront`
+    withholds (OpenAI on CHN) are left out of the chain."""
     _guard()
     s = settings()
     body = dict(body)
     body.setdefault("model", s["model"])
     errors = []
-    plan = [("anthropic", None)] + FALLBACKS
+    plan = [(p, m) for p, m in [("anthropic", None)] + FALLBACKS if allows(p, storefront)]
     for provider, model in plan:
         if _skip_until.get(provider, 0) > time.time():
             errors.append(f"{provider}: skipped (failing recently)")
             continue
         try:
             if provider == "anthropic":
-                out, coins = _post("/v1/messages", "anthropic", body, timeout)
+                out, coins = _post("/v1/messages", "anthropic", body, timeout, storefront)
                 out["provider"] = "anthropic"
             else:
-                out, coins = (_via_google if provider == "google" else _via_openai)(body, model, timeout)
+                out, coins = (_via_google if provider == "google" else _via_openai)(body, model, timeout, storefront)
             if errors:
                 out["fallback_from"] = errors
                 event("aicoin.served_by", provider=provider, model=out.get("model"), after=errors)
@@ -375,15 +404,62 @@ def _claude(body: dict, timeout: float = 300) -> tuple[dict, float]:
     raise ProviderOutOfCredit("waiting for budget: provider credit")
 
 
-def transcribe(audio_path: str, timeout: float = 300) -> tuple[dict, float]:
-    """OpenAI speech-to-text through the proxy: verbose JSON with timed segments."""
+def transcribe(audio_path: str, timeout: float = 300, storefront=_UNSET) -> tuple[dict, float]:
+    """Speech to text through the proxy: {"language", "text", "segments": [{"start", "end", "text"}],
+    "model"}. OpenAI's whisper-1 (verbose JSON with timed segments), or Gemini when the storefront
+    withholds OpenAI."""
+    storefront = _resolve_storefront(storefront)
+    if not allows("openai", storefront):
+        return _transcribe_google(audio_path, timeout, storefront)
     import httpx
     s = settings()
     with open(audio_path, "rb") as f:
         r = httpx.post(f"{s['proxy_url']}/v1/audio/transcriptions", timeout=timeout,
-                       headers={**_headers("openai"), "X-AICoin-Purpose": "transcribe"},
+                       headers={**_headers("openai", storefront), "X-AICoin-Purpose": "transcribe"},
                        data={"model": s["transcribe_model"], "response_format": "verbose_json",
                              "timestamp_granularities[]": "segment"},
                        files={"file": (os.path.basename(audio_path), f, "audio/mpeg")})
     _check(r, "transcribe")
-    return r.json(), float(r.headers.get("X-Aicoin-Charged") or 0)
+    out = r.json()
+    out.setdefault("model", s["transcribe_model"])
+    return out, float(r.headers.get("X-Aicoin-Charged") or 0)
+
+
+TRANSCRIPT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "language": {"type": "string", "description": "ISO 639-1 code of the main spoken language, e.g. en, uk"},
+        "text": {"type": "string", "description": "everything said, verbatim, in the language spoken"},
+        "segments": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"start": {"type": "number"}, "end": {"type": "number"}, "text": {"type": "string"}},
+            "required": ["start", "end", "text"]}},
+    },
+    "required": ["language", "text", "segments"],
+}
+
+
+def _transcribe_google(audio_path: str, timeout: float, storefront: str | None) -> tuple[dict, float]:
+    """The same transcript shape from Gemini (audio in, JSON out), for storefronts without OpenAI."""
+    s = settings()
+    model = s["storefront_transcribe_model"]
+    with open(audio_path, "rb") as f:
+        audio = base64.b64encode(f.read()).decode()
+    payload = {"contents": [{"role": "user", "parts": [
+        {"inline_data": {"mime_type": "audio/mpeg", "data": audio}},
+        {"text": "Transcribe the speech in this audio verbatim, in the language spoken (do not translate). "
+                 "Split it into segments of a sentence or so, each with its start and end in seconds. "
+                 "With no speech, return empty text and no segments."}]}],
+        "generationConfig": {"responseMimeType": "application/json", "responseJsonSchema": TRANSCRIPT_SCHEMA,
+                             "maxOutputTokens": 16000}}
+    out, coins = _post(f"/v1beta/models/{model}:generateContent", "google", payload, timeout, storefront)
+    cand = (out.get("candidates") or [{}])[0]
+    text = "".join(p.get("text", "") for p in (cand.get("content") or {}).get("parts") or [] if not p.get("thought"))
+    try:
+        tr = json.loads(text) if text.strip() else {}
+    except ValueError as e:
+        raise AicoinError(f"transcribe: Gemini answered no JSON: {text[:200]}") from e
+    segs = [{"start": float(x.get("start") or 0), "end": float(x.get("end") or 0), "text": str(x.get("text") or "")}
+            for x in tr.get("segments") or [] if isinstance(x, dict)]
+    return {"language": tr.get("language") or None, "text": tr.get("text") or " ".join(x["text"] for x in segs),
+            "segments": segs, "model": out.get("modelVersion") or model}, coins

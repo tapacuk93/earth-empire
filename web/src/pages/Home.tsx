@@ -10,7 +10,7 @@ import { homeYSaved, modesTopSaved, saveHomeY, saveModesTop } from '../component
 import { VideoSections } from '../components/VideoSections';
 import { buildSections, type VTile } from '../videoSections';
 import { VideoFeed } from '../components/VideoFeed';
-import { LiveEarth } from '../components/LiveEarth';
+import { LiveEarth, Space } from '../components/LiveEarth';
 import { SITE_NAME } from '../config';
 import { itemHref } from '../context';
 import { buildTagGraph, graphFromApi } from '../layout';
@@ -157,7 +157,7 @@ export function Home({ route }: { route: Route }) {
           {sections && !sections.length && (
             <div class="empty-full"><p>{t('Nothing is public yet.')}</p><p class="muted">{t('Videos appear here as they arrive.')}</p></div>
           )}
-          {!sections ? <div class="home-loading" role="status" aria-label={t('Loading videos')}><LiveEarth /></div> : sections.length > 0 && <VideoSections sections={sections} hrefFor={hrefFor} />}
+          {!sections ? <div class="home-loading" role="status" aria-label={t('Loading videos')}><Space /><LiveEarth /></div> : sections.length > 0 && <VideoSections sections={sections} hrefFor={hrefFor} />}
         </section>
         <section class="mode" id="mode-time" aria-label="Timeline mode">
           {all.data && <TimelineView items={items} hrefFor={(it) => itemHref(it.id)} />}

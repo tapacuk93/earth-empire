@@ -367,10 +367,17 @@ def render_item(c: sqlite3.Connection, row: sqlite3.Row) -> dict:
     d.setdefault("collected_at", row["collected_at"])
     hl_ids = {h.get("id") for h in d.get("highlights") or [] if isinstance(h, dict)}
     from .expand import written
+    own = d.get("shortcode") or None
+    orig = (d.get("repost_of") or {}).get("shortcode") or None
     extra = [{"id": r["id"], "title": r["title"], "written": written(c, r["title"], r["title_full"], r["title_full_of"])}
-             for r in c.execute("SELECT h.id, h.title, h.title_full, h.title_full_of "
-                      "FROM item_highlights ih JOIN highlights h ON h.id=ih.highlight_id "
-                      "WHERE ih.item_id=? ORDER BY h.position", (row["id"],)).fetchall()]
+             for r in c.execute(
+                 # its own highlights, and those of the same video reposted elsewhere: a reel reposted with the
+                 # Repost button and the story sharing that reel are one video, labelled alike
+                 "SELECT DISTINCT h.id, h.title, h.title_full, h.title_full_of, h.position "
+                 "FROM item_highlights ih JOIN highlights h ON h.id=ih.highlight_id JOIN items i ON i.id=ih.item_id "
+                 "WHERE ih.item_id=? OR (? IS NOT NULL AND (json_extract(i.data, '$.repost_of.shortcode')=? "
+                 "OR json_extract(i.data, '$.shortcode')=?)) OR (? IS NOT NULL AND json_extract(i.data, '$.repost_of.shortcode')=?) "
+                 "ORDER BY h.position", (row["id"], orig, orig, orig, own, own)).fetchall()]
     for r in extra:
         if r["id"] not in hl_ids:
             d.setdefault("highlights", []).append({"id": r["id"], "title": r["title"], "title_full": r["written"]})

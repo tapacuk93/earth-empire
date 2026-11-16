@@ -703,6 +703,29 @@ class HighlightRenameTest(unittest.TestCase):
         tmp.cleanup()
 
 
+class RepostHighlightTest(unittest.TestCase):
+    """A reel reposted with the Repost button gets the highlights of the story sharing the same reel."""
+
+    def test_same_video_shares_highlights(self):
+        tmp = tempfile.TemporaryDirectory()
+        c = db.connect(Path(tmp.name) / "t.sqlite3")
+        try:
+            for iid, kind, data in (("ig_1", "story", {"media": [], "repost_of": {"shortcode": "Dfy1", "author": "x"}}),
+                                    ("ig_repost_1", "reel", {"media": [], "repost_of": {"shortcode": "Dfy1", "author": "x"}}),
+                                    ("ig_repost_2", "reel", {"media": [], "repost_of": {"shortcode": "Other", "author": "y"}})):
+                c.execute("INSERT INTO items(id, kind, taken_at, data, content_hash, published_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+                          (iid, kind, "2026-11-16T09:00:00Z", db.j(data), iid, db.now(), db.now()))
+            store.upsert_highlights(c, [{"id": "hl_1", "title": "Трс з цею Івою", "item_ids": ["ig_1"]},
+                                        {"id": "hl_2", "title": "Тарас і Іва", "item_ids": []}])
+            r = lambda i: store.render_item(c, c.execute("SELECT * FROM items WHERE id=?", (i,)).fetchone())
+            self.assertEqual([h["id"] for h in r("ig_repost_1")["highlights"]], ["hl_1"])
+            self.assertEqual(r("ig_repost_1")["highlights"][0]["title_full"], "Тарас з цею Івою")
+            self.assertEqual(r("ig_repost_2")["highlights"], [])
+        finally:
+            c.close()
+            tmp.cleanup()
+
+
 class ExpandTest(unittest.TestCase):
     """A shortened highlight name is written out once; cards get it; renaming asks again."""
 

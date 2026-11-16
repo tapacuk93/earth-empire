@@ -105,13 +105,13 @@ export function describe(it: Item): string {
  */
 export function audioOf(it: Item, _labels?: Map<string, string>, sizes?: Map<string, number>): Audio {
   if (it.heard?.by === 'owner' && it.heard.text) return { kind: 'heard', text: it.heard.text };
-  // a repost made with Instagram's Repost button (rated below highlights): no label of its own
-  if (it.id.startsWith('ig_repost_')) return { kind: 'none', text: '' };
   // in several highlights: the most specific one's name (the fewest videos), not a catch-all like "3"
   const hs = (it.highlights || []).filter((h) => (h.title || '').trim())
     .sort((a, b) => (sizes?.get(a.id) ?? 1e9) - (sizes?.get(b.id) ?? 1e9));
   const title = hs.map((h) => (h.title_translated || h.title_full || h.title).trim()).find(Boolean);
   if (title) return { kind: 'heard', text: title };
+  // a repost made with Instagram's Repost button in no highlight: no label of its own
+  if (it.id.startsWith('ig_repost_')) return { kind: 'none', text: '' };
   // the caption only of the owner's own post: a repost's caption is the original poster's description
   const said = it.repost_of ? '' : describe(it);
   return said ? { kind: 'heard', text: said } : { kind: 'none', text: '' };

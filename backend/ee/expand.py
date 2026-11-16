@@ -5,6 +5,8 @@ cards show the full name and the monitor listens for it. A name that is not shor
 from __future__ import annotations
 
 import json
+import re
+from collections import Counter
 
 from . import aicoin
 from .analysis import usd_for
@@ -20,13 +22,89 @@ SCHEMA = {"type": "object", "additionalProperties": False, "required": ["names"]
 
 PROMPT = """These are names of Instagram highlights, mostly Ukrainian or Russian. The owner sometimes
 shortens a word - drops its vowels ("плнт" for "планета"), keeps only its start ("през" for
-"президент"), or uses a common abbreviation. Write each name out in full, in the same language and
+"президент"), or uses a common abbreviation. The owner is Тарас Маслов: "Трс" is "Тарас" (or "Тараса"
+after "у"/"в"), "ТМ" may be his initials. Write each name out in full, in the same language and
 word order, keeping numbers, emoji and everything that is not shortened exactly as it is. When a name
 is not shortened, or you cannot tell what it stands for, return it unchanged. Never translate or
 explain.
 
 Names, one per line as number | name:
 {names}"""
+
+
+# ------------------------------------------------------------------ without AI
+# A word written without its vowels ("Трс") is written out from the owner's own highlight names:
+# the same consonants in a word spelled in full elsewhere ("Тарас", "у Тараса"). It needs no AI, so
+# it works while the wallet is empty; a name Claude has written out wins.
+VOWELS = set("аеєиіїоуюяыэёaeiouy")
+WORD = re.compile(r"[^\W\d_]+")
+_vocab: tuple = (None, {})
+
+
+def skeleton(w: str) -> str:
+    return "".join(ch for ch in w.lower() if ch not in VOWELS)
+
+
+def build_vocab(names) -> dict:
+    """skeleton -> {"word": the base form (the shortest spelling, "Тарас" over "Тараса", then the
+    commonest), "after": {preceding word: the form most often written after it ("у" -> "Тараса")}}."""
+    seen, after = Counter(), Counter()
+    for n in names:
+        ws = WORD.findall(n or "")
+        for i, w in enumerate(ws):
+            if len(w) >= 3 and set(w.lower()) & VOWELS and len(skeleton(w)) >= 2:
+                seen[w] += 1
+                if i:
+                    after[(ws[i - 1].lower(), w)] += 1
+    out: dict = {}
+    for w, n in seen.items():
+        e = out.setdefault(skeleton(w), {"word": w, "n": n, "after": {}})
+        if (len(w), -n) < (len(e["word"]), -e["n"]):
+            e["word"], e["n"] = w, n
+    best: dict = {}
+    for (prev, w), n in after.items():
+        k = (skeleton(w), prev)
+        if n > best.get(k, ("", 0))[1]:
+            best[k] = (w, n)
+    for (k, prev), (w, _) in best.items():
+        out[k]["after"][prev] = w
+    return out
+
+
+def vocab(c) -> dict:
+    global _vocab
+    sig = tuple(c.execute("SELECT COUNT(*), MAX(updated_at), MAX(title_full_of) FROM highlights").fetchone())
+    if _vocab[0] != sig:
+        rows = c.execute("SELECT title, title_full FROM highlights").fetchall()
+        _vocab = (sig, build_vocab([r["title"] for r in rows] + [r["title_full"] for r in rows]))
+    return _vocab[1]
+
+
+def write_out(name: str, voc: dict) -> str:
+    """Vowel-less words (three letters or more, not an all-caps abbreviation) the vocabulary knows, written out."""
+    out, last, prev = [], 0, ""
+    for m in WORD.finditer(name):
+        w, full = m.group(0), None
+        if len(w) >= 3 and not set(w.lower()) & VOWELS and not w.isupper():
+            e = voc.get(skeleton(w))
+            if e:
+                full = e["after"].get(prev) or e["word"]
+        if full and len(full) > len(w):
+            full = full[0].upper() + full[1:] if w[0].isupper() else full[0].lower() + full[1:]
+            out.append(name[last:m.start()] + full)
+            last = m.end()
+        prev = w.lower()
+    return "".join(out) + name[last:]
+
+
+def written(c, title, title_full=None, title_full_of=None):
+    """The name to show for a highlight: Claude's written-out name for its current title, else the
+    title with its vowel-less words written out; None when that is the title itself."""
+    if not title:
+        return None
+    base = title_full if title_full and title_full_of == title else title
+    out = write_out(base, vocab(c))
+    return None if out.strip() == title.strip() else out
 
 
 def pending(c) -> list:

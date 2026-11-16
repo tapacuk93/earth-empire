@@ -163,7 +163,8 @@ def sources(c) -> list[str]:
         for k in f["categories"]:
             out += [k["name"], k.get("description") or ""]
     for r in c.execute("SELECT title, title_full, title_full_of FROM highlights ORDER BY position"):
-        out.append(r["title_full"] if r["title_full"] and r["title_full_of"] == r["title"] else r["title"] or "")
+        from .expand import written
+        out.append(written(c, r["title"], r["title_full"], r["title_full_of"]) or r["title"] or "")
     for r in c.execute("SELECT summary, description, data FROM items WHERE published_at IS NOT NULL ORDER BY taken_at DESC"):
         out += [r["summary"] or "", r["description"] or "", (json.loads(r["data"]).get("caption") or "")[:2000]]
     seen, uniq = set(), []

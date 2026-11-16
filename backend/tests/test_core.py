@@ -737,6 +737,29 @@ class ExpandTest(unittest.TestCase):
             c.close()
             tmp.cleanup()
 
+    def test_vowelless_words_written_out_without_ai(self):
+        from ee import expand
+        tmp = tempfile.TemporaryDirectory()
+        c = db.connect(Path(tmp.name) / "t.sqlite3")
+        try:
+            c.execute("INSERT INTO items(id, kind, taken_at, data, content_hash, published_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+                      ("ig_p", "story", "2026-11-16T07:04:00Z", db.j({"media": []}), "h", db.now(), db.now()))
+            store.upsert_highlights(c, [{"id": "hl_1", "title": "Трс з цею Івою", "item_ids": ["ig_p"]},
+                                        {"id": "hl_2", "title": "тут все в Трс", "item_ids": []},
+                                        {"id": "hl_3", "title": "Тарас і Іва", "item_ids": []},
+                                        {"id": "hl_4", "title": "в Тараса 2", "item_ids": []},
+                                        {"id": "hl_5", "title": "вони у цього,ТМ", "item_ids": []}])
+            # no AI has run (an empty wallet): the owner's own spelling elsewhere writes "Трс" out
+            d = store.render_item(c, c.execute("SELECT * FROM items WHERE id='ig_p'").fetchone())
+            self.assertEqual(d["highlights"][0]["title_full"], "Тарас з цею Івою")
+            hl = {h["id"]: store.render_highlight(h, c) for h in c.execute("SELECT * FROM highlights")}
+            self.assertEqual(hl["hl_2"]["title_full"], "тут все в Тараса")   # the form written after "в"
+            self.assertIsNone(hl["hl_3"]["title_full"])
+            self.assertIsNone(hl["hl_5"]["title_full"])                       # an all-caps abbreviation stays
+        finally:
+            c.close()
+            tmp.cleanup()
+
 
 class LayersTest(unittest.TestCase):
     """Cheapest first: routine work on the small model; categorizing waits for the light layer."""

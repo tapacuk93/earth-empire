@@ -366,9 +366,11 @@ def render_item(c: sqlite3.Connection, row: sqlite3.Row) -> dict:
     d["updated_at"] = row["updated_at"]
     d.setdefault("collected_at", row["collected_at"])
     hl_ids = {h.get("id") for h in d.get("highlights") or [] if isinstance(h, dict)}
-    extra = c.execute("SELECT h.id, h.title, CASE WHEN h.title_full_of = h.title THEN h.title_full END written "
+    from .expand import written
+    extra = [{"id": r["id"], "title": r["title"], "written": written(c, r["title"], r["title_full"], r["title_full_of"])}
+             for r in c.execute("SELECT h.id, h.title, h.title_full, h.title_full_of "
                       "FROM item_highlights ih JOIN highlights h ON h.id=ih.highlight_id "
-                      "WHERE ih.item_id=? ORDER BY h.position", (row["id"],)).fetchall()
+                      "WHERE ih.item_id=? ORDER BY h.position", (row["id"],)).fetchall()]
     for r in extra:
         if r["id"] not in hl_ids:
             d.setdefault("highlights", []).append({"id": r["id"], "title": r["title"], "title_full": r["written"]})
@@ -383,7 +385,7 @@ def render_item(c: sqlite3.Connection, row: sqlite3.Row) -> dict:
     return d
 
 
-def render_highlight(row: sqlite3.Row) -> dict:
+def render_highlight(row: sqlite3.Row, c: sqlite3.Connection | None = None) -> dict:
     d = json.loads(row["data"] or "{}")
     d.update({"id": row["id"], "title": row["title"], "cover": to_url(row["cover"]),
               "item_ids": json.loads(row["item_ids"]), "updated_at": row["updated_at"]})
@@ -391,6 +393,9 @@ def render_highlight(row: sqlite3.Row) -> dict:
     d["heard_label"] = row["heard_label"] if "heard_label" in keys else None   # the title is never changed
     # the name written out when the owner shortened it ("плнт" -> "планета"), for the current title only
     d["title_full"] = row["title_full"] if "title_full" in keys and row["title_full_of"] == row["title"] else None
+    if c is not None and "title_full" in keys:   # also vowel-less words written out without AI ("Трс" -> "Тарас")
+        from .expand import written
+        d["title_full"] = written(c, row["title"], row["title_full"], row["title_full_of"])
     d["heard_reason"] = row["heard_reason"] if "heard_reason" in keys else None
     return d
 

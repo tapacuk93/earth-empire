@@ -232,7 +232,7 @@ def highlights(lang: str | None = None):
     from . import i18n
     c = conn()
     rows = c.execute("SELECT * FROM highlights ORDER BY position, id").fetchall()
-    return {"highlights": i18n.highlights(c, [store.render_highlight(r) for r in rows], i18n.norm(lang))}
+    return {"highlights": i18n.highlights(c, [store.render_highlight(r, c) for r in rows], i18n.norm(lang))}
 
 
 @app.get("/v1/i18n")

@@ -173,6 +173,8 @@ store it in `extra`.
 {"id": "hl_<pk>", "title": "Travel", "cover": "https://media.empire.earth/highlights/<id>/cover.jpg",
  "item_ids": ["ig_…"], "updated_at": "…",   // item_ids in the highlight's own order
  "title_full": "планета" | null,           // set by the backend: the title written out when the owner shortened it ("плнт"); null when not shortened. Cards show it; the monitor listens for it
+                                           // (Claude writes names out; until it has, and for what it left, a word with no vowels
+                                           // is written out from the owner's own names: "Трс" -> "Тарас", "в Трс" -> "в Тараса")
  "heard_label": "у тебе 3" | null,          // set by the backend: the fuller phrase the title stands for,
  "heard_reason": "heard in 3 of its 4 videos with speech; …" | null}   // and why; `title` stays Instagram's
 

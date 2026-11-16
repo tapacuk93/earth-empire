@@ -23,7 +23,8 @@ SCHEMA = {"type": "object", "additionalProperties": False, "required": ["names"]
 PROMPT = """These are names of Instagram highlights, mostly Ukrainian or Russian. The owner sometimes
 shortens a word - drops its vowels ("плнт" for "планета"), keeps only its start ("през" for
 "президент"), or uses a common abbreviation. The owner is Тарас Маслов: "Трс" is "Тарас" (or "Тараса"
-after "у"/"в"), "ТМ" may be his initials. Write each name out in full, in the same language and
+after "у"/"в"), "ТМ" may be his initials. His site is Earth Empire and he calls himself the emperor of
+the world: "імпртр" is "імператор", "свт"/"свту" is "світ"/"світу". Write each name out in full, in the same language and
 word order, keeping numbers, emoji and everything that is not shortened exactly as it is. When a name
 is not shortened, or you cannot tell what it stands for, return it unchanged. Never translate or
 explain.
